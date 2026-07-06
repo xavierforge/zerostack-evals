@@ -13,18 +13,12 @@
 //! expands its own scenario-TOML sugar into these same placements — see
 //! `domains::memory` for the pattern.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 
+use crate::backend::RunRoots;
 use crate::scenario::Scenario;
-
-/// The three roots a placement may target inside a run dir.
-pub struct SeedCtx<'a> {
-    pub data: &'a Path,
-    pub config: &'a Path,
-    pub work: &'a Path,
-}
 
 /// A resolved placement: absolute source fixture -> absolute destination.
 pub struct Placement {
@@ -33,7 +27,7 @@ pub struct Placement {
 }
 
 /// Parse a `root:relative/path` destination against the run context.
-pub fn resolve_dest(dest: &str, ctx: &SeedCtx) -> Result<PathBuf> {
+pub fn resolve_dest(dest: &str, ctx: &RunRoots) -> Result<PathBuf> {
     let (root, rel) = dest
         .split_once(':')
         .ok_or_else(|| anyhow::anyhow!("dest '{dest}' must be 'data:…', 'config:…' or 'work:…'"))?;
@@ -49,7 +43,7 @@ pub fn resolve_dest(dest: &str, ctx: &SeedCtx) -> Result<PathBuf> {
 }
 
 /// Resolve every declared file placement and copy it into the run dir.
-pub fn apply(sc: &Scenario, ctx: &SeedCtx) -> Result<()> {
+pub fn apply(sc: &Scenario, ctx: &RunRoots) -> Result<()> {
     let mut placements: Vec<Placement> = Vec::new();
 
     for f in &sc.files {

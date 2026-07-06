@@ -106,7 +106,11 @@ fn parse_flags(rest: Vec<String>, valued: &[&str], switches: &[&str]) -> anyhow:
 
 impl Flags {
     fn get(&self, k: &str) -> Option<&str> {
-        self.kv.iter().rev().find(|(n, _)| n == k).map(|(_, v)| v.as_str())
+        self.kv
+            .iter()
+            .rev()
+            .find(|(n, _)| n == k)
+            .map(|(_, v)| v.as_str())
     }
     fn has(&self, k: &str) -> bool {
         self.switches.iter().any(|s| s == k)
@@ -116,7 +120,16 @@ impl Flags {
 fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     let f = parse_flags(
         rest,
-        &["model", "trials", "tag", "zs-bin", "backend", "max-total-usd", "results", "target"],
+        &[
+            "model",
+            "trials",
+            "tag",
+            "zs-bin",
+            "backend",
+            "max-total-usd",
+            "results",
+            "target",
+        ],
         &["no-judge", "json", "verbose"],
     )?;
     let path = f
@@ -337,7 +350,11 @@ fn cmd_explain(rest: Vec<String>) -> anyhow::Result<ExitCode> {
 
 fn cmd_list(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     let f = parse_flags(rest, &[], &[])?;
-    let root = f.positional.first().map(String::as_str).unwrap_or("scenarios");
+    let root = f
+        .positional
+        .first()
+        .map(String::as_str)
+        .unwrap_or("scenarios");
     let scenarios = discover(Path::new(root))?;
     for s in &scenarios {
         println!(

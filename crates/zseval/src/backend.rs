@@ -36,8 +36,20 @@ use std::time::{Duration, Instant};
 use anyhow::{bail, Context, Result};
 
 use crate::scenario::Scenario;
-use crate::seed::{self, SeedCtx};
+use crate::seed;
 use crate::util::tail_of;
+
+/// The three isolated root directories of one run: everything a seed
+/// placement or a `file_*` assert resolves against. Owned here because
+/// `backend` is what carves a run dir into `data`/`config`/`work` in the
+/// first place — `seed`, `asserts`, and `domains::` modules are all just
+/// consumers of this same shape, before (`seed::apply`) and after
+/// (grading) the agent actually runs.
+pub struct RunRoots<'a> {
+    pub data: &'a Path,
+    pub config: &'a Path,
+    pub work: &'a Path,
+}
 
 /// Live-stream the agent's stdout/stderr to the console (set by --verbose).
 /// Output is always tee'd to `turn-N.stdout` / `turn-N.stderr` regardless.
@@ -90,17 +102,24 @@ pub struct RunArtifacts {
     pub wall_secs: f64,
 }
 
+impl RunArtifacts {
+    /// Borrow this run's three roots, for grading (`Assert::eval`,
+    /// `domains::memory::verify`) after the agent has already run.
+    pub fn roots(&self) -> RunRoots<'_> {
+        RunRoots {
+            data: &self.data_dir,
+            config: &self.config_dir,
+            work: &self.work_dir,
+        }
+    }
+}
+
 pub trait AgentBackend {
     fn name(&self) -> &str;
     /// `model` is `None` unless the user explicitly passed `--model`; when None
     /// the backend must not force a model, so zerostack uses its own configured
     /// provider + default model.
-    fn run(
-        &self,
-        sc: &Scenario,
-        model: Option<&str>,
-        run_dir: &Path,
-    ) -> Result<RunArtifacts>;
+    fn run(&self, sc: &Scenario, model: Option<&str>, run_dir: &Path) -> Result<RunArtifacts>;
 }
 
 // ---------------------------------------------------------------------------
@@ -122,12 +141,7 @@ impl AgentBackend for ZsCli {
         "zs-cli"
     }
 
-    fn run(
-        &self,
-        sc: &Scenario,
-        model: Option<&str>,
-        run_dir: &Path,
-    ) -> Result<RunArtifacts> {
+    fn run(&self, sc: &Scenario, model: Option<&str>, run_dir: &Path) -> Result<RunArtifacts> {
         // Absolute paths: the child runs with cwd set to `work/`, so relative
         // ZS_DATA_DIR / --log-file paths would resolve against the wrong dir
         // (session files written where we don't look for them, logs unwritable).
@@ -151,7 +165,7 @@ impl AgentBackend for ZsCli {
 
         seed::apply(
             sc,
-            &SeedCtx {
+            &RunRoots {
                 data: &data,
                 config: &config,
                 work: &work,
@@ -166,8 +180,16 @@ impl AgentBackend for ZsCli {
                 let msg_preview: String = turn.msg().chars().take(60).collect();
                 eprintln!(
                     "  -> turn {i}{}: {msg_preview}{}",
-                    if turn.new_session() { " (new session)" } else { "" },
-                    if turn.msg().chars().count() > 60 { "..." } else { "" }
+                    if turn.new_session() {
+                        " (new session)"
+                    } else {
+                        ""
+                    },
+                    if turn.msg().chars().count() > 60 {
+                        "..."
+                    } else {
+                        ""
+                    }
                 );
             }
             let turn_started = Instant::now();
@@ -214,8 +236,18 @@ impl AgentBackend for ZsCli {
             let mut child = cmd
                 .spawn()
                 .with_context(|| format!("spawn {}", self.bin.display()))?;
-            let t_out = tee(child.stdout.take().expect("piped"), stdout_log.clone(), "out", i);
-            let t_err = tee(child.stderr.take().expect("piped"), stderr_log.clone(), "err", i);
+            let t_out = tee(
+                child.stdout.take().expect("piped"),
+                stdout_log.clone(),
+                "out",
+                i,
+            );
+            let t_err = tee(
+                child.stderr.take().expect("piped"),
+                stderr_log.clone(),
+                "err",
+                i,
+            );
 
             // Poll-based timeout (std has no wait_timeout) + heartbeat so a
             // long-running turn is visibly alive, not silently stuck.
@@ -271,7 +303,10 @@ impl AgentBackend for ZsCli {
                 );
             }
             if verbose() {
-                eprintln!("  <- turn {i} ok ({:.1}s)", turn_started.elapsed().as_secs_f64());
+                eprintln!(
+                    "  <- turn {i} ok ({:.1}s)",
+                    turn_started.elapsed().as_secs_f64()
+                );
             }
         }
 
@@ -326,12 +361,7 @@ impl AgentBackend for Mock {
         "mock"
     }
 
-    fn run(
-        &self,
-        _sc: &Scenario,
-        _model: Option<&str>,
-        run_dir: &Path,
-    ) -> Result<RunArtifacts> {
+    fn run(&self, _sc: &Scenario, _model: Option<&str>, run_dir: &Path) -> Result<RunArtifacts> {
         let data = run_dir.join("data");
         let config = run_dir.join("config");
         let work = run_dir.join("work");

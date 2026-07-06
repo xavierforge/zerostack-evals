@@ -105,7 +105,13 @@ impl Turn {
         }
     }
     pub fn new_session(&self) -> bool {
-        matches!(self, Turn::Full { new_session: true, .. })
+        matches!(
+            self,
+            Turn::Full {
+                new_session: true,
+                ..
+            }
+        )
     }
 }
 
@@ -125,8 +131,8 @@ fn default_timeout() -> u64 {
 impl Scenario {
     pub fn load(dir: &Path) -> Result<Scenario> {
         let path = dir.join("scenario.toml");
-        let text = std::fs::read_to_string(&path)
-            .with_context(|| format!("read {}", path.display()))?;
+        let text =
+            std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
         let mut sc: Scenario =
             toml::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
         if sc.task.turns().is_empty() {
@@ -144,7 +150,11 @@ impl Scenario {
             let probe = std::path::Path::new(".");
             crate::seed::resolve_dest(
                 &f.dest,
-                &crate::seed::SeedCtx { data: probe, config: probe, work: probe },
+                &crate::backend::RunRoots {
+                    data: probe,
+                    config: probe,
+                    work: probe,
+                },
             )
             .with_context(|| format!("{}: bad seed dest '{}'", sc.id, f.dest))?;
         }

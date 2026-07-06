@@ -25,8 +25,9 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use serde::Deserialize;
 
+use crate::backend::RunRoots;
 use crate::scenario::Scenario;
-use crate::seed::{Placement, SeedCtx};
+use crate::seed::Placement;
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct MemorySeed {
@@ -43,7 +44,7 @@ pub struct NoteSeed {
 
 /// Expand memory sugar into generic placements, rooted at
 /// `<config>/agent/memory/` (matches `Mem::open()`).
-pub fn expand(mem: &MemorySeed, sc: &Scenario, ctx: &SeedCtx) -> Result<Vec<Placement>> {
+pub fn expand(mem: &MemorySeed, sc: &Scenario, ctx: &RunRoots) -> Result<Vec<Placement>> {
     let root = ctx.config.join("agent").join("memory");
     let proj = root.join("projects").join(project_slug(ctx.work));
     let mut out = Vec::new();
@@ -106,7 +107,11 @@ pub fn project_slug(path: &Path) -> String {
 ///     snapshot of zerostack's internals is stale.
 /// Every failure mode returns `Err` with a message naming the fix, so the
 /// runner can grade Indeterminate instead of blaming the agent.
-pub fn verify_layout(run_dir: &Path, expected_root: &Path, expected_project: &str) -> Result<(), String> {
+pub fn verify_layout(
+    run_dir: &Path,
+    expected_root: &Path,
+    expected_project: &str,
+) -> Result<(), String> {
     let mut logs: Vec<PathBuf> = std::fs::read_dir(run_dir)
         .into_iter()
         .flatten()
@@ -168,10 +173,16 @@ mod tests {
         let b = project_slug(Path::new("/Users/x/work/zerostack"));
         assert_eq!(a, b);
         let c = project_slug(Path::new("/Users/x/other/zerostack"));
-        assert_ne!(a, c, "different absolute paths sharing a basename must not collide");
+        assert_ne!(
+            a, c,
+            "different absolute paths sharing a basename must not collide"
+        );
         assert!(a.ends_with(&format!("{:08x}", {
             let mut hash: u64 = 0xcbf29ce484222325;
-            for &byte in Path::new("/Users/x/work/zerostack").as_os_str().as_encoded_bytes() {
+            for &byte in Path::new("/Users/x/work/zerostack")
+                .as_os_str()
+                .as_encoded_bytes()
+            {
                 hash ^= byte as u64;
                 hash = hash.wrapping_mul(0x100000001b3);
             }
@@ -191,7 +202,11 @@ mod tests {
     fn verify_layout_errs_when_feature_never_opened_memory() {
         let dir = std::env::temp_dir().join(format!("zsmem-test-missing-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("turn-0.zslog"), "some trace line with no memory open\n").unwrap();
+        std::fs::write(
+            dir.join("turn-0.zslog"),
+            "some trace line with no memory open\n",
+        )
+        .unwrap();
         let err = verify_layout(&dir, Path::new("/whatever"), "slug").unwrap_err();
         assert!(err.contains("--features memory"), "{err}");
         std::fs::remove_dir_all(&dir).ok();

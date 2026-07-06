@@ -28,7 +28,7 @@ use std::path::Path;
 
 use anyhow::{bail, Result};
 
-use crate::seed::SeedCtx;
+use crate::backend::RunRoots;
 use crate::transcript::Transcript;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -155,7 +155,7 @@ impl Assert {
 
     /// `roots` gives `file_*` asserts the run's three isolated dirs
     /// (data/config/work) to resolve a possibly-prefixed path against.
-    pub fn eval(&self, t: &Transcript, roots: &SeedCtx) -> AssertResult {
+    pub fn eval(&self, t: &Transcript, roots: &RunRoots) -> AssertResult {
         let (pass, detail) = match self {
             Assert::ToolCalled(name) => {
                 let hit = t.tool_calls.iter().any(|c| &c.name == name);
@@ -198,7 +198,10 @@ impl Assert {
                     c.name.contains(needle.as_str()) || c.summary.contains(needle.as_str())
                 });
                 match offender {
-                    Some(c) => (false, format!("tool call matched canary: {} {}", c.name, c.summary)),
+                    Some(c) => (
+                        false,
+                        format!("tool call matched canary: {} {}", c.name, c.summary),
+                    ),
                     None => (true, format!("no tool call contains '{needle}'")),
                 }
             }
@@ -216,7 +219,10 @@ impl Assert {
                     .lines()
                     .filter(|l| !l.trim().is_empty())
                     .count();
-                (lines <= *max, format!("final non-empty lines {lines} <= {max}"))
+                (
+                    lines <= *max,
+                    format!("final non-empty lines {lines} <= {max}"),
+                )
             }
             Assert::TranscriptContains(n) => {
                 let hit = t.messages.iter().any(|m| m.content.contains(n.as_str()));
@@ -264,7 +270,7 @@ impl Assert {
 /// Split a `file_*` path into the run-root it targets and the path relative
 /// to that root. No prefix defaults to `data:`, matching every scenario
 /// written before `config:`/`work:` prefixes existed.
-fn resolve_root<'a>(pattern: &'a str, roots: &SeedCtx<'a>) -> (&'a Path, &'a str) {
+fn resolve_root<'a>(pattern: &'a str, roots: &RunRoots<'a>) -> (&'a Path, &'a str) {
     match pattern.split_once(':') {
         Some(("data", rest)) => (roots.data, rest),
         Some(("config", rest)) => (roots.config, rest),
@@ -275,7 +281,7 @@ fn resolve_root<'a>(pattern: &'a str, roots: &SeedCtx<'a>) -> (&'a Path, &'a str
 
 /// Read files under `root/pattern` where pattern may contain at most one `*`
 /// path segment (e.g. `agent/memory/projects/*/notes/foo.md`).
-fn read_glob(roots: &SeedCtx, pattern: &str) -> Result<Vec<(String, String)>> {
+fn read_glob(roots: &RunRoots, pattern: &str) -> Result<Vec<(String, String)>> {
     let (root, pattern) = resolve_root(pattern, roots);
     let mut out = Vec::new();
     if let Some(star_pos) = pattern.find('*') {
@@ -298,8 +304,7 @@ fn read_glob(roots: &SeedCtx, pattern: &str) -> Result<Vec<(String, String)>> {
         }
     } else {
         let p = root.join(pattern);
-        let c = std::fs::read_to_string(&p)
-            .map_err(|e| anyhow::anyhow!("{}: {e}", p.display()))?;
+        let c = std::fs::read_to_string(&p).map_err(|e| anyhow::anyhow!("{}: {e}", p.display()))?;
         out.push((p.display().to_string(), c));
     }
     if out.is_empty() {

@@ -40,8 +40,7 @@ pub struct Row {
 }
 
 pub fn load_report(path: &Path) -> Result<Report> {
-    let text =
-        std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    let text = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let r: Report =
         serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
     Ok(r)

@@ -26,7 +26,12 @@ pub fn compact_timestamp() -> String {
         .filter(|c| *c != '-')
         .collect();
     let rem = secs % 86_400;
-    format!("{ymd}-{:02}{:02}{:02}", rem / 3600, (rem % 3600) / 60, rem % 60)
+    format!(
+        "{ymd}-{:02}{:02}{:02}",
+        rem / 3600,
+        (rem % 3600) / 60,
+        rem % 60
+    )
 }
 
 /// Tail of a text file, for self-explanatory error messages.

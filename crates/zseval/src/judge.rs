@@ -25,7 +25,9 @@ pub enum JudgeVerdict {
 }
 
 pub fn have_api_key() -> bool {
-    std::env::var("ANTHROPIC_API_KEY").map(|k| !k.is_empty()).unwrap_or(false)
+    std::env::var("ANTHROPIC_API_KEY")
+        .map(|k| !k.is_empty())
+        .unwrap_or(false)
 }
 
 pub fn judge(rubric: &str, transcript_text: &str, run_dir: &Path) -> Result<JudgeVerdict> {
@@ -68,11 +70,15 @@ pub fn judge(rubric: &str, transcript_text: &str, run_dir: &Path) -> Result<Judg
     }
     std::fs::write(run_dir.join("judge-response.json"), &out.stdout)?;
 
-    let v: serde_json::Value = serde_json::from_slice(&out.stdout).context("judge response json")?;
+    let v: serde_json::Value =
+        serde_json::from_slice(&out.stdout).context("judge response json")?;
     if let Some(err) = v.get("error") {
         bail!("anthropic api error: {err}");
     }
-    let text = v["content"][0]["text"].as_str().unwrap_or("").to_lowercase();
+    let text = v["content"][0]["text"]
+        .as_str()
+        .unwrap_or("")
+        .to_lowercase();
     // Match the first whole word, stripped of punctuation, so a hedge like
     // "Not sure" reads as Unknown rather than being caught by a "no" prefix.
     let first = text

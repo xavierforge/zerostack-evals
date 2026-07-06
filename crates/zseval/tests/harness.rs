@@ -5,17 +5,21 @@
 use std::path::{Path, PathBuf};
 
 use zseval::asserts::Assert;
-use zseval::backend::Mock;
+use zseval::backend::{Mock, RunRoots};
 use zseval::runner::{run_suite, RunOptions};
 use zseval::scenario::{discover, Scenario};
-use zseval::seed::{self, SeedCtx};
+use zseval::seed;
 use zseval::transcript;
 use zseval::verdict::Final;
 
-/// A `SeedCtx` where all three roots are the same dir — for tests that don't
+/// A `RunRoots` where all three roots are the same dir — for tests that don't
 /// care about root separation (only about the assert logic itself).
-fn flat_roots(dir: &Path) -> SeedCtx<'_> {
-    SeedCtx { data: dir, config: dir, work: dir }
+fn flat_roots(dir: &Path) -> RunRoots<'_> {
+    RunRoots {
+        data: dir,
+        config: dir,
+        work: dir,
+    }
 }
 
 fn fixture(name: &str) -> PathBuf {
@@ -90,19 +94,23 @@ fn final_max_lines_counts_non_empty_lines() {
     .unwrap();
     let tmp = std::env::temp_dir();
     let roots = flat_roots(&tmp);
-    assert!(Assert::parse("final_max_lines 4")
-        .unwrap()
-        .eval(&short, &roots)
-        .pass);
+    assert!(
+        Assert::parse("final_max_lines 4")
+            .unwrap()
+            .eval(&short, &roots)
+            .pass
+    );
 
     let long = transcript::parse_str(
         "{\"id\":\"a\",\"messages\":[{\"role\":\"assistant\",\"content\":\"l1\\n\\nl2\\nl3\\nl4\\nl5\"}]}",
     )
     .unwrap();
-    assert!(!Assert::parse("final_max_lines 4")
-        .unwrap()
-        .eval(&long, &roots)
-        .pass);
+    assert!(
+        !Assert::parse("final_max_lines 4")
+            .unwrap()
+            .eval(&long, &roots)
+            .pass
+    );
 }
 
 #[test]
@@ -115,7 +123,9 @@ fn file_asserts_check_environment_outcomes() {
 
     let t = transcript::Transcript::default();
     let roots = flat_roots(&dir);
-    let ok = Assert::parse("file_contains OUT.md tabs").unwrap().eval(&t, &roots);
+    let ok = Assert::parse("file_contains OUT.md tabs")
+        .unwrap()
+        .eval(&t, &roots);
     assert!(ok.pass, "{}", ok.detail);
     let ok = Assert::parse("file_not_contains projects/*/NOTES.md tabs")
         .unwrap()
@@ -143,11 +153,25 @@ fn file_asserts_resolve_data_config_work_prefixes_independently() {
     std::fs::write(data.join("marker.md"), "in-data").unwrap();
     std::fs::write(config.join("agent/memory/MEMORY.md"), "in-config").unwrap();
     std::fs::write(work.join("hello.py"), "in-work").unwrap();
-    let roots = SeedCtx { data: &data, config: &config, work: &work };
+    let roots = RunRoots {
+        data: &data,
+        config: &config,
+        work: &work,
+    };
     let t = transcript::Transcript::default();
 
-    assert!(Assert::parse("file_contains marker.md in-data").unwrap().eval(&t, &roots).pass);
-    assert!(!Assert::parse("file_contains marker.md in-config").unwrap().eval(&t, &roots).pass);
+    assert!(
+        Assert::parse("file_contains marker.md in-data")
+            .unwrap()
+            .eval(&t, &roots)
+            .pass
+    );
+    assert!(
+        !Assert::parse("file_contains marker.md in-config")
+            .unwrap()
+            .eval(&t, &roots)
+            .pass
+    );
     assert!(
         Assert::parse("file_contains config:agent/memory/MEMORY.md in-config")
             .unwrap()
@@ -160,7 +184,12 @@ fn file_asserts_resolve_data_config_work_prefixes_independently() {
             .eval(&t, &roots)
             .pass
     );
-    assert!(Assert::parse("file_contains work:hello.py in-work").unwrap().eval(&t, &roots).pass);
+    assert!(
+        Assert::parse("file_contains work:hello.py in-work")
+            .unwrap()
+            .eval(&t, &roots)
+            .pass
+    );
     std::fs::remove_dir_all(&base).ok();
 }
 
@@ -199,7 +228,11 @@ notes = [{ name = "deploy-strategy", file = "_fixtures/deploy.md" }]
     for d in [&data, &config, &work] {
         std::fs::create_dir_all(d).unwrap();
     }
-    let ctx = SeedCtx { data: &data, config: &config, work: &work };
+    let ctx = RunRoots {
+        data: &data,
+        config: &config,
+        work: &work,
+    };
     seed::apply(&sc, &ctx).unwrap();
 
     let expected_project = zseval::domains::memory::project_slug(&work);
@@ -211,7 +244,10 @@ notes = [{ name = "deploy-strategy", file = "_fixtures/deploy.md" }]
     assert!(memory_md.is_file(), "expected {}", memory_md.display());
     assert!(note.is_file(), "expected {}", note.display());
     assert_eq!(std::fs::read_to_string(&memory_md).unwrap(), "prefers tabs");
-    assert_eq!(std::fs::read_to_string(&note).unwrap(), "blue-green on fly.io");
+    assert_eq!(
+        std::fs::read_to_string(&note).unwrap(),
+        "blue-green on fly.io"
+    );
 
     std::fs::remove_dir_all(&sc_dir).ok();
     std::fs::remove_dir_all(&run_dir).ok();
@@ -303,11 +339,16 @@ fn pass_hat_k_is_the_stability_floor() {
 
 #[test]
 fn generic_seed_resolves_roots_without_domain_knowledge() {
-    use zseval::seed::{resolve_dest, SeedCtx};
+    use zseval::backend::RunRoots;
+    use zseval::seed::resolve_dest;
     let d = Path::new("/r/data");
     let c = Path::new("/r/config");
     let w = Path::new("/r/work");
-    let ctx = SeedCtx { data: d, config: c, work: w };
+    let ctx = RunRoots {
+        data: d,
+        config: c,
+        work: w,
+    };
     assert_eq!(
         resolve_dest("work:src/main.rs", &ctx).unwrap(),
         Path::new("/r/work/src/main.rs")

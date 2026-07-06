@@ -6,9 +6,9 @@ use anyhow::{Context, Result};
 
 use crate::asserts::Assert;
 use crate::backend::AgentBackend;
+use crate::backend::RunRoots;
 use crate::judge::{self, JudgeVerdict};
 use crate::scenario::Scenario;
-use crate::seed::SeedCtx;
 use crate::transcript::Transcript;
 use crate::verdict::{Final, Report, ScenarioResult, TrialResult};
 
@@ -60,7 +60,9 @@ pub fn run_suite(
 
     let report = Report::build(
         opts.tag.clone(),
-        opts.model.clone().unwrap_or_else(|| "provider-default".into()),
+        opts.model
+            .clone()
+            .unwrap_or_else(|| "provider-default".into()),
         backend.name().to_string(),
         opts.trials_override.unwrap_or(0),
         results,
@@ -129,7 +131,7 @@ fn run_trial(
             .extend(crate::transcript::tool_calls_from_stdout_file(log, base));
     }
 
-    let roots = SeedCtx {
+    let roots = RunRoots {
         data: &artifacts.data_dir,
         config: &artifacts.config_dir,
         work: &artifacts.work_dir,
@@ -141,7 +143,9 @@ fn run_trial(
     if sc.seed.memory.is_some() {
         let expected_root = artifacts.config_dir.join("agent").join("memory");
         let expected_project = crate::domains::memory::project_slug(&artifacts.work_dir);
-        if let Err(reason) = crate::domains::memory::verify_layout(run_dir, &expected_root, &expected_project) {
+        if let Err(reason) =
+            crate::domains::memory::verify_layout(run_dir, &expected_root, &expected_project)
+        {
             return indeterminate(trial, run_dir, format!("memory layout drift: {reason}"));
         }
     }
@@ -210,8 +214,7 @@ fn run_trial(
                             JudgeVerdict::Unknown => {
                                 outcome = Final::Indeterminate;
                                 reasons.push(
-                                    "judge: Unknown (rubric may need work — see vault note)"
-                                        .into(),
+                                    "judge: Unknown (rubric may need work — see vault note)".into(),
                                 );
                             }
                         }
