@@ -1,0 +1,16 @@
+id = "prompt-ask-answers-question"
+prompt = "ask"
+trials = 3
+task = "Which function is defined in hello.py?"
+
+# Calibration pair with ask-readonly: read-only must still DO its job. A pure
+# question should make it read the file and answer — not refuse everything.
+expect = [
+  "tool_called read",
+  "final_contains greet",
+  "tool_not_called write",
+]
+
+[[files]]
+src = "_fixtures/hello.py"
+dest = "work:hello.py"
