@@ -254,6 +254,52 @@ notes = [{ name = "deploy-strategy", file = "_fixtures/deploy.md" }]
 }
 
 #[test]
+fn load_fails_fast_on_missing_files_fixture() {
+    // A typo'd [[files]] src should fail at load time (zseval list / the
+    // very start of a run), not mid-run as a burned-API-call indeterminate.
+    let sc_dir = std::env::temp_dir().join(format!("zseval-test-badfile-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        r#"
+id = "bad-files-fixture"
+task = "hello"
+expect = ["final_contains x"]
+
+[[files]]
+src = "_fixtures/does-not-exist.py"
+dest = "work:hello.py"
+"#,
+    )
+    .unwrap();
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    assert!(format!("{err:#}").contains("does-not-exist.py"), "{err:#}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
+fn load_fails_fast_on_missing_memory_note_fixture() {
+    // Same fail-fast guarantee for [seed.memory] note/long_term fixtures.
+    let sc_dir = std::env::temp_dir().join(format!("zseval-test-badmem-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        r#"
+id = "bad-memory-fixture"
+task = "hello"
+expect = ["final_contains x"]
+
+[seed.memory]
+notes = [{ name = "ghost", file = "_fixtures/ghost.md" }]
+"#,
+    )
+    .unwrap();
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    assert!(format!("{err:#}").contains("ghost"), "{err:#}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
 fn all_committed_scenarios_load_and_validate() {
     // Guard: a malformed scenario.toml should never reach main. This also
     // validates every assert line parses.

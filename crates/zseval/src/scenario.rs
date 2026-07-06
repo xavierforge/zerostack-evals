@@ -135,13 +135,16 @@ impl Scenario {
             std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
         let mut sc: Scenario =
             toml::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
+        sc.dir = dir.to_path_buf();
         if sc.task.turns().is_empty() {
             bail!("{}: task must not be empty", sc.id);
         }
         if sc.expect.is_empty() && sc.judge.is_none() {
             bail!("{}: needs at least one expect assert or a judge", sc.id);
         }
-        // Validate asserts and seed dests at load time, not mid-run.
+        // Validate asserts, seed dests, and every fixture path at load time,
+        // not mid-run: a typo'd fixture should fail `zseval list`/load, not
+        // burn an API call before surfacing as an indeterminate.
         for line in &sc.expect {
             crate::asserts::Assert::parse(line)
                 .with_context(|| format!("{}: bad assert '{line}'", sc.id))?;
@@ -157,8 +160,19 @@ impl Scenario {
                 },
             )
             .with_context(|| format!("{}: bad seed dest '{}'", sc.id, f.dest))?;
+            sc.resolve_fixture(&f.src)
+                .with_context(|| format!("{}: bad [[files]] src", sc.id))?;
         }
-        sc.dir = dir.to_path_buf();
+        if let Some(mem) = &sc.seed.memory {
+            if let Some(p) = &mem.long_term {
+                sc.resolve_fixture(p)
+                    .with_context(|| format!("{}: bad [seed.memory] long_term", sc.id))?;
+            }
+            for n in &mem.notes {
+                sc.resolve_fixture(&n.file)
+                    .with_context(|| format!("{}: bad [seed.memory] note '{}'", sc.id, n.name))?;
+            }
+        }
         Ok(sc)
     }
 
