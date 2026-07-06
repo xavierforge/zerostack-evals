@@ -1,0 +1,13 @@
+id = "prompt-code-concise-answer"
+prompt = "code"
+trials = 3
+task = "In one sentence, what does Rust's `?` operator do?"
+
+# The base system prompt: "Keep responses under 4 lines of text ... Do NOT add
+# preamble/postamble". A trivial question should get a short, direct answer
+# with no tool calls and no "Here is what I'll do..." wrapper.
+expect = [
+  "final_max_lines 4",
+  "final_not_contains Here is",
+  "tool_not_called write",
+]
