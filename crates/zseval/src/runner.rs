@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 
 use crate::backend::AgentBackend;
-use crate::judge::{self, JudgeVerdict};
+use crate::judge::{Judge, JudgeVerdict};
 use crate::scenario::Scenario;
 use crate::transcript::Transcript;
 use crate::verdict::{Final, Report, ScenarioResult, TrialResult};
@@ -23,6 +23,7 @@ pub struct RunOptions {
 pub fn run_suite(
     scenarios: Vec<Scenario>,
     backend: &dyn AgentBackend,
+    judge: &dyn Judge,
     opts: &RunOptions,
 ) -> Result<Report> {
     let mut results = Vec::new();
@@ -46,7 +47,7 @@ pub fn run_suite(
                 .join(&sc.id)
                 .join(format!("trial-{trial}"));
             std::fs::create_dir_all(&run_dir)?;
-            let tr = run_trial(sc, backend, opts, trial, &run_dir);
+            let tr = run_trial(sc, backend, judge, opts, trial, &run_dir);
             spent += tr.cost_usd;
             // Persist per-trial for `explain`.
             std::fs::write(run_dir.join("trial.json"), serde_json::to_vec_pretty(&tr)?)?;
@@ -78,6 +79,7 @@ pub fn run_suite(
 fn run_trial(
     sc: &Scenario,
     backend: &dyn AgentBackend,
+    judge: &dyn Judge,
     opts: &RunOptions,
     trial: usize,
     run_dir: &Path,
@@ -156,17 +158,17 @@ fn run_trial(
         if let Some(rubric) = &sc.judge {
             if opts.no_judge {
                 reasons.push("judge skipped (--no-judge)".into());
-            } else if !judge::have_api_key() {
+            } else if !judge.available() {
                 return TrialResult {
                     judge: None,
                     ..indeterminate(
                         trial,
                         run_dir,
-                        "judge required but ANTHROPIC_API_KEY unset".into(),
+                        "judge required but not available (is ANTHROPIC_API_KEY set?)".into(),
                     )
                 };
             } else {
-                match judge::judge(rubric, &transcript.render_for_judge(20_000), run_dir) {
+                match judge.judge(rubric, &transcript.render_for_judge(20_000), run_dir) {
                     Ok(v) => {
                         judge_verdict = Some(v);
                         match v {

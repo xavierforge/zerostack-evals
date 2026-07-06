@@ -24,6 +24,27 @@ pub enum JudgeVerdict {
     Unknown,
 }
 
+/// The seam the runner grades through: same shape as `AgentBackend`, so the
+/// verdict-mapping paths (No -> Fail, Unknown/error/no-key -> Indeterminate)
+/// are testable without a key or a network. `LlmJudge` is the real referee.
+pub trait Judge {
+    /// Whether this judge can grade right now (e.g. its API key is set).
+    fn available(&self) -> bool;
+    fn judge(&self, rubric: &str, evidence: &str, run_dir: &Path) -> Result<JudgeVerdict>;
+}
+
+/// The pinned-model LLM referee (see module doc).
+pub struct LlmJudge;
+
+impl Judge for LlmJudge {
+    fn available(&self) -> bool {
+        have_api_key()
+    }
+    fn judge(&self, rubric: &str, evidence: &str, run_dir: &Path) -> Result<JudgeVerdict> {
+        judge(rubric, evidence, run_dir)
+    }
+}
+
 pub fn have_api_key() -> bool {
     std::env::var("ANTHROPIC_API_KEY")
         .map(|k| !k.is_empty())

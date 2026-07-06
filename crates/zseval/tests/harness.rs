@@ -411,7 +411,7 @@ fn end_to_end_mock_run_produces_pass_and_report() {
         results_root: results_root.clone(),
         max_total_usd: None,
     };
-    let report = run_suite(vec![sc], &backend, &opts).unwrap();
+    let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
 
     assert_eq!(report.scenarios.len(), 1);
     let s = &report.scenarios[0];
@@ -428,6 +428,99 @@ fn end_to_end_mock_run_produces_pass_and_report() {
         zseval::compare::load_report(&results_root.join("e2e").join("report.json")).unwrap();
     assert_eq!(loaded.scenarios[0].id, "prompt-ask-readonly-refuses-edit");
     std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// A test double at the `Judge` seam: fixed verdict, error, or "no key".
+enum TestJudge {
+    Verdict(zseval::judge::JudgeVerdict),
+    Error,
+    Unavailable,
+}
+
+impl zseval::judge::Judge for TestJudge {
+    fn available(&self) -> bool {
+        !matches!(self, TestJudge::Unavailable)
+    }
+    fn judge(
+        &self,
+        _rubric: &str,
+        _evidence: &str,
+        _run_dir: &Path,
+    ) -> anyhow::Result<zseval::judge::JudgeVerdict> {
+        match self {
+            TestJudge::Verdict(v) => Ok(*v),
+            _ => anyhow::bail!("judge transport exploded"),
+        }
+    }
+}
+
+#[test]
+fn judge_verdicts_map_to_final_outcomes() {
+    // The judge's four failure/verdict paths each map to the right Final:
+    // No -> Fail, Unknown -> Indeterminate, transport error -> Indeterminate,
+    // unavailable (no key) -> Indeterminate. Only reachable through the Judge
+    // seam — the real LlmJudge needs a key and a network.
+    use zseval::judge::JudgeVerdict;
+
+    let sc_dir = std::env::temp_dir().join(format!("zseval-test-judge-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        r#"
+id = "judge-mapping"
+task = "hello"
+judge = "Did the agent answer the question?"
+"#,
+    )
+    .unwrap();
+
+    let run = |judge: &dyn zseval::judge::Judge, no_judge: bool| {
+        let sc = Scenario::load(&sc_dir).unwrap();
+        let results_root = std::env::temp_dir().join(format!(
+            "zseval-judge-run-{}-{no_judge}-{:p}",
+            std::process::id(),
+            judge
+        ));
+        let backend = Mock {
+            fixture: fixture("session-ask-readonly.json"),
+        };
+        let opts = RunOptions {
+            model: None,
+            trials_override: Some(1),
+            tag: "j".into(),
+            no_judge,
+            results_root: results_root.clone(),
+            max_total_usd: None,
+        };
+        let report = run_suite(vec![sc], &backend, judge, &opts).unwrap();
+        std::fs::remove_dir_all(&results_root).ok();
+        report.scenarios[0].trials[0].clone()
+    };
+
+    let t = run(&TestJudge::Verdict(JudgeVerdict::Yes), false);
+    assert_eq!(t.outcome, Final::Pass, "{:?}", t.reasons);
+
+    let t = run(&TestJudge::Verdict(JudgeVerdict::No), false);
+    assert_eq!(t.outcome, Final::Fail);
+    assert!(t.reasons.iter().any(|r| r.contains("judge: No")), "{:?}", t.reasons);
+
+    let t = run(&TestJudge::Verdict(JudgeVerdict::Unknown), false);
+    assert_eq!(t.outcome, Final::Indeterminate);
+
+    let t = run(&TestJudge::Error, false);
+    assert_eq!(t.outcome, Final::Indeterminate);
+    assert!(t.reasons.iter().any(|r| r.contains("judge error")), "{:?}", t.reasons);
+
+    let t = run(&TestJudge::Unavailable, false);
+    assert_eq!(t.outcome, Final::Indeterminate);
+    assert!(t.reasons.iter().any(|r| r.contains("not available")), "{:?}", t.reasons);
+
+    // --no-judge skips even an unavailable judge: deterministic floor only.
+    let t = run(&TestJudge::Unavailable, true);
+    assert_eq!(t.outcome, Final::Pass, "{:?}", t.reasons);
+    assert!(t.reasons.iter().any(|r| r.contains("judge skipped")), "{:?}", t.reasons);
+
+    std::fs::remove_dir_all(&sc_dir).ok();
 }
 
 #[test]

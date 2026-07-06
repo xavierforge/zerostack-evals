@@ -186,7 +186,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         },
     };
 
-    let report = run_suite(scenarios, backend.as_ref(), &opts)?;
+    let report = run_suite(scenarios, backend.as_ref(), &zseval::judge::LlmJudge, &opts)?;
 
     if f.has("json") {
         println!("{}", serde_json::to_string_pretty(&report)?);
