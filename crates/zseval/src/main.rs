@@ -324,24 +324,18 @@ fn cmd_explain(rest: Vec<String>) -> anyhow::Result<ExitCode> {
             }
         }
     }
-    // Dump every captured per-turn log (zerostack trace + stderr), in order,
-    // however many turns the scenario had.
-    let mut logs: Vec<PathBuf> = std::fs::read_dir(dir)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| {
-            let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
-            name.starts_with("turn-") && (name.ends_with(".zslog") || name.ends_with(".stderr"))
-        })
-        .collect();
-    logs.sort();
-    for p in logs {
-        if let Ok(s) = std::fs::read_to_string(&p) {
-            if !s.trim().is_empty() {
-                let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
-                println!("== {name} ==\n{s}");
+    // Dump every captured per-turn log (zerostack trace + stderr), in turn
+    // order, however many turns the scenario had. This is a separate process
+    // from the run that produced `dir`, so there's no live RunArtifacts to
+    // consult — discover_turn_artifacts reconstructs the same shape backend
+    // would have handed the runner.
+    for t in zseval::backend::discover_turn_artifacts(dir) {
+        for p in [&t.zslog, &t.stderr] {
+            if let Ok(s) = std::fs::read_to_string(p) {
+                if !s.trim().is_empty() {
+                    let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                    println!("== {name} ==\n{s}");
+                }
             }
         }
     }

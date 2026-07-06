@@ -89,9 +89,23 @@ fn tee(
     })
 }
 
+/// The three logs captured for one turn (one `zerostack` invocation).
+/// Constructing this is backend's job — it's the module that decides the
+/// `turn-N.{stdout,stderr,zslog}` naming convention in the first place, so
+/// nothing downstream should rediscover it by re-globbing a run dir.
+#[derive(Debug, Clone)]
+pub struct TurnArtifacts {
+    pub stdout: PathBuf,
+    pub stderr: PathBuf,
+    pub zslog: PathBuf,
+}
+
 pub struct RunArtifacts {
     /// Session JSON files produced, in chronological order.
     pub session_files: Vec<PathBuf>,
+    /// Per-turn logs, in the order the turns ran. Empty for backends (e.g.
+    /// `Mock`) that don't drive a real `zerostack` process.
+    pub turns: Vec<TurnArtifacts>,
     /// The throwaway ZS_DATA_DIR (for `file_*` outcome asserts, default root).
     pub data_dir: PathBuf,
     /// The throwaway ZS_CONFIG_DIR (`file_*` `config:` root; e.g. memory
@@ -112,6 +126,38 @@ impl RunArtifacts {
             work: &self.work_dir,
         }
     }
+}
+
+/// Reconstruct `TurnArtifacts` for a run dir when no live `RunArtifacts` is
+/// available — the one legitimate case is `zseval explain <trial-dir>`,
+/// which reads a *previous* run from a fresh process with no in-memory
+/// struct to consult. Matches turn indices across the three extensions and
+/// returns them in turn order; a missing extension for a given turn still
+/// yields a (non-existent) path, since every consumer already handles a
+/// missing/unreadable log gracefully.
+pub fn discover_turn_artifacts(run_dir: &Path) -> Vec<TurnArtifacts> {
+    let mut indices = std::collections::BTreeSet::new();
+    if let Ok(entries) = std::fs::read_dir(run_dir) {
+        for e in entries.flatten() {
+            let name = e.file_name();
+            let name = name.to_string_lossy();
+            if let Some(rest) = name.strip_prefix("turn-") {
+                if let Some((n, _ext)) = rest.split_once('.') {
+                    if let Ok(n) = n.parse::<usize>() {
+                        indices.insert(n);
+                    }
+                }
+            }
+        }
+    }
+    indices
+        .into_iter()
+        .map(|i| TurnArtifacts {
+            stdout: run_dir.join(format!("turn-{i}.stdout")),
+            stderr: run_dir.join(format!("turn-{i}.stderr")),
+            zslog: run_dir.join(format!("turn-{i}.zslog")),
+        })
+        .collect()
 }
 
 pub trait AgentBackend {
@@ -175,6 +221,7 @@ impl AgentBackend for ZsCli {
         let started = Instant::now();
         let timeout = Duration::from_secs(sc.timeout_secs);
         let turns = sc.task.turns();
+        let mut turn_logs: Vec<TurnArtifacts> = Vec::with_capacity(turns.len());
         for (i, turn) in turns.iter().enumerate() {
             if verbose() {
                 let msg_preview: String = turn.msg().chars().take(60).collect();
@@ -308,6 +355,11 @@ impl AgentBackend for ZsCli {
                     turn_started.elapsed().as_secs_f64()
                 );
             }
+            turn_logs.push(TurnArtifacts {
+                stdout: stdout_log,
+                stderr: stderr_log,
+                zslog: zs_log,
+            });
         }
 
         let mut session_files = list_sessions(&data)?;
@@ -324,6 +376,7 @@ impl AgentBackend for ZsCli {
 
         Ok(RunArtifacts {
             session_files,
+            turns: turn_logs,
             data_dir: data,
             config_dir: config,
             work_dir: work,
@@ -373,10 +426,48 @@ impl AgentBackend for Mock {
             .with_context(|| format!("copy mock fixture {}", self.fixture.display()))?;
         Ok(RunArtifacts {
             session_files: vec![dst],
+            turns: Vec::new(),
             data_dir: data,
             config_dir: config,
             work_dir: work,
             wall_secs: 0.0,
         })
+    }
+}
+
+#[cfg(test)]
+mod turn_artifacts_tests {
+    use super::*;
+
+    #[test]
+    fn discover_turn_artifacts_sorts_numerically_not_lexicographically() {
+        let dir = std::env::temp_dir().join(format!("zseval-turns-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // A lexicographic sort would put "turn-10" before "turn-2". Every
+        // extension is constructed for every discovered index regardless of
+        // which files actually exist on disk (turn-0.zslog here is enough to
+        // register index 0; turn-0.stdout/.stderr still get paths built).
+        for name in ["turn-2.stdout", "turn-10.stdout", "turn-0.zslog"] {
+            std::fs::write(dir.join(name), "x").unwrap();
+        }
+        let turns = discover_turn_artifacts(&dir);
+        let indices: Vec<usize> = turns
+            .iter()
+            .map(|t| {
+                t.stdout
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .and_then(|s| s.strip_prefix("turn-"))
+                    .and_then(|s| s.parse().ok())
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(indices, vec![0, 2, 10], "{turns:?}");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn discover_turn_artifacts_on_missing_dir_is_empty() {
+        assert!(discover_turn_artifacts(Path::new("/no/such/run-dir")).is_empty());
     }
 }

@@ -6,7 +6,6 @@ use anyhow::{Context, Result};
 
 use crate::asserts::Assert;
 use crate::backend::AgentBackend;
-use crate::backend::RunRoots;
 use crate::judge::{self, JudgeVerdict};
 use crate::scenario::Scenario;
 use crate::transcript::Transcript;
@@ -95,47 +94,18 @@ fn run_trial(
         }
     };
 
-    // 2. Parse + merge session transcripts. Schema mismatch = indeterminate.
-    let mut transcript = Transcript::default();
-    for f in &artifacts.session_files {
-        match crate::transcript::parse_file(f) {
-            Ok(t) => transcript.absorb(t),
-            Err(e) => {
-                return indeterminate(trial, run_dir, format!("transcript: {e:#}"));
-            }
+    // 2. Assemble the gradable transcript: messages/tokens/cost from session
+    // JSON plus tool calls from stdout (see Transcript::from_run and the
+    // transcript.rs module doc for why both channels exist). Schema mismatch
+    // = indeterminate.
+    let transcript = match Transcript::from_run(&artifacts) {
+        Ok(t) => t,
+        Err(e) => {
+            return indeterminate(trial, run_dir, format!("transcript: {e:#}"));
         }
-    }
-
-    // 2a. In headless mode zerostack's session JSON never records tool calls
-    // (see transcript.rs's module doc) — the only place they surface is the
-    // `--pure-stdout` markers in each turn's captured stdout. Reconstruct
-    // them here, in turn order, so `tool_called*` asserts have real evidence
-    // for a real (non-mock) run. The mock backend writes no stdout logs, so
-    // this is a no-op there and mock fixtures keep sourcing tool_calls from
-    // session JSON as before.
-    let mut stdout_logs: Vec<PathBuf> = std::fs::read_dir(run_dir)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| {
-            let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
-            name.starts_with("turn-") && name.ends_with(".stdout")
-        })
-        .collect();
-    stdout_logs.sort();
-    for log in &stdout_logs {
-        let base = transcript.tool_calls.len();
-        transcript
-            .tool_calls
-            .extend(crate::transcript::tool_calls_from_stdout_file(log, base));
-    }
-
-    let roots = RunRoots {
-        data: &artifacts.data_dir,
-        config: &artifacts.config_dir,
-        work: &artifacts.work_dir,
     };
+
+    let roots = artifacts.roots();
 
     // 2b. A scenario that seeds memory is only gradable if our snapshot of
     // zerostack's memory layout still matches reality — a stale snapshot must

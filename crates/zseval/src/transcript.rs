@@ -123,6 +123,27 @@ impl Transcript {
         }
         out
     }
+
+    /// Build the complete, gradable `Transcript` for one trial: messages,
+    /// tokens, and cost from every session file, plus tool calls from every
+    /// turn's `--pure-stdout` log. This is the one entry point the runner
+    /// needs — it doesn't know or care that "evidence" currently comes from
+    /// two different channels depending on the backend (session JSON for the
+    /// mock backend's fixtures, stdout markers for a real `zerostack` run;
+    /// see the module doc for why). A schema mismatch in any session file is
+    /// an `Err`, which the caller maps to Indeterminate.
+    pub fn from_run(artifacts: &crate::backend::RunArtifacts) -> Result<Transcript> {
+        let mut t = Transcript::default();
+        for f in &artifacts.session_files {
+            t.absorb(parse_file(f)?);
+        }
+        for turn in &artifacts.turns {
+            let base = t.tool_calls.len();
+            t.tool_calls
+                .extend(tool_calls_from_stdout_file(&turn.stdout, base));
+        }
+        Ok(t)
+    }
 }
 
 /// Reconstruct `ToolCall`s from a captured `turn-N.stdout` log (see the
@@ -245,5 +266,63 @@ mod stdout_tool_call_tests {
     fn missing_stdout_file_yields_no_calls_not_an_error() {
         let calls = tool_calls_from_stdout_file(Path::new("/no/such/file.stdout"), 0);
         assert!(calls.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod from_run_tests {
+    use super::*;
+    use crate::backend::{RunArtifacts, TurnArtifacts};
+
+    #[test]
+    fn merges_session_messages_with_stdout_tool_calls() {
+        let dir = std::env::temp_dir().join(format!("zseval-fromrun-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let session = dir.join("session.json");
+        std::fs::write(
+            &session,
+            r#"{"id":"s","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"hello"}],"total_input_tokens":10,"total_output_tokens":5,"total_cost":0.01}"#,
+        )
+        .unwrap();
+        let stdout = dir.join("turn-0.stdout");
+        std::fs::write(&stdout, "◈ bash ls\n◈ bash result:\nfile.txt\n").unwrap();
+
+        let artifacts = RunArtifacts {
+            session_files: vec![session],
+            turns: vec![TurnArtifacts {
+                stdout,
+                stderr: dir.join("turn-0.stderr"),
+                zslog: dir.join("turn-0.zslog"),
+            }],
+            data_dir: dir.clone(),
+            config_dir: dir.clone(),
+            work_dir: dir.clone(),
+            wall_secs: 0.0,
+        };
+
+        let t = Transcript::from_run(&artifacts).unwrap();
+        assert_eq!(t.final_assistant, "hello");
+        assert_eq!(t.input_tokens, 10);
+        assert_eq!(t.tool_calls.len(), 1, "{:?}", t.tool_calls);
+        assert_eq!(t.tool_calls[0].name, "bash");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn propagates_session_schema_error_as_err() {
+        let dir = std::env::temp_dir().join(format!("zseval-fromrun-err-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let session = dir.join("bad.json");
+        std::fs::write(&session, "{\"totally\":\"different\"}").unwrap();
+        let artifacts = RunArtifacts {
+            session_files: vec![session],
+            turns: Vec::new(),
+            data_dir: dir.clone(),
+            config_dir: dir.clone(),
+            work_dir: dir.clone(),
+            wall_secs: 0.0,
+        };
+        assert!(Transcript::from_run(&artifacts).is_err());
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
