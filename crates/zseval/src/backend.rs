@@ -362,17 +362,10 @@ impl AgentBackend for ZsCli {
             });
         }
 
-        let mut session_files = list_sessions(&data)?;
+        let session_files = discover_session_files(&data);
         if session_files.is_empty() {
             bail!("no session file produced under {}", data.display());
         }
-        // Chronological by mtime so cross-session transcripts concatenate in
-        // the order they happened.
-        session_files.sort_by_key(|p| {
-            std::fs::metadata(p)
-                .and_then(|m| m.modified())
-                .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
-        });
 
         Ok(RunArtifacts {
             session_files,
@@ -385,8 +378,14 @@ impl AgentBackend for ZsCli {
     }
 }
 
-fn list_sessions(data: &Path) -> Result<Vec<PathBuf>> {
-    let dir = data.join("sessions");
+/// Every `*.json` file directly under `data_dir/sessions/`, chronological by
+/// mtime so cross-session transcripts concatenate in the order they
+/// happened. The shape both `ZsCli` (a fresh run) and `regrade` (an existing
+/// run_dir) scan to find gradable session files — exposed so
+/// `runner::regrade` can reconstruct a `RunArtifacts` from an
+/// already-completed run_dir without a live backend.
+pub fn discover_session_files(data_dir: &Path) -> Vec<PathBuf> {
+    let dir = data_dir.join("sessions");
     let mut out = Vec::new();
     if let Ok(entries) = std::fs::read_dir(&dir) {
         for e in entries.flatten() {
@@ -396,15 +395,28 @@ fn list_sessions(data: &Path) -> Result<Vec<PathBuf>> {
             }
         }
     }
-    Ok(out)
+    out.sort_by_key(|p| {
+        std::fs::metadata(p)
+            .and_then(|m| m.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+    });
+    out
 }
 
 // ---------------------------------------------------------------------------
 // Mock
 // ---------------------------------------------------------------------------
 
-/// Replays a canned session file; used by the harness's own tests and by
-/// `--backend mock=<file>` for local plumbing checks.
+/// Replays canned artifacts; used by the harness's own tests and by
+/// `--backend mock=<path>` for local plumbing checks. `fixture` is either a
+/// single session JSON file (legacy shape: no turn logs, so stdout-based
+/// tool-call reconstruction is never exercised) or a directory — a
+/// previously captured trial dir (`data/sessions/*.json` plus
+/// `turn-N.{stdout,stderr,zslog}`) — replayed exactly as the real backend
+/// produced it, including the stdout channel that's the only place tool
+/// calls actually appear in headless mode (see `transcript.rs`'s module
+/// doc). The directory form is what backs `zseval regrade` and lets a test
+/// exercise the real evidence path without a live zerostack build.
 pub struct Mock {
     pub fixture: PathBuf,
 }
@@ -421,6 +433,42 @@ impl AgentBackend for Mock {
         std::fs::create_dir_all(data.join("sessions"))?;
         std::fs::create_dir_all(&config)?;
         std::fs::create_dir_all(&work)?;
+
+        if self.fixture.is_dir() {
+            let src_sessions = self.fixture.join("data").join("sessions");
+            let mut session_files = Vec::new();
+            let entries = std::fs::read_dir(&src_sessions)
+                .with_context(|| format!("read {}", src_sessions.display()))?;
+            for e in entries.flatten() {
+                let p = e.path();
+                if p.extension().map(|x| x == "json").unwrap_or(false) {
+                    let dst = data.join("sessions").join(p.file_name().unwrap());
+                    std::fs::copy(&p, &dst).with_context(|| format!("copy {}", p.display()))?;
+                    session_files.push(dst);
+                }
+            }
+            if session_files.is_empty() {
+                bail!("no session file found under {}", src_sessions.display());
+            }
+            session_files.sort_by_key(|p| {
+                std::fs::metadata(p)
+                    .and_then(|m| m.modified())
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+            });
+            // Turn logs are replayed in place from the fixture, not copied —
+            // they're read-only evidence, and the fixture dir outlives this
+            // run_dir.
+            let turns = discover_turn_artifacts(&self.fixture);
+            return Ok(RunArtifacts {
+                session_files,
+                turns,
+                data_dir: data,
+                config_dir: config,
+                work_dir: work,
+                wall_secs: 0.0,
+            });
+        }
+
         let dst = data.join("sessions").join("mock.json");
         std::fs::copy(&self.fixture, &dst)
             .with_context(|| format!("copy mock fixture {}", self.fixture.display()))?;
@@ -432,6 +480,63 @@ impl AgentBackend for Mock {
             work_dir: work,
             wall_secs: 0.0,
         })
+    }
+}
+
+#[cfg(test)]
+mod mock_trial_dir_tests {
+    use super::*;
+
+    #[test]
+    fn mock_replays_a_captured_trial_dir_including_stdout_tool_calls() {
+        // Production evidence for tool calls in headless mode is always
+        // `--pure-stdout` markers, never the session JSON (see
+        // transcript.rs's module doc) — a mock fixture that only writes
+        // tool_call messages into session JSON never exercises that real
+        // path. Pointing Mock at a directory (a previously captured trial
+        // dir) replays both channels exactly as a real run produced them.
+        let fixture_dir =
+            std::env::temp_dir().join(format!("zseval-mockdir-fixture-{}", std::process::id()));
+        std::fs::create_dir_all(fixture_dir.join("data/sessions")).unwrap();
+        std::fs::write(
+            fixture_dir.join("data/sessions/s.json"),
+            r#"{"id":"s","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"done"}],"total_input_tokens":1,"total_output_tokens":1,"total_cost":0.001}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            fixture_dir.join("turn-0.stdout"),
+            "◈ bash ls\n◈ bash result:\nfile.txt\n",
+        )
+        .unwrap();
+
+        let run_dir =
+            std::env::temp_dir().join(format!("zseval-mockdir-rundir-{}", std::process::id()));
+        std::fs::create_dir_all(&run_dir).unwrap();
+
+        let backend = Mock {
+            fixture: fixture_dir.clone(),
+        };
+        let sc_dir = std::env::temp_dir().join(format!("zseval-mockdir-sc-{}", std::process::id()));
+        std::fs::create_dir_all(&sc_dir).unwrap();
+        std::fs::write(
+            sc_dir.join("scenario.toml"),
+            "id = \"x\"\ntask = \"hi\"\nexpect = [\"final_contains x\"]\n",
+        )
+        .unwrap();
+        let sc = crate::scenario::Scenario::load(&sc_dir).unwrap();
+
+        let artifacts = backend.run(&sc, None, &run_dir).unwrap();
+        assert_eq!(artifacts.turns.len(), 1);
+        assert_eq!(artifacts.turns[0].stdout, fixture_dir.join("turn-0.stdout"));
+
+        let t = crate::transcript::Transcript::from_run(&artifacts).unwrap();
+        assert_eq!(t.tool_calls.len(), 1, "{:?}", t.tool_calls);
+        assert_eq!(t.tool_calls[0].name, "bash");
+        assert_eq!(t.final_assistant, "done");
+
+        std::fs::remove_dir_all(&fixture_dir).ok();
+        std::fs::remove_dir_all(&run_dir).ok();
+        std::fs::remove_dir_all(&sc_dir).ok();
     }
 }
 

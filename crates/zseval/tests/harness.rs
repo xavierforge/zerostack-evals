@@ -573,6 +573,64 @@ judge = "Did the agent answer the question?"
 }
 
 #[test]
+fn regrade_regrades_existing_artifacts_without_driving_the_agent() {
+    // The whole point of `regrade`: after editing an assert to be stricter,
+    // re-grading a previously captured trial dir must reflect the new
+    // assert against the *same*, unchanged evidence — no backend involved.
+    let sc_dir = std::env::temp_dir().join(format!("zseval-regrade-sc-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    let write_scenario = |expect: &str| {
+        std::fs::write(
+            sc_dir.join("scenario.toml"),
+            format!("id = \"regrade-test\"\ntask = \"hi\"\nexpect = [\"{expect}\"]\n"),
+        )
+        .unwrap();
+    };
+    write_scenario("tool_not_called write");
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-regrade-results-{}", std::process::id()));
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    let opts = RunOptions {
+        model: None,
+        target: None,
+        trials_override: Some(1),
+        tag: "orig".into(),
+        no_judge: true,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+    };
+    let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
+    assert_eq!(report.scenarios[0].trials[0].outcome, Final::Pass);
+    let run_dir = results_root
+        .join("orig")
+        .join("regrade-test")
+        .join("trial-0");
+    assert!(run_dir.join("trial.json").is_file());
+
+    // Tighten the assert to one the frozen artifacts can't satisfy, without
+    // touching the artifacts themselves.
+    write_scenario("tool_called write");
+    let tightened = Scenario::load(&sc_dir).unwrap();
+
+    let tr =
+        zseval::runner::regrade(&tightened, &zseval::judge::LlmJudge, true, 0, &run_dir).unwrap();
+    assert_eq!(tr.outcome, Final::Fail, "{:?}", tr.reasons);
+
+    // trial.json on disk reflects the regrade, so `explain` sees the update.
+    let persisted: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(run_dir.join("trial.json")).unwrap())
+            .unwrap();
+    assert_eq!(persisted["outcome"], "fail");
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+#[test]
 fn pass_hat_k_is_the_stability_floor() {
     // One failing trial: pass@k stays 1, pass^k drops to 0.
     use zseval::verdict::{ScenarioResult, TrialResult};

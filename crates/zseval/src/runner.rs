@@ -90,8 +90,6 @@ fn run_trial(
     trial: usize,
     run_dir: &Path,
 ) -> TrialResult {
-    let mut reasons = Vec::new();
-
     // 1. Drive the agent. Backend errors = indeterminate (we never got a
     //    gradable transcript), not fail.
     let artifacts = match backend.run(sc, opts.model.as_deref(), run_dir) {
@@ -100,12 +98,62 @@ fn run_trial(
             return indeterminate(trial, run_dir, format!("backend: {e:#}"));
         }
     };
+    grade_trial(sc, judge, opts.no_judge, trial, run_dir, &artifacts)
+}
+
+/// Re-grade an already-completed run_dir (produced by a prior `run` or a
+/// captured `Mock` fixture) against `sc`'s *current* asserts/judge, without
+/// driving the agent again. This is what backs `zseval regrade`: edit an
+/// assert, re-score the same frozen evidence, see whether the new rule would
+/// have passed — no API call, no new session. Persists the updated
+/// `trial.json` next to the artifacts it graded, same as a normal run.
+pub fn regrade(
+    sc: &Scenario,
+    judge: &dyn Judge,
+    no_judge: bool,
+    trial: usize,
+    run_dir: &Path,
+) -> Result<TrialResult> {
+    let session_files = crate::backend::discover_session_files(&run_dir.join("data"));
+    if session_files.is_empty() {
+        anyhow::bail!(
+            "no session file found under {}/data/sessions — is this a completed trial dir?",
+            run_dir.display()
+        );
+    }
+    let artifacts = crate::backend::RunArtifacts {
+        session_files,
+        turns: crate::backend::discover_turn_artifacts(run_dir),
+        data_dir: run_dir.join("data"),
+        config_dir: run_dir.join("config"),
+        work_dir: run_dir.join("work"),
+        wall_secs: 0.0,
+    };
+    let tr = grade_trial(sc, judge, no_judge, trial, run_dir, &artifacts);
+    std::fs::write(run_dir.join("trial.json"), serde_json::to_vec_pretty(&tr)?)
+        .with_context(|| format!("write {}", run_dir.join("trial.json").display()))?;
+    Ok(tr)
+}
+
+/// The grading half of a trial: transcript assembly, domain drift check,
+/// deterministic asserts, budgets, judge. Shared by a fresh `run_trial` (agent
+/// just ran) and `regrade` (agent artifacts already exist on disk) — the only
+/// difference between the two is where `artifacts` comes from.
+fn grade_trial(
+    sc: &Scenario,
+    judge: &dyn Judge,
+    no_judge: bool,
+    trial: usize,
+    run_dir: &Path,
+    artifacts: &crate::backend::RunArtifacts,
+) -> TrialResult {
+    let mut reasons = Vec::new();
 
     // 2. Assemble the gradable transcript: messages/tokens/cost from session
     // JSON plus tool calls from stdout (see Transcript::from_run and the
     // transcript.rs module doc for why both channels exist). Schema mismatch
     // = indeterminate.
-    let transcript = match Transcript::from_run(&artifacts) {
+    let transcript = match Transcript::from_run(artifacts) {
         Ok(t) => t,
         Err(e) => {
             return indeterminate(trial, run_dir, format!("transcript: {e:#}"));
@@ -162,7 +210,7 @@ fn run_trial(
     let mut outcome = if all_pass { Final::Pass } else { Final::Fail };
     if outcome == Final::Pass {
         if let Some(rubric) = &sc.judge {
-            if opts.no_judge {
+            if no_judge {
                 reasons.push("judge skipped (--no-judge)".into());
             } else if !judge.available() {
                 return TrialResult {

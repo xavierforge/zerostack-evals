@@ -27,6 +27,7 @@ fn main() -> ExitCode {
         "compare" => cmd_compare(rest),
         "explain" => cmd_explain(rest),
         "list" => cmd_list(rest),
+        "regrade" => cmd_regrade(rest),
         "-h" | "--help" | "help" => {
             println!("{USAGE}");
             Ok(ExitCode::SUCCESS)
@@ -55,11 +56,21 @@ USAGE:
   zseval compare <baseline.json> <candidate.json> [--threshold 0.05] [--json]
   zseval explain <trial-dir>
   zseval list [scenarios-root]
+  zseval regrade <scenario-dir> <trial-dir> [--no-judge] [--json]
 
   --target is a zerostack config.toml (provider + model) seeded into each run's
   isolated config dir — the reproducible way to pick what you evaluate against.
   Put the API key in an env var (not the file); it is passed through to zerostack.
   --model overrides the target's model for a quick one-off.
+
+  --backend mock=<path> replays canned artifacts instead of a live zerostack
+  build: a single session JSON file, or a directory shaped like a captured
+  trial dir (data/sessions/*.json + turn-N.{stdout,stderr,zslog}) to also
+  replay stdout-based tool-call evidence.
+
+  regrade re-scores an already-completed <trial-dir> against <scenario-dir>'s
+  *current* asserts/judge, without driving the agent again — for checking
+  whether an assert edit would have changed the verdict on frozen evidence.
 
 ENV:
   ZS_BIN             default path to the zerostack binary
@@ -318,6 +329,61 @@ fn cmd_explain(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_regrade(rest: Vec<String>) -> anyhow::Result<ExitCode> {
+    let f = parse_flags(rest, &[], &["no-judge", "json"])?;
+    let sc_dir = f
+        .positional
+        .first()
+        .ok_or_else(|| anyhow::anyhow!("regrade: missing <scenario-dir>"))?;
+    let trial_dir = f
+        .positional
+        .get(1)
+        .ok_or_else(|| anyhow::anyhow!("regrade: missing <trial-dir>"))?;
+    let sc = zseval::scenario::Scenario::load(Path::new(sc_dir))?;
+    let trial_dir = Path::new(trial_dir);
+    // The trial index is cosmetic (it only labels the returned TrialResult),
+    // so a directory not named "trial-N" just grades as trial 0.
+    let trial_idx = trial_dir
+        .file_name()
+        .and_then(|s| s.to_str())
+        .and_then(|s| s.strip_prefix("trial-"))
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    let tr = zseval::runner::regrade(
+        &sc,
+        &zseval::judge::LlmJudge,
+        f.has("no-judge"),
+        trial_idx,
+        trial_dir,
+    )?;
+
+    if f.has("json") {
+        println!("{}", serde_json::to_string_pretty(&tr)?);
+    } else {
+        let mark = match tr.outcome {
+            zseval::verdict::Final::Pass => "PASS",
+            zseval::verdict::Final::Fail => "FAIL",
+            zseval::verdict::Final::Indeterminate => "????",
+        };
+        eprintln!(
+            "[{mark}] {} trial {}{}",
+            sc.id,
+            tr.trial,
+            if tr.reasons.is_empty() {
+                String::new()
+            } else {
+                format!(" — {}", tr.reasons.join("; "))
+            }
+        );
+    }
+
+    Ok(match tr.outcome {
+        zseval::verdict::Final::Fail => ExitCode::from(1),
+        zseval::verdict::Final::Indeterminate => ExitCode::from(2),
+        zseval::verdict::Final::Pass => ExitCode::SUCCESS,
+    })
 }
 
 fn cmd_list(rest: Vec<String>) -> anyhow::Result<ExitCode> {
