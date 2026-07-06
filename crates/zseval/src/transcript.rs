@@ -44,6 +44,11 @@ struct RawSession {
     total_output_tokens: u64,
     #[serde(default)]
     total_cost: f64,
+    /// zerostack's own rough token estimate (word/char heuristic, not
+    /// provider-reported usage) — the only token count that's ever nonzero
+    /// in headless mode today (see `Transcript::total_tokens`).
+    #[serde(default)]
+    total_estimated_tokens: u64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -76,6 +81,9 @@ pub struct Transcript {
     pub input_tokens: u64,
     pub output_tokens: u64,
     pub cost_usd: f64,
+    /// zerostack's rough estimate, summed across sessions — see
+    /// `total_tokens`'s fallback.
+    pub estimated_tokens: u64,
 }
 
 impl Transcript {
@@ -94,10 +102,24 @@ impl Transcript {
         self.input_tokens += other.input_tokens;
         self.output_tokens += other.output_tokens;
         self.cost_usd += other.cost_usd;
+        self.estimated_tokens += other.estimated_tokens;
     }
 
+    /// Real (input + output) usage when the provider/session reports it;
+    /// falls back to zerostack's own rough estimate when it doesn't. As of
+    /// 2026-07-06, zerostack's headless `-p` path never populates real usage
+    /// into the session at all (a gap independent of the tool-call one this
+    /// harness works around elsewhere) — `total_estimated_tokens` is the only
+    /// nonzero count available, so `tokens_under`/`max_total_tokens` would be
+    /// silent no-ops without this fallback. Real usage always wins when
+    /// present, since it's the true number, not an estimate.
     pub fn total_tokens(&self) -> u64 {
-        self.input_tokens + self.output_tokens
+        let real = self.input_tokens + self.output_tokens;
+        if real > 0 {
+            real
+        } else {
+            self.estimated_tokens
+        }
     }
 
     /// Compact text form fed to the LLM judge.
@@ -198,6 +220,7 @@ pub fn parse_str(text: &str) -> Result<Transcript> {
         input_tokens: raw.total_input_tokens,
         output_tokens: raw.total_output_tokens,
         cost_usd: raw.total_cost,
+        estimated_tokens: raw.total_estimated_tokens,
         ..Default::default()
     };
     for (i, m) in raw.messages.iter().enumerate() {
@@ -324,5 +347,46 @@ mod from_run_tests {
         };
         assert!(Transcript::from_run(&artifacts).is_err());
         std::fs::remove_dir_all(&dir).ok();
+    }
+}
+
+#[cfg(test)]
+mod token_fallback_tests {
+    use super::*;
+
+    #[test]
+    fn real_usage_wins_when_present() {
+        let t = parse_str(
+            r#"{"id":"a","messages":[],"total_input_tokens":100,"total_output_tokens":50,"total_estimated_tokens":9999}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            t.total_tokens(),
+            150,
+            "real usage must not be shadowed by the estimate"
+        );
+    }
+
+    #[test]
+    fn falls_back_to_estimate_when_real_usage_is_zero() {
+        // Headless mode as of 2026-07-06: real usage is always 0, but
+        // zerostack's own estimate is populated — tokens_under/
+        // max_total_tokens would be a silent no-op without this fallback.
+        let t = parse_str(r#"{"id":"a","messages":[],"total_estimated_tokens":37}"#).unwrap();
+        assert_eq!(t.total_tokens(), 37);
+    }
+
+    #[test]
+    fn zero_is_zero_when_neither_is_reported() {
+        let t = parse_str(r#"{"id":"a","messages":[]}"#).unwrap();
+        assert_eq!(t.total_tokens(), 0);
+    }
+
+    #[test]
+    fn absorb_sums_estimated_tokens_across_sessions() {
+        let mut t = parse_str(r#"{"id":"a","messages":[],"total_estimated_tokens":10}"#).unwrap();
+        let u = parse_str(r#"{"id":"b","messages":[],"total_estimated_tokens":15}"#).unwrap();
+        t.absorb(u);
+        assert_eq!(t.total_tokens(), 25);
     }
 }
