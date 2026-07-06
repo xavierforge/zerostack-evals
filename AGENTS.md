@@ -47,6 +47,13 @@ prompt edit whose score it moves.
   second.
 - `pass^k` is the stability floor; a change that lifts `pass@k` but not
   `pass^k` is not yet an improvement.
+- `zseval compare` also warns when tool-call evidence drops to zero on the
+  candidate (`⚠ tool-call evidence dropped to zero`). A `tool_not_called`-only
+  scenario passes vacuously if the evidence channel itself breaks — that's
+  exactly how headless mode's missing tool-call recording went unnoticed
+  (see `transcript.rs`'s module doc). This warning doesn't flip the exit
+  code (it's not a behavior regression), but treat it as seriously as one:
+  the pass rate above it may be meaningless.
 
 ## Subsystems beyond prompts
 

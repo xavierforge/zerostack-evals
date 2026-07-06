@@ -207,6 +207,7 @@ fn run_trial(
         output_tokens: transcript.output_tokens,
         cost_usd: transcript.cost_usd,
         wall_secs: artifacts.wall_secs,
+        tool_call_count: transcript.tool_calls.len(),
         run_dir: run_dir.display().to_string(),
     }
 }
@@ -222,6 +223,7 @@ fn indeterminate(trial: usize, run_dir: &Path, reason: String) -> TrialResult {
         output_tokens: 0,
         cost_usd: 0.0,
         wall_secs: 0.0,
+        tool_call_count: 0,
         run_dir: run_dir.display().to_string(),
     }
 }

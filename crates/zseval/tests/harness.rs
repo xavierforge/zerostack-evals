@@ -362,6 +362,7 @@ fn pass_hat_k_is_the_stability_floor() {
         output_tokens: 0,
         cost_usd: 0.0,
         wall_secs: 0.0,
+        tool_call_count: 0,
         run_dir: String::new(),
     };
     let s = ScenarioResult::from_trials(
@@ -381,6 +382,83 @@ fn pass_hat_k_is_the_stability_floor() {
     // A fully-indeterminate scenario is not gradable (excluded from rates).
     let s3 = ScenarioResult::from_trials("z".into(), vec![mk(0, Final::Indeterminate)]);
     assert!(!s3.is_gradable());
+}
+
+#[test]
+fn compare_warns_when_tool_call_evidence_drops_to_zero() {
+    // The exact failure mode that let every tool_called assert pass
+    // vacuously for months: a scenario whose pass rate looks unchanged, but
+    // whose evidence channel (tool_call_count) silently went to zero.
+    use zseval::compare::compare;
+    use zseval::verdict::{Report, ScenarioResult, TrialResult};
+
+    let mk = |tool_call_count| TrialResult {
+        trial: 0,
+        outcome: Final::Pass,
+        reasons: vec![],
+        asserts: vec![],
+        judge: None,
+        input_tokens: 0,
+        output_tokens: 0,
+        cost_usd: 0.0,
+        wall_secs: 0.0,
+        tool_call_count,
+        run_dir: String::new(),
+    };
+
+    let base = Report::build(
+        "base".into(),
+        "m".into(),
+        "b".into(),
+        1,
+        vec![ScenarioResult::from_trials(
+            "memory-search-then-read-when-needed".into(),
+            vec![mk(2)],
+        )],
+    );
+    let cand = Report::build(
+        "cand".into(),
+        "m".into(),
+        "b".into(),
+        1,
+        vec![ScenarioResult::from_trials(
+            "memory-search-then-read-when-needed".into(),
+            vec![mk(0)],
+        )],
+    );
+
+    let c = compare(&base, &cand, 0.05);
+    assert_eq!(
+        c.evidence_warnings,
+        vec!["memory-search-then-read-when-needed".to_string()]
+    );
+    // Pass rate didn't move (both trials Pass), so this must NOT also be
+    // reported as a regression — it's a distinct signal.
+    assert!(c.regressions.is_empty());
+
+    // A scenario with zero tool calls on both sides (e.g. a pure text-answer
+    // scenario) must never false-positive.
+    let base2 = Report::build(
+        "base".into(),
+        "m".into(),
+        "b".into(),
+        1,
+        vec![ScenarioResult::from_trials(
+            "prompt-code-concise-answer".into(),
+            vec![mk(0)],
+        )],
+    );
+    let cand2 = Report::build(
+        "cand".into(),
+        "m".into(),
+        "b".into(),
+        1,
+        vec![ScenarioResult::from_trials(
+            "prompt-code-concise-answer".into(),
+            vec![mk(0)],
+        )],
+    );
+    assert!(compare(&base2, &cand2, 0.05).evidence_warnings.is_empty());
 }
 
 #[test]

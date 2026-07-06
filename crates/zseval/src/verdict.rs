@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::asserts::AssertResult;
 use crate::judge::JudgeVerdict;
 
-pub const REPORT_SCHEMA_VERSION: u32 = 1;
+pub const REPORT_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -40,6 +40,15 @@ pub struct TrialResult {
     pub output_tokens: u64,
     pub cost_usd: f64,
     pub wall_secs: f64,
+    /// How many tool calls the transcript actually contained — the evidence
+    /// count behind every `tool_called*` assert on this trial. Tracked
+    /// separately from pass/fail because a `tool_not_called`-only scenario
+    /// passes vacuously if the evidence channel itself breaks (exactly what
+    /// happened before headless tool-call reconstruction existed): `compare`
+    /// uses this to flag "evidence vanished" even when the pass rate didn't
+    /// move.
+    #[serde(default)]
+    pub tool_call_count: usize,
     /// Where the raw transcript(s) and stdout/stderr live, for `explain`.
     pub run_dir: String,
 }
@@ -69,6 +78,9 @@ pub struct ScenarioResult {
     pub pass_at_k: f64,
     pub pass_hat_k: f64,
     pub indeterminate: usize,
+    /// Sum of `tool_call_count` across all trials — see `TrialResult`'s doc.
+    #[serde(default)]
+    pub total_tool_calls: usize,
 }
 
 impl ScenarioResult {
@@ -80,11 +92,13 @@ impl ScenarioResult {
         let indeterminate = trials.len() - graded.len();
         let any = graded.iter().any(|t| t.outcome == Final::Pass);
         let all = !graded.is_empty() && graded.iter().all(|t| t.outcome == Final::Pass);
+        let total_tool_calls = trials.iter().map(|t| t.tool_call_count).sum();
         ScenarioResult {
             id,
             pass_at_k: if any { 1.0 } else { 0.0 },
             pass_hat_k: if all { 1.0 } else { 0.0 },
             indeterminate,
+            total_tool_calls,
             trials,
         }
     }

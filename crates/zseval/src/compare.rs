@@ -24,6 +24,15 @@ pub struct Comparison {
     /// Shared scenarios that were ungradable on one side (excluded from
     /// regression — an infra/eval problem, not an agent regression).
     pub errored: Vec<String>,
+    /// Shared, gradable scenarios where tool-call evidence dropped to zero
+    /// on the candidate despite the baseline having some. This is the
+    /// tripwire for the exact failure mode that let every `tool_called`
+    /// assert pass vacuously for months: a `tool_not_called`-only scenario
+    /// can look like a clean pass even when the evidence channel itself is
+    /// broken, since there's nothing to contradict it. Not counted as a
+    /// regression (the pass rate may not have moved at all) — surfaced
+    /// separately so it doesn't hide in a stable-looking diff.
+    pub evidence_warnings: Vec<String>,
     pub summary_base_pass_hat_k: f64,
     pub summary_cand_pass_hat_k: f64,
     pub summary_base_cost: f64,
@@ -50,6 +59,7 @@ pub fn compare(base: &Report, cand: &Report, threshold: f64) -> Comparison {
     let mut rows = Vec::new();
     let mut regressions = Vec::new();
     let mut errored = Vec::new();
+    let mut evidence_warnings = Vec::new();
     let mut added = Vec::new();
     let mut removed = Vec::new();
 
@@ -61,6 +71,9 @@ pub fn compare(base: &Report, cand: &Report, threshold: f64) -> Comparison {
                 if !b.is_gradable() || !c.is_gradable() {
                     errored.push(b.id.clone());
                     continue;
+                }
+                if b.total_tool_calls > 0 && c.total_tool_calls == 0 {
+                    evidence_warnings.push(b.id.clone());
                 }
                 let base_rate = b.trial_pass_rate();
                 let cand_rate = c.trial_pass_rate();
@@ -94,6 +107,7 @@ pub fn compare(base: &Report, cand: &Report, threshold: f64) -> Comparison {
         removed,
         regressions,
         errored,
+        evidence_warnings,
         summary_base_pass_hat_k: base.summary.pass_hat_k,
         summary_cand_pass_hat_k: cand.summary.pass_hat_k,
         summary_base_cost: base.summary.total_cost_usd,
@@ -133,6 +147,15 @@ pub fn print_human(c: &Comparison) {
     }
     for id in &c.errored {
         println!("? ungradable (eval/infra, not a regression): {id}");
+    }
+    if !c.evidence_warnings.is_empty() {
+        println!(
+            "\n⚠ tool-call evidence dropped to zero (the pass rate above may look \
+             fine while the evidence channel itself is broken — see AGENTS.md):"
+        );
+        for id in &c.evidence_warnings {
+            println!("  {id}");
+        }
     }
     if !c.regressions.is_empty() {
         println!(
