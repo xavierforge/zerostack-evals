@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-use crate::asserts::Assert;
 use crate::backend::AgentBackend;
 use crate::judge::{self, JudgeVerdict};
 use crate::scenario::Scenario;
@@ -120,9 +119,7 @@ fn run_trial(
     // 3. Deterministic floor.
     let mut all_pass = true;
     let mut assert_results = Vec::new();
-    for line in &sc.expect {
-        // Parse already validated at load time.
-        let a = Assert::parse(line).expect("validated at load");
+    for (line, a) in sc.expect.iter().zip(&sc.asserts) {
         let r = a.eval(&transcript, &roots);
         if !r.pass {
             all_pass = false;

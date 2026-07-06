@@ -359,6 +359,29 @@ notes = [{ name = "ghost", file = "_fixtures/ghost.md" }]
 }
 
 #[test]
+fn scenario_load_stores_parsed_asserts() {
+    // The "every expect line is valid" invariant is enforced by the type,
+    // not by convention: load parses once and stores the Asserts, so the
+    // runner never re-parses (and never needs a "validated at load" panic).
+    let sc_dir = std::env::temp_dir().join(format!("zseval-test-parsed-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        r#"
+id = "parsed-asserts"
+task = "hello"
+expect = ["tool_not_called write", "final_max_lines 4"]
+"#,
+    )
+    .unwrap();
+    let sc = Scenario::load(&sc_dir).unwrap();
+    assert_eq!(sc.asserts.len(), sc.expect.len());
+    assert_eq!(sc.asserts[0], Assert::ToolNotCalled("write".into()));
+    assert_eq!(sc.asserts[1], Assert::FinalMaxLines(4));
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
 fn all_committed_scenarios_load_and_validate() {
     // Guard: a malformed scenario.toml should never reach main. This also
     // validates every assert line parses.

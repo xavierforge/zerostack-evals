@@ -54,6 +54,11 @@ pub struct Scenario {
     /// Directory this scenario was loaded from (filled by the loader).
     #[serde(skip)]
     pub dir: PathBuf,
+    /// `expect` parsed once at load time — the type carries the "every
+    /// assert line is valid" invariant, so graders never re-parse. Same
+    /// order as `expect` (which is kept for human-readable fail reasons).
+    #[serde(skip)]
+    pub asserts: Vec<crate::asserts::Assert>,
 }
 
 /// Subsystem-specific seeding sugar, one optional field per `domains::`
@@ -146,8 +151,9 @@ impl Scenario {
         // not mid-run: a typo'd fixture should fail `zseval list`/load, not
         // burn an API call before surfacing as an indeterminate.
         for line in &sc.expect {
-            crate::asserts::Assert::parse(line)
+            let a = crate::asserts::Assert::parse(line)
                 .with_context(|| format!("{}: bad assert '{line}'", sc.id))?;
+            sc.asserts.push(a);
         }
         for f in &sc.files {
             let probe = std::path::Path::new(".");
