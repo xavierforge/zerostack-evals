@@ -194,6 +194,27 @@ impl Report {
             scenarios,
         }
     }
+
+    /// The process exit code this report earns on its own, independent of
+    /// `compare`. `2` (harness error) when scenarios were declared but not
+    /// one was gradable — every trial indeterminate means the environment
+    /// is broken (missing binary, bad target, expired key), and that must
+    /// never look like a clean pass. `1` when any trial graded Fail. `0`
+    /// otherwise, matching the CLI's documented exit-code contract.
+    pub fn exit_code(&self) -> u8 {
+        if !self.scenarios.is_empty() && self.summary.n_gradable == 0 {
+            return 2;
+        }
+        let any_fail = self
+            .scenarios
+            .iter()
+            .any(|s| s.trials.iter().any(|t| t.outcome == Final::Fail));
+        if any_fail {
+            1
+        } else {
+            0
+        }
+    }
 }
 
 fn round4(x: f64) -> f64 {
@@ -215,4 +236,93 @@ pub fn now_iso() -> String {
         (rem % 3600) / 60,
         rem % 60
     )
+}
+
+#[cfg(test)]
+mod exit_code_tests {
+    use super::*;
+
+    fn trial(outcome: Final) -> TrialResult {
+        TrialResult {
+            trial: 0,
+            outcome,
+            reasons: vec![],
+            asserts: vec![],
+            judge: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            cost_usd: 0.0,
+            wall_secs: 0.0,
+            tool_call_count: 0,
+            run_dir: String::new(),
+        }
+    }
+
+    #[test]
+    fn all_indeterminate_is_harness_error_not_a_clean_pass() {
+        // Every trial ungradable (e.g. every run hit a missing API key) must
+        // never look like exit 0 — that's exactly how a broken environment
+        // hides behind a green CI check.
+        let report = Report::build(
+            "t".into(),
+            "m".into(),
+            "b".into(),
+            1,
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Indeterminate)],
+            )],
+        );
+        assert_eq!(report.summary.n_gradable, 0);
+        assert_eq!(report.exit_code(), 2);
+    }
+
+    #[test]
+    fn no_scenarios_at_all_is_not_a_harness_error() {
+        // An empty scenario set is a usage question (caught earlier by
+        // `discover`), not this report's problem to flag.
+        let report = Report::build("t".into(), "m".into(), "b".into(), 1, vec![]);
+        assert_eq!(report.exit_code(), 0);
+    }
+
+    #[test]
+    fn any_fail_is_exit_1() {
+        let report = Report::build(
+            "t".into(),
+            "m".into(),
+            "b".into(),
+            1,
+            vec![ScenarioResult::from_trials("s".into(), vec![trial(Final::Fail)])],
+        );
+        assert_eq!(report.exit_code(), 1);
+    }
+
+    #[test]
+    fn all_pass_is_exit_0() {
+        let report = Report::build(
+            "t".into(),
+            "m".into(),
+            "b".into(),
+            1,
+            vec![ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass)])],
+        );
+        assert_eq!(report.exit_code(), 0);
+    }
+
+    #[test]
+    fn mixed_gradable_and_indeterminate_scenarios_is_not_a_harness_error() {
+        // Only a *fully* ungradable report is a harness error; a report where
+        // some scenarios graded fine must still surface Fail/Pass normally.
+        let report = Report::build(
+            "t".into(),
+            "m".into(),
+            "b".into(),
+            1,
+            vec![
+                ScenarioResult::from_trials("gradable".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials("broken".into(), vec![trial(Final::Indeterminate)]),
+            ],
+        );
+        assert_eq!(report.exit_code(), 0);
+    }
 }

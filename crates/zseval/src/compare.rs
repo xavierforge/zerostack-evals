@@ -115,6 +115,26 @@ pub fn compare(base: &Report, cand: &Report, threshold: f64) -> Comparison {
     }
 }
 
+impl Comparison {
+    /// This comparison's own exit code, independent of the CLI's other
+    /// concerns. `2` (harness error) when scenarios existed on both sides
+    /// but not one shared scenario was comparable — every shared id landed
+    /// in `errored`, meaning the candidate (or baseline) environment is
+    /// broken, which must never look like "no regressions" (exit 0). `1`
+    /// when at least one shared scenario regressed. `0` otherwise.
+    pub fn exit_code(&self) -> u8 {
+        let shared = self.rows.len() + self.errored.len();
+        if shared > 0 && self.rows.is_empty() {
+            return 2;
+        }
+        if self.regressions.is_empty() {
+            0
+        } else {
+            1
+        }
+    }
+}
+
 pub fn print_human(c: &Comparison) {
     println!(
         "baseline : {}    candidate: {}",
@@ -165,5 +185,115 @@ pub fn print_human(c: &Comparison) {
         for id in &c.regressions {
             println!("  {id}");
         }
+    }
+}
+
+#[cfg(test)]
+mod exit_code_tests {
+    use super::*;
+    use crate::verdict::{Final, Report, ScenarioResult, TrialResult};
+
+    fn trial(outcome: Final, tool_call_count: usize) -> TrialResult {
+        TrialResult {
+            trial: 0,
+            outcome,
+            reasons: vec![],
+            asserts: vec![],
+            judge: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            cost_usd: 0.0,
+            wall_secs: 0.0,
+            tool_call_count,
+            run_dir: String::new(),
+        }
+    }
+
+    fn report(scenarios: Vec<ScenarioResult>) -> Report {
+        Report::build("t".into(), "m".into(), "b".into(), 1, scenarios)
+    }
+
+    #[test]
+    fn all_shared_scenarios_errored_is_harness_error() {
+        // Every shared scenario ungradable on one side (e.g. the candidate
+        // binary crashed on every scenario) must not look like a clean "no
+        // regressions" — that's exit 2, same class of failure as a fully
+        // indeterminate `run`.
+        let base = report(vec![ScenarioResult::from_trials(
+            "s".into(),
+            vec![trial(Final::Pass, 0)],
+        )]);
+        let cand = report(vec![ScenarioResult::from_trials(
+            "s".into(),
+            vec![trial(Final::Indeterminate, 0)],
+        )]);
+        let c = compare(&base, &cand, 0.05);
+        assert!(c.rows.is_empty());
+        assert_eq!(c.errored, vec!["s".to_string()]);
+        assert_eq!(c.exit_code(), 2);
+    }
+
+    #[test]
+    fn no_shared_scenarios_at_all_is_not_a_harness_error() {
+        // Base and candidate cover disjoint scenario sets (e.g. comparing
+        // two different suites) — nothing to compare, but that's a usage
+        // question, not an environment failure.
+        let base = report(vec![ScenarioResult::from_trials(
+            "only-in-base".into(),
+            vec![trial(Final::Pass, 0)],
+        )]);
+        let cand = report(vec![ScenarioResult::from_trials(
+            "only-in-cand".into(),
+            vec![trial(Final::Pass, 0)],
+        )]);
+        let c = compare(&base, &cand, 0.05);
+        assert_eq!(c.exit_code(), 0);
+    }
+
+    #[test]
+    fn regression_is_exit_1() {
+        let base = report(vec![ScenarioResult::from_trials(
+            "s".into(),
+            vec![trial(Final::Pass, 0)],
+        )]);
+        let cand = report(vec![ScenarioResult::from_trials(
+            "s".into(),
+            vec![trial(Final::Fail, 0)],
+        )]);
+        let c = compare(&base, &cand, 0.05);
+        assert_eq!(c.exit_code(), 1);
+    }
+
+    #[test]
+    fn stable_comparison_is_exit_0() {
+        let base = report(vec![ScenarioResult::from_trials(
+            "s".into(),
+            vec![trial(Final::Pass, 0)],
+        )]);
+        let cand = report(vec![ScenarioResult::from_trials(
+            "s".into(),
+            vec![trial(Final::Pass, 0)],
+        )]);
+        let c = compare(&base, &cand, 0.05);
+        assert_eq!(c.exit_code(), 0);
+    }
+
+    #[test]
+    fn some_errored_but_some_comparable_is_not_a_harness_error() {
+        // Only a *total* wipeout (zero comparable shared scenarios) is a
+        // harness error; partial errored scenarios are already excluded
+        // from regression by `compare` itself.
+        let base = report(vec![
+            ScenarioResult::from_trials("ok".into(), vec![trial(Final::Pass, 0)]),
+            ScenarioResult::from_trials("broken".into(), vec![trial(Final::Pass, 0)]),
+        ]);
+        let cand = report(vec![
+            ScenarioResult::from_trials("ok".into(), vec![trial(Final::Pass, 0)]),
+            ScenarioResult::from_trials("broken".into(), vec![trial(Final::Indeterminate, 0)]),
+        ]);
+        let c = compare(&base, &cand, 0.05);
+        assert_eq!(c.errored, vec!["broken".to_string()]);
+        assert_eq!(c.rows.len(), 1);
+        assert_eq!(c.exit_code(), 0);
     }
 }

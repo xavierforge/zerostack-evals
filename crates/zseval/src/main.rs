@@ -12,7 +12,6 @@ use zseval::backend::{AgentBackend, Mock, ZsCli};
 use zseval::compare::{compare, load_report, print_human};
 use zseval::runner::{run_suite, RunOptions};
 use zseval::scenario::discover;
-use zseval::verdict::Final;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -216,15 +215,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         );
     }
 
-    let any_fail = report
-        .scenarios
-        .iter()
-        .any(|s| s.trials.iter().any(|t| t.outcome == Final::Fail));
-    Ok(if any_fail {
-        ExitCode::from(1)
-    } else {
-        ExitCode::SUCCESS
-    })
+    Ok(ExitCode::from(report.exit_code()))
 }
 
 /// Build a human-identifiable run tag: which scenarios, against what
@@ -292,11 +283,7 @@ fn cmd_compare(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     } else {
         print_human(&c);
     }
-    Ok(if c.regressions.is_empty() {
-        ExitCode::SUCCESS
-    } else {
-        ExitCode::from(1)
-    })
+    Ok(ExitCode::from(c.exit_code()))
 }
 
 fn cmd_explain(rest: Vec<String>) -> anyhow::Result<ExitCode> {
