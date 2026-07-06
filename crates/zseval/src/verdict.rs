@@ -81,10 +81,25 @@ pub struct ScenarioResult {
     /// Sum of `tool_call_count` across all trials — see `TrialResult`'s doc.
     #[serde(default)]
     pub total_tool_calls: usize,
+    /// `Scenario::content_hash` at run time — lets `compare` warn when a
+    /// scenario's own definition changed between baseline and candidate.
+    /// `#[serde(default)]` so an old committed baseline predating this
+    /// field deserializes as `""`, which `compare` treats as "unknown, skip
+    /// the check" rather than a false-positive warning on every scenario.
+    #[serde(default)]
+    pub content_hash: String,
 }
 
 impl ScenarioResult {
     pub fn from_trials(id: String, trials: Vec<TrialResult>) -> Self {
+        Self::from_trials_with_hash(id, String::new(), trials)
+    }
+
+    pub fn from_trials_with_hash(
+        id: String,
+        content_hash: String,
+        trials: Vec<TrialResult>,
+    ) -> Self {
         let graded: Vec<&TrialResult> = trials
             .iter()
             .filter(|t| t.outcome != Final::Indeterminate)
@@ -99,6 +114,7 @@ impl ScenarioResult {
             pass_hat_k: if all { 1.0 } else { 0.0 },
             indeterminate,
             total_tool_calls,
+            content_hash,
             trials,
         }
     }
@@ -292,7 +308,10 @@ mod exit_code_tests {
             "m".into(),
             "b".into(),
             1,
-            vec![ScenarioResult::from_trials("s".into(), vec![trial(Final::Fail)])],
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Fail)],
+            )],
         );
         assert_eq!(report.exit_code(), 1);
     }
@@ -304,7 +323,10 @@ mod exit_code_tests {
             "m".into(),
             "b".into(),
             1,
-            vec![ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass)])],
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Pass)],
+            )],
         );
         assert_eq!(report.exit_code(), 0);
     }

@@ -59,6 +59,11 @@ pub struct Scenario {
     /// order as `expect` (which is kept for human-readable fail reasons).
     #[serde(skip)]
     pub asserts: Vec<crate::asserts::Assert>,
+    /// FNV-1a hash of this scenario's raw TOML source, so `compare` can
+    /// warn when a scenario's own definition changed between a baseline and
+    /// a candidate run — see `util::fnv1a_hex`.
+    #[serde(skip)]
+    pub content_hash: String,
 }
 
 /// Subsystem-specific seeding sugar, one optional field per `domains::`
@@ -141,6 +146,7 @@ impl Scenario {
         let mut sc: Scenario =
             toml::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
         sc.dir = dir.to_path_buf();
+        sc.content_hash = crate::util::fnv1a_hex(text.as_bytes());
         if sc.task.turns().is_empty() {
             bail!("{}: task must not be empty", sc.id);
         }

@@ -34,6 +34,21 @@ pub fn compact_timestamp() -> String {
     )
 }
 
+/// FNV-1a 64-bit hash of arbitrary bytes, as lowercase hex (16 chars). Used
+/// to fingerprint a scenario's raw TOML source so `compare` can tell whether
+/// a scenario definition changed between a baseline and a candidate run —
+/// independent of `domains::memory::project_slug`'s own FNV-1a use, which
+/// must stay byte-for-byte pinned to zerostack's algorithm and must never be
+/// refactored to share code with an unrelated hash consumer.
+pub fn fnv1a_hex(bytes: &[u8]) -> String {
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for &byte in bytes {
+        hash ^= byte as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("{hash:016x}")
+}
+
 /// Tail of a text file, for self-explanatory error messages.
 pub fn tail_of(path: &std::path::Path, lines: usize) -> String {
     match std::fs::read_to_string(path) {
@@ -43,5 +58,31 @@ pub fn tail_of(path: &std::path::Path, lines: usize) -> String {
             all[start..].join("\n")
         }
         _ => String::from("(empty)"),
+    }
+}
+
+#[cfg(test)]
+mod fnv1a_tests {
+    use super::*;
+
+    #[test]
+    fn same_bytes_hash_the_same() {
+        assert_eq!(fnv1a_hex(b"hello"), fnv1a_hex(b"hello"));
+    }
+
+    #[test]
+    fn different_bytes_hash_differently() {
+        assert_ne!(fnv1a_hex(b"hello"), fnv1a_hex(b"hellp"));
+    }
+
+    #[test]
+    fn output_is_16_lowercase_hex_chars() {
+        let h = fnv1a_hex(b"scenario.toml contents");
+        assert_eq!(h.len(), 16, "{h}");
+        assert!(
+            h.chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+            "{h}"
+        );
     }
 }

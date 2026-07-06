@@ -13,6 +13,10 @@ use crate::verdict::{Final, Report, ScenarioResult, TrialResult};
 pub struct RunOptions {
     /// None = don't force a model; zerostack uses its configured default.
     pub model: Option<String>,
+    /// The target config.toml seeded into each run (see `backend::ZsCli`) —
+    /// kept here too so the report can record what was actually evaluated
+    /// (`target::describe`), independent of whichever backend is in use.
+    pub target: Option<PathBuf>,
     pub trials_override: Option<usize>,
     pub tag: String,
     pub no_judge: bool,
@@ -54,14 +58,16 @@ pub fn run_suite(
             print_trial_line(&sc.id, &tr);
             trial_results.push(tr);
         }
-        results.push(ScenarioResult::from_trials(sc.id.clone(), trial_results));
+        results.push(ScenarioResult::from_trials_with_hash(
+            sc.id.clone(),
+            sc.content_hash.clone(),
+            trial_results,
+        ));
     }
 
     let report = Report::build(
         opts.tag.clone(),
-        opts.model
-            .clone()
-            .unwrap_or_else(|| "provider-default".into()),
+        crate::target::describe(opts.target.as_deref(), opts.model.as_deref()),
         backend.name().to_string(),
         opts.trials_override.unwrap_or(0),
         results,

@@ -166,6 +166,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         // No default: when unset, zerostack uses its own configured provider +
         // model. Forcing a model here would override the user's setup.
         model: f.get("model").map(String::from),
+        target: f.get("target").map(PathBuf::from),
         trials_override: match f.get("trials") {
             Some(t) => Some(t.parse()?),
             None => None,
@@ -228,20 +229,10 @@ fn auto_tag(scenario_path: &str, target: Option<&str>, model_override: Option<&s
         .and_then(|s| s.to_str())
         .unwrap_or("scenarios");
     // Read provider + model out of the target config (a --model flag overrides).
-    let (mut provider, mut model) = (None, model_override.map(String::from));
-    if let Some(p) = target {
-        if let Ok(text) = std::fs::read_to_string(p) {
-            #[derive(serde::Deserialize)]
-            struct Peek {
-                provider: Option<String>,
-                model: Option<String>,
-            }
-            if let Ok(peek) = toml::from_str::<Peek>(&text) {
-                provider = peek.provider;
-                model = model.or(peek.model);
-            }
-        }
-    }
+    let (provider, target_model) = target
+        .map(|p| zseval::target::peek(Path::new(p)))
+        .unwrap_or((None, None));
+    let model = model_override.map(String::from).or(target_model);
     let target_group: Vec<String> = [provider, model]
         .into_iter()
         .flatten()

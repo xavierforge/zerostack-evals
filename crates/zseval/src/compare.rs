@@ -33,6 +33,19 @@ pub struct Comparison {
     /// regression (the pass rate may not have moved at all) — surfaced
     /// separately so it doesn't hide in a stable-looking diff.
     pub evidence_warnings: Vec<String>,
+    /// Shared, gradable scenarios whose `content_hash` differs between
+    /// baseline and candidate — the scenario's own definition changed, so a
+    /// pass-rate diff compares two different tests under the same id. Not a
+    /// regression signal by itself; surfaced so a moved ruler is visible
+    /// instead of silently blamed on the agent (see AGENTS.md's guardrail).
+    pub definition_changed: Vec<String>,
+    /// Whether baseline and candidate were evaluated against a different
+    /// provider/model (`Report.model`) — comparing across targets isn't
+    /// inherently wrong (that's the A/B use case), but it must never be
+    /// silent when the caller expected an apples-to-apples regression check.
+    pub target_mismatch: bool,
+    pub base_model: String,
+    pub cand_model: String,
     pub summary_base_pass_hat_k: f64,
     pub summary_cand_pass_hat_k: f64,
     pub summary_base_cost: f64,
@@ -60,6 +73,7 @@ pub fn compare(base: &Report, cand: &Report, threshold: f64) -> Comparison {
     let mut regressions = Vec::new();
     let mut errored = Vec::new();
     let mut evidence_warnings = Vec::new();
+    let mut definition_changed = Vec::new();
     let mut added = Vec::new();
     let mut removed = Vec::new();
 
@@ -74,6 +88,15 @@ pub fn compare(base: &Report, cand: &Report, threshold: f64) -> Comparison {
                 }
                 if b.total_tool_calls > 0 && c.total_tool_calls == 0 {
                     evidence_warnings.push(b.id.clone());
+                }
+                // Empty hash = an old baseline predating this field, or a
+                // hand-built ScenarioResult in a test — "unknown", not "the
+                // same", but also not evidence of a real change, so skip.
+                if !b.content_hash.is_empty()
+                    && !c.content_hash.is_empty()
+                    && b.content_hash != c.content_hash
+                {
+                    definition_changed.push(b.id.clone());
                 }
                 let base_rate = b.trial_pass_rate();
                 let cand_rate = c.trial_pass_rate();
@@ -108,6 +131,10 @@ pub fn compare(base: &Report, cand: &Report, threshold: f64) -> Comparison {
         regressions,
         errored,
         evidence_warnings,
+        definition_changed,
+        target_mismatch: base.model != cand.model,
+        base_model: base.model.clone(),
+        cand_model: cand.model.clone(),
         summary_base_pass_hat_k: base.summary.pass_hat_k,
         summary_cand_pass_hat_k: cand.summary.pass_hat_k,
         summary_base_cost: base.summary.total_cost_usd,
@@ -137,9 +164,17 @@ impl Comparison {
 
 pub fn print_human(c: &Comparison) {
     println!(
-        "baseline : {}    candidate: {}",
-        c.baseline_tag, c.candidate_tag
+        "baseline : {} ({})    candidate: {} ({})",
+        c.baseline_tag, c.base_model, c.candidate_tag, c.cand_model
     );
+    if c.target_mismatch {
+        println!(
+            "⚠ comparing different targets — baseline was evaluated against \
+             '{}', candidate against '{}'. A pass-rate diff here is an A/B \
+             comparison, not a regression check.",
+            c.base_model, c.cand_model
+        );
+    }
     println!("{:<48}{:>8}{:>8}{:>8}", "scenario", "base", "cand", "diff");
     for r in &c.rows {
         println!(
@@ -167,6 +202,16 @@ pub fn print_human(c: &Comparison) {
     }
     for id in &c.errored {
         println!("? ungradable (eval/infra, not a regression): {id}");
+    }
+    if !c.definition_changed.is_empty() {
+        println!(
+            "\n⚠ scenario definition changed between baseline and candidate (the \
+             diff above compares two different tests under the same id — see \
+             AGENTS.md's guardrail on not moving the ruler):"
+        );
+        for id in &c.definition_changed {
+            println!("  {id}");
+        }
     }
     if !c.evidence_warnings.is_empty() {
         println!(
@@ -276,6 +321,74 @@ mod exit_code_tests {
         )]);
         let c = compare(&base, &cand, 0.05);
         assert_eq!(c.exit_code(), 0);
+    }
+
+    #[test]
+    fn warns_when_shared_scenario_definition_changed() {
+        // A scenario's own definition changing between baseline and
+        // candidate is exactly "measuring yourself with a ruler you moved"
+        // (AGENTS.md) — make it visible instead of silently comparing two
+        // different tests under the same id.
+        let mut base_result = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
+        base_result.content_hash = "aaaa".into();
+        let mut cand_result = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
+        cand_result.content_hash = "bbbb".into();
+        let base = report(vec![base_result]);
+        let cand = report(vec![cand_result]);
+        let c = compare(&base, &cand, 0.05);
+        assert_eq!(c.definition_changed, vec!["s".to_string()]);
+    }
+
+    #[test]
+    fn no_warning_when_hash_matches_or_is_unknown() {
+        // Same hash: no warning. Empty hash on either side (an old
+        // committed baseline predating this field): also no warning — a
+        // migration must not manufacture false positives for every
+        // pre-existing scenario.
+        let mut same_a = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
+        same_a.content_hash = "aaaa".into();
+        let mut same_b = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
+        same_b.content_hash = "aaaa".into();
+        let c = compare(&report(vec![same_a]), &report(vec![same_b]), 0.05);
+        assert!(c.definition_changed.is_empty());
+
+        let mut old_baseline = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
+        old_baseline.content_hash = String::new();
+        let mut fresh = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
+        fresh.content_hash = "aaaa".into();
+        let c = compare(&report(vec![old_baseline]), &report(vec![fresh]), 0.05);
+        assert!(c.definition_changed.is_empty());
+    }
+
+    #[test]
+    fn warns_when_target_model_differs() {
+        // Comparing an Anthropic baseline against an OpenRouter candidate
+        // (or a different model on the same provider) must be visible, not
+        // silently treated as an apples-to-apples regression check.
+        let base = Report::build(
+            "t".into(),
+            "anthropic/claude-sonnet-4-6".into(),
+            "b".into(),
+            1,
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Pass, 0)],
+            )],
+        );
+        let cand = Report::build(
+            "t".into(),
+            "openrouter/some-model".into(),
+            "b".into(),
+            1,
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Pass, 0)],
+            )],
+        );
+        let c = compare(&base, &cand, 0.05);
+        assert!(c.target_mismatch);
+        assert_eq!(c.base_model, "anthropic/claude-sonnet-4-6");
+        assert_eq!(c.cand_model, "openrouter/some-model");
     }
 
     #[test]

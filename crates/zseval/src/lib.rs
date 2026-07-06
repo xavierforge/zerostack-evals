@@ -13,6 +13,7 @@ pub mod judge;
 pub mod runner;
 pub mod scenario;
 pub mod seed;
+pub mod target;
 pub mod transcript;
 pub mod util;
 pub mod verdict;

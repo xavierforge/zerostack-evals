@@ -282,8 +282,13 @@ long_term = "_fixtures/MEMORY.md"
     zseval::domains::validate(&sc).unwrap();
 
     // expand: memory sugar becomes generic placements rooted at config:.
-    let run_dir = std::env::temp_dir().join(format!("zseval-test-dispatchrun-{}", std::process::id()));
-    let (data, config, work) = (run_dir.join("data"), run_dir.join("config"), run_dir.join("work"));
+    let run_dir =
+        std::env::temp_dir().join(format!("zseval-test-dispatchrun-{}", std::process::id()));
+    let (data, config, work) = (
+        run_dir.join("data"),
+        run_dir.join("config"),
+        run_dir.join("work"),
+    );
     for d in [&data, &config, &work] {
         std::fs::create_dir_all(d).unwrap();
     }
@@ -382,6 +387,32 @@ expect = ["tool_not_called write", "final_max_lines 4"]
 }
 
 #[test]
+fn scenario_content_hash_changes_with_the_file_and_is_stable_otherwise() {
+    // `compare` uses this to warn when a scenario's own definition changed
+    // between a baseline and a candidate run (AGENTS.md's "don't move the
+    // ruler" guardrail, made machine-checkable).
+    let sc_dir = std::env::temp_dir().join(format!("zseval-test-hash-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    let toml = |task: &str| {
+        format!("id = \"hash-test\"\ntask = \"{task}\"\nexpect = [\"final_contains x\"]\n")
+    };
+    std::fs::write(sc_dir.join("scenario.toml"), toml("hello")).unwrap();
+    let a = Scenario::load(&sc_dir).unwrap();
+    let a2 = Scenario::load(&sc_dir).unwrap();
+    assert!(!a.content_hash.is_empty());
+    assert_eq!(
+        a.content_hash, a2.content_hash,
+        "reloading unchanged file must hash the same"
+    );
+
+    std::fs::write(sc_dir.join("scenario.toml"), toml("goodbye")).unwrap();
+    let b = Scenario::load(&sc_dir).unwrap();
+    assert_ne!(a.content_hash, b.content_hash);
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
 fn all_committed_scenarios_load_and_validate() {
     // Guard: a malformed scenario.toml should never reach main. This also
     // validates every assert line parses.
@@ -405,6 +436,7 @@ fn end_to_end_mock_run_produces_pass_and_report() {
     };
     let opts = RunOptions {
         model: None,
+        target: None,
         trials_override: Some(2),
         tag: "e2e".into(),
         no_judge: true, // deterministic floor only; judge is covered manually
@@ -486,6 +518,7 @@ judge = "Did the agent answer the question?"
         };
         let opts = RunOptions {
             model: None,
+            target: None,
             trials_override: Some(1),
             tag: "j".into(),
             no_judge,
@@ -502,23 +535,39 @@ judge = "Did the agent answer the question?"
 
     let t = run(&TestJudge::Verdict(JudgeVerdict::No), false);
     assert_eq!(t.outcome, Final::Fail);
-    assert!(t.reasons.iter().any(|r| r.contains("judge: No")), "{:?}", t.reasons);
+    assert!(
+        t.reasons.iter().any(|r| r.contains("judge: No")),
+        "{:?}",
+        t.reasons
+    );
 
     let t = run(&TestJudge::Verdict(JudgeVerdict::Unknown), false);
     assert_eq!(t.outcome, Final::Indeterminate);
 
     let t = run(&TestJudge::Error, false);
     assert_eq!(t.outcome, Final::Indeterminate);
-    assert!(t.reasons.iter().any(|r| r.contains("judge error")), "{:?}", t.reasons);
+    assert!(
+        t.reasons.iter().any(|r| r.contains("judge error")),
+        "{:?}",
+        t.reasons
+    );
 
     let t = run(&TestJudge::Unavailable, false);
     assert_eq!(t.outcome, Final::Indeterminate);
-    assert!(t.reasons.iter().any(|r| r.contains("not available")), "{:?}", t.reasons);
+    assert!(
+        t.reasons.iter().any(|r| r.contains("not available")),
+        "{:?}",
+        t.reasons
+    );
 
     // --no-judge skips even an unavailable judge: deterministic floor only.
     let t = run(&TestJudge::Unavailable, true);
     assert_eq!(t.outcome, Final::Pass, "{:?}", t.reasons);
-    assert!(t.reasons.iter().any(|r| r.contains("judge skipped")), "{:?}", t.reasons);
+    assert!(
+        t.reasons.iter().any(|r| r.contains("judge skipped")),
+        "{:?}",
+        t.reasons
+    );
 
     std::fs::remove_dir_all(&sc_dir).ok();
 }
