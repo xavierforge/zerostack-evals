@@ -160,7 +160,12 @@ pub fn discover_turn_artifacts(run_dir: &Path) -> Vec<TurnArtifacts> {
         .collect()
 }
 
-pub trait AgentBackend {
+/// `Sync` so a shared `&dyn AgentBackend` can be handed to several trial
+/// worker threads at once (`runner::run_trials_for_scenario`'s `--jobs`
+/// path) — every real implementor (`ZsCli`, `Mock`) is plain owned data with
+/// no interior mutability, so this costs nothing, it just makes the bound
+/// explicit at the trait object boundary.
+pub trait AgentBackend: Sync {
     fn name(&self) -> &str;
     /// `model` is `None` unless the user explicitly passed `--model`; when None
     /// the backend must not force a model, so zerostack uses its own configured

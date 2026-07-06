@@ -48,7 +48,10 @@ pub struct JudgeOutcome {
 /// The seam the runner grades through: same shape as `AgentBackend`, so the
 /// verdict-mapping paths (No -> Fail, Unknown/error/no-key -> Indeterminate)
 /// are testable without a key or a network. `LlmJudge` is the real referee.
-pub trait Judge {
+/// `Sync` for the same reason as `AgentBackend: Sync` — shared across trial
+/// worker threads under `--jobs`. `LlmJudge` is a unit struct; a test double
+/// holding only owned data (see `harness.rs`'s `TestJudge`) is Sync too.
+pub trait Judge: Sync {
     /// Whether this judge can grade right now (e.g. its API key is set).
     fn available(&self) -> bool;
     fn judge(&self, rubric: &str, evidence: &str, run_dir: &Path) -> Result<JudgeOutcome>;

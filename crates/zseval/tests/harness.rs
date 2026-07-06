@@ -442,6 +442,7 @@ fn end_to_end_mock_run_produces_pass_and_report() {
         no_judge: true, // deterministic floor only; judge is covered manually
         results_root: results_root.clone(),
         max_total_usd: None,
+        jobs: 1,
     };
     let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
 
@@ -459,6 +460,53 @@ fn end_to_end_mock_run_produces_pass_and_report() {
     let loaded =
         zseval::compare::load_report(&results_root.join("e2e").join("report.json")).unwrap();
     assert_eq!(loaded.scenarios[0].id, "prompt-ask-readonly-refuses-edit");
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+#[test]
+fn jobs_greater_than_one_grades_every_trial_and_keeps_them_in_order() {
+    // Trials run on worker threads under --jobs finish in whatever order the
+    // OS schedules them; run_trials_for_scenario must still hand back
+    // exactly `trials` results, one per index, sorted — same shape a caller
+    // would get from the sequential (jobs=1) path, just faster wall-clock.
+    let sc_dir = scenarios_root().join("prompts/ask-readonly");
+    let sc = Scenario::load(&sc_dir).unwrap();
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-jobs-test-{}", std::process::id()));
+
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    let opts = RunOptions {
+        model: None,
+        target: None,
+        trials_override: Some(6),
+        tag: "jobs".into(),
+        no_judge: true,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 3,
+    };
+    let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
+
+    let s = &report.scenarios[0];
+    assert_eq!(s.trials.len(), 6);
+    assert_eq!(
+        s.trials.iter().map(|t| t.trial).collect::<Vec<_>>(),
+        vec![0, 1, 2, 3, 4, 5],
+        "trials must come back sorted by index regardless of thread completion order"
+    );
+    assert!(s.trials.iter().all(|t| t.outcome == Final::Pass), "{s:?}");
+    // Every trial got its own isolated run_dir with a persisted trial.json —
+    // the concurrent path must not let two workers collide on one directory.
+    for trial in &s.trials {
+        assert!(
+            Path::new(&trial.run_dir).join("trial.json").is_file(),
+            "{}",
+            trial.run_dir
+        );
+    }
+
     std::fs::remove_dir_all(&results_root).ok();
 }
 
@@ -529,6 +577,7 @@ judge = "Did the agent answer the question?"
             no_judge,
             results_root: results_root.clone(),
             max_total_usd: None,
+        jobs: 1,
         };
         let report = run_suite(vec![sc], &backend, judge, &opts).unwrap();
         std::fs::remove_dir_all(&results_root).ok();
@@ -636,6 +685,7 @@ fn indeterminate_trial_recovers_cost_already_spent_before_the_failure() {
         no_judge: true,
         results_root: results_root.clone(),
         max_total_usd: None,
+        jobs: 1,
     };
     let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
@@ -680,6 +730,7 @@ fn regrade_regrades_existing_artifacts_without_driving_the_agent() {
         no_judge: true,
         results_root: results_root.clone(),
         max_total_usd: None,
+        jobs: 1,
     };
     let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
     assert_eq!(report.scenarios[0].trials[0].outcome, Final::Pass);

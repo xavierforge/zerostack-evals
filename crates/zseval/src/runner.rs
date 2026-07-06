@@ -1,6 +1,7 @@
 //! Orchestration: scenarios × trials -> graded trials -> report on disk.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use anyhow::{Context, Result};
 
@@ -22,6 +23,16 @@ pub struct RunOptions {
     pub no_judge: bool,
     pub results_root: PathBuf,
     pub max_total_usd: Option<f64>,
+    /// How many trials of the *same* scenario to drive concurrently — trials
+    /// are independent (each gets its own isolated run_dir), so this is pure
+    /// wall-clock win with no change to grading. Scenarios themselves stay
+    /// sequential: the cost-cap check below is scenario-granular ("a
+    /// scenario runs its full trial count or not at all"), and interleaving
+    /// scenarios too would only complicate that for no benefit, since a
+    /// suite's wall time is dominated by trials-per-scenario, not scenario
+    /// count. `1` (the default) reproduces the old strictly-sequential,
+    /// live-printed behavior exactly.
+    pub jobs: usize,
 }
 
 pub fn run_suite(
@@ -43,20 +54,9 @@ pub fn run_suite(
             }
         }
         let trials = opts.trials_override.unwrap_or(sc.trials).max(1);
-        let mut trial_results = Vec::new();
-        for trial in 0..trials {
-            let run_dir = opts
-                .results_root
-                .join(&opts.tag)
-                .join(&sc.id)
-                .join(format!("trial-{trial}"));
-            std::fs::create_dir_all(&run_dir)?;
-            let tr = run_trial(sc, backend, judge, opts, trial, &run_dir);
+        let trial_results = run_trials_for_scenario(sc, backend, judge, opts, trials)?;
+        for tr in &trial_results {
             spent += tr.cost_usd;
-            // Persist per-trial for `explain`.
-            std::fs::write(run_dir.join("trial.json"), serde_json::to_vec_pretty(&tr)?)?;
-            print_trial_line(&sc.id, &tr);
-            trial_results.push(tr);
         }
         results.push(ScenarioResult::from_trials_with_hash(
             sc.id.clone(),
@@ -80,6 +80,83 @@ pub fn run_suite(
     std::fs::write(&report_path, serde_json::to_vec_pretty(&report)?)
         .with_context(|| format!("write {}", report_path.display()))?;
     Ok(report)
+}
+
+/// Run every trial of one scenario, then return results ordered by trial
+/// index regardless of completion order. `jobs <= 1` keeps the exact old
+/// path (sequential, printed as each trial finishes) since that's the
+/// default; `jobs > 1` runs a bounded pool of worker threads pulling trial
+/// indices off a shared counter — trials are independent (their own run_dir,
+/// no shared state), so this is the only thing that changes, not grading.
+fn run_trials_for_scenario(
+    sc: &Scenario,
+    backend: &dyn AgentBackend,
+    judge: &dyn Judge,
+    opts: &RunOptions,
+    trials: usize,
+) -> Result<Vec<TrialResult>> {
+    let run_one = |trial: usize| -> Result<TrialResult> {
+        let run_dir = opts
+            .results_root
+            .join(&opts.tag)
+            .join(&sc.id)
+            .join(format!("trial-{trial}"));
+        std::fs::create_dir_all(&run_dir)?;
+        let tr = run_trial(sc, backend, judge, opts, trial, &run_dir);
+        // Persist per-trial for `explain`.
+        std::fs::write(run_dir.join("trial.json"), serde_json::to_vec_pretty(&tr)?)?;
+        Ok(tr)
+    };
+
+    if opts.jobs <= 1 {
+        let mut out = Vec::with_capacity(trials);
+        for trial in 0..trials {
+            let tr = run_one(trial)?;
+            print_trial_line(&sc.id, &tr);
+            out.push(tr);
+        }
+        return Ok(out);
+    }
+
+    let jobs = opts.jobs.min(trials);
+    let next = AtomicUsize::new(0);
+    let outcome: Result<Vec<(usize, TrialResult)>> = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..jobs)
+            .map(|_| {
+                scope.spawn(|| -> Result<Vec<(usize, TrialResult)>> {
+                    let mut mine = Vec::new();
+                    loop {
+                        let trial = next.fetch_add(1, Ordering::SeqCst);
+                        if trial >= trials {
+                            break;
+                        }
+                        mine.push((trial, run_one(trial)?));
+                    }
+                    Ok(mine)
+                })
+            })
+            .collect();
+        let mut all = Vec::with_capacity(trials);
+        for h in handles {
+            match h.join() {
+                Ok(Ok(mine)) => all.extend(mine),
+                Ok(Err(e)) => return Err(e),
+                Err(_) => anyhow::bail!("a trial-runner thread panicked"),
+            }
+        }
+        Ok(all)
+    });
+    let mut all = outcome?;
+    // Deterministic output regardless of which worker finished first.
+    all.sort_by_key(|(trial, _)| *trial);
+    let out: Vec<TrialResult> = all
+        .into_iter()
+        .map(|(_, tr)| {
+            print_trial_line(&sc.id, &tr);
+            tr
+        })
+        .collect();
+    Ok(out)
 }
 
 fn run_trial(

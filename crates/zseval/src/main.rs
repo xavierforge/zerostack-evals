@@ -52,7 +52,8 @@ zseval — eval harness for zerostack agents
 USAGE:
   zseval run <scenario-path> [--target config.toml] [--model M] [--trials N]
              [--tag T] [--zs-bin PATH] [--backend zs|mock=<session.json>]
-             [--no-judge] [--max-total-usd X] [--results DIR] [--json] [--verbose]
+             [--no-judge] [--max-total-usd X] [--results DIR] [--jobs N]
+             [--json] [--verbose]
   zseval compare <baseline.json> <candidate.json> [--threshold 0.05] [--json]
   zseval explain <trial-dir>
   zseval list [scenarios-root]
@@ -67,6 +68,11 @@ USAGE:
   build: a single session JSON file, or a directory shaped like a captured
   trial dir (data/sessions/*.json + turn-N.{stdout,stderr,zslog}) to also
   replay stdout-based tool-call evidence.
+
+  --jobs N runs up to N trials of the same scenario concurrently (default 1,
+  strictly sequential). Trials are independent — their own isolated run_dir —
+  so this only changes wall-clock time, never grading. Scenarios themselves
+  always run one at a time.
 
   regrade re-scores an already-completed <trial-dir> against <scenario-dir>'s
   *current* asserts/judge, without driving the agent again — for checking
@@ -139,6 +145,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
             "max-total-usd",
             "results",
             "target",
+            "jobs",
         ],
         &["no-judge", "json", "verbose"],
     )?;
@@ -194,6 +201,10 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         max_total_usd: match f.get("max-total-usd") {
             Some(x) => Some(x.parse()?),
             None => None,
+        },
+        jobs: match f.get("jobs") {
+            Some(j) => j.parse()?,
+            None => 1,
         },
     };
 

@@ -49,9 +49,13 @@ as a usage mistake — a broken environment never looks like a clean pass.
     cargo run -p zseval -- run scenarios/prompts/ask-readonly \
       --target targets/anthropic.toml --trials 1 --no-judge
 
-    # full local suite; pass an explicit --tag when you want a stable name
+    # full local suite; pass an explicit --tag when you want a stable name.
+    # --jobs N runs up to N trials of the *same* scenario concurrently — each
+    # trial is already isolated in its own run_dir, so this is pure
+    # wall-clock win with no change to grading; scenarios still run one at a
+    # time. Omit it (or pass --jobs 1) for the old strictly-sequential path.
     cargo run -p zseval -- run scenarios --target targets/anthropic.toml \
-      --trials 3 --tag candidate --json
+      --trials 3 --jobs 3 --tag candidate --json
     cargo run -p zseval -- compare baselines/main.json results/candidate/report.json
 
     # inspect a failing trial
