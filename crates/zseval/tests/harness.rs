@@ -709,6 +709,67 @@ fn regrade_regrades_existing_artifacts_without_driving_the_agent() {
 }
 
 #[test]
+fn regrade_canonicalizes_run_dir_so_memory_drift_check_does_not_false_positive() {
+    // `ZsCli::run` canonicalizes run_dir before computing the memory layout
+    // root it seeds and before zerostack ever sees ZS_CONFIG_DIR — so a
+    // captured zslog's "memory open: root=..." line always records a
+    // canonical path. `regrade` re-scores that same run_dir from a fresh
+    // process and must canonicalize the same way, or a caller passing a
+    // relative/non-canonical path (macOS: /tmp -> /private/tmp; or simply
+    // `zseval regrade ... results/tag/.../trial-0/` off the command line)
+    // would make an unrelated path-form mismatch look like real drift.
+    use zseval::domains::memory::project_slug;
+
+    let run_dir = std::env::temp_dir().join(format!("zseval-regrade-canon-{}", std::process::id()));
+    std::fs::create_dir_all(run_dir.join("data/sessions")).unwrap();
+    std::fs::create_dir_all(run_dir.join("config")).unwrap();
+    std::fs::create_dir_all(run_dir.join("work")).unwrap();
+
+    // What a real ZsCli run would have recorded: root/project computed from
+    // the *canonical* form of this run_dir, exactly as `domains::memory`
+    // expects (see layout_root/project_slug in domains/memory.rs).
+    let canon = std::fs::canonicalize(&run_dir).unwrap();
+    let expected_root = canon.join("config").join("agent").join("memory");
+    let expected_project = project_slug(&canon.join("work"));
+    std::fs::write(
+        run_dir.join("turn-0.zslog"),
+        format!(
+            "2026-01-01T00:00:00Z DEBUG zerostack: memory open: root={}, project={expected_project}\n",
+            expected_root.display()
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        run_dir.join("data/sessions/session.json"),
+        r#"{"id":"s","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"done"}]}"#,
+    )
+    .unwrap();
+
+    let sc_dir = std::env::temp_dir().join(format!("zseval-regrade-canon-sc-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        "id = \"regrade-canon-test\"\ntask = \"hi\"\nexpect = [\"final_contains done\"]\n[seed.memory]\n",
+    )
+    .unwrap();
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    // Passed as-is (not pre-canonicalized by the caller) — regrade must do
+    // it internally, the same way `zseval regrade <scenario> <trial-dir>`
+    // would be invoked from a shell with a relative or symlinked path.
+    let tr = zseval::runner::regrade(&sc, &zseval::judge::LlmJudge, true, 0, &run_dir).unwrap();
+    assert_eq!(
+        tr.outcome,
+        Final::Pass,
+        "expected a clean pass, got indeterminate/fail via: {:?}",
+        tr.reasons
+    );
+
+    std::fs::remove_dir_all(&run_dir).ok();
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
 fn pass_hat_k_is_the_stability_floor() {
     // One failing trial: pass@k stays 1, pass^k drops to 0.
     use zseval::verdict::{ScenarioResult, TrialResult};

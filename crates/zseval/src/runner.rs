@@ -114,6 +114,13 @@ pub fn regrade(
     trial: usize,
     run_dir: &Path,
 ) -> Result<TrialResult> {
+    // Canonicalize, matching `ZsCli::run` — the zslog memory-drift check
+    // compares an absolute path recorded by zerostack against one computed
+    // here, so a caller passing a relative run_dir (e.g. `results/tag/...`
+    // straight off the command line) must not make that comparison fail on
+    // a path-form mismatch that has nothing to do with an actual drift.
+    let run_dir = std::fs::canonicalize(run_dir).unwrap_or_else(|_| run_dir.to_path_buf());
+    let run_dir = run_dir.as_path();
     let session_files = crate::backend::discover_session_files(&run_dir.join("data"));
     if session_files.is_empty() {
         anyhow::bail!(

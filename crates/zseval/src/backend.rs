@@ -417,6 +417,16 @@ pub fn discover_session_files(data_dir: &Path) -> Vec<PathBuf> {
 /// calls actually appear in headless mode (see `transcript.rs`'s module
 /// doc). The directory form is what backs `zseval regrade` and lets a test
 /// exercise the real evidence path without a live zerostack build.
+///
+/// Caveat: a `[seed.memory]` scenario replayed this way (`--backend
+/// mock=<dir> run`, as opposed to `regrade`, which reads the fixture dir
+/// in place) will not clear `domains::memory::verify` — the zslog's
+/// `memory open: root=…` line records paths from wherever the fixture was
+/// *originally* captured, while `run` seeds a brand-new run_dir here, so
+/// the roots this call graded against can never match. It grades
+/// Indeterminate, never a false Pass/Fail, but a memory scenario is only
+/// meaningfully replayable via `regrade` (in place) or a live `zerostack`
+/// build, not `--backend mock=<dir> run`.
 pub struct Mock {
     pub fixture: PathBuf,
 }

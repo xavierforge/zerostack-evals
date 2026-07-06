@@ -127,7 +127,10 @@ pub fn project_slug(path: &Path) -> String {
 ///   - zslogs given but the line never appears -> the memory subsystem never
 ///     opened (feature not compiled in, or the model never touched memory).
 ///   - the line appears with a different root/project than expected -> our
-///     snapshot of zerostack's internals is stale.
+///     snapshot of zerostack's internals is stale (or the zslog is evidence
+///     from a *different* run's roots than the ones passed in here — see
+///     `backend::Mock`'s doc on why `--backend mock=<dir> run` can't replay
+///     a memory scenario, only `regrade`/a live build can).
 /// Every failure mode returns `Err` with a message naming the fix, so the
 /// runner can grade Indeterminate instead of blaming the agent.
 pub fn verify(roots: &RunRoots, zslogs: &[PathBuf]) -> Result<(), String> {
