@@ -51,6 +51,16 @@ pub struct Scenario {
     /// generic placements by the matching `domains::` module.
     #[serde(default)]
     pub seed: SeedSugar,
+    /// Explicit opt-in to a domain's post-run drift check (`domains::verify`)
+    /// for a scenario that doesn't declare any `[seed.*]` sugar of its own —
+    /// e.g. one that starts from an empty memory store and only asserts the
+    /// agent wrote to it, so there's nothing to seed but the layout snapshot
+    /// still needs guarding. `domains = ["memory"]`; unknown names are a
+    /// load-time error (see `domains::validate`). Interpreting these names is
+    /// entirely `domains::`' business — this field is just where the raw
+    /// list is stored, same as `seed` above.
+    #[serde(default)]
+    pub domains: Vec<String>,
     /// Directory this scenario was loaded from (filled by the loader).
     #[serde(skip)]
     pub dir: PathBuf,

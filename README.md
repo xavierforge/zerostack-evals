@@ -163,6 +163,14 @@ is what makes memory evals resilient to zerostack iterating quickly: a
 scenario doesn't quietly start "failing" just because an internal path
 moved, it stops being gradable until someone updates the domain module.
 
+`verify` normally runs because the scenario declared `[seed.memory]` sugar,
+but a scenario that starts from an *empty* store (nothing to seed, only an
+assertion that the agent wrote something new) has no sugar to trigger it.
+For that case, opt in explicitly: `domains = ["memory"]` at the top level of
+`scenario.toml` runs the same drift check with no seeding attached. An
+unknown name in `domains = [...]` is a load-time error, same as any other
+typo'd scenario field.
+
 `scenarios/memory/` requires a zerostack build with the `memory` feature
 (not in zerostack's `default` features):
 

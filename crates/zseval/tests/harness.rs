@@ -318,6 +318,61 @@ long_term = "_fixtures/MEMORY.md"
 }
 
 #[test]
+fn explicit_domains_field_triggers_verify_without_any_seed_sugar() {
+    // A scenario that starts from an empty memory store and only asserts
+    // the agent wrote to it has no [seed.*] to trigger domains::verify —
+    // `domains = ["memory"]` is the explicit opt-in for that case, so the
+    // layout-drift guard still applies even though nothing was seeded.
+    let sc_dir =
+        std::env::temp_dir().join(format!("zseval-test-domains-field-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        "id = \"domains-field-test\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
+         domains = [\"memory\"]\n",
+    )
+    .unwrap();
+    let sc = Scenario::load(&sc_dir).unwrap();
+    assert!(sc.seed.memory.is_none(), "no [seed.memory] declared");
+
+    let run_dir = std::env::temp_dir().join(format!(
+        "zseval-test-domains-field-run-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&run_dir).unwrap();
+    let missing = run_dir.join("turn-0.zslog");
+    std::fs::write(&missing, "no memory line here\n").unwrap();
+    let roots = RunRoots {
+        data: &run_dir,
+        config: &run_dir,
+        work: &run_dir,
+    };
+    // Without the explicit field this would be Ok (nothing to verify); with
+    // it, the drift check runs and correctly reports the missing feature.
+    let err = zseval::domains::verify(&sc, &roots, &[missing]).unwrap_err();
+    assert!(err.contains("--features memory"), "{err}");
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&run_dir).ok();
+}
+
+#[test]
+fn unknown_domain_name_fails_at_load_not_mid_run() {
+    let sc_dir =
+        std::env::temp_dir().join(format!("zseval-test-baddomain-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        "id = \"bad-domain\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
+         domains = [\"subagents\"]\n",
+    )
+    .unwrap();
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    assert!(format!("{err:#}").contains("unknown domain 'subagents'"), "{err:#}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
 fn load_fails_fast_on_missing_files_fixture() {
     // A typo'd [[files]] src should fail at load time (zseval list / the
     // very start of a run), not mid-run as a burned-API-call indeterminate.

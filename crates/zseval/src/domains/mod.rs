@@ -28,9 +28,29 @@ use crate::seed::Placement;
 
 pub mod memory;
 
+/// Every domain name a scenario's `domains = [...]` field may declare — the
+/// only other place (besides `[seed.*]` presence) that decides "which
+/// domains apply to this scenario," kept as one list so both routes stay in
+/// sync and a typo'd name is a load-time error, not a silently-skipped
+/// drift check.
+const KNOWN_DOMAINS: &[&str] = &["memory"];
+
+fn wants(sc: &Scenario, name: &str) -> bool {
+    sc.domains.iter().any(|d| d == name)
+}
+
 /// Load-time validation of every domain's scenario sugar (fixture paths
 /// resolve, names are sane) — fail at `zseval list`/load, not mid-run.
 pub fn validate(sc: &Scenario) -> Result<()> {
+    for d in &sc.domains {
+        if !KNOWN_DOMAINS.contains(&d.as_str()) {
+            anyhow::bail!(
+                "{}: unknown domain '{d}' in `domains = [...]` (known: {})",
+                sc.id,
+                KNOWN_DOMAINS.join(", ")
+            );
+        }
+    }
     if let Some(mem) = &sc.seed.memory {
         memory::validate(mem, sc)?;
     }
@@ -47,12 +67,15 @@ pub fn expand(sc: &Scenario, ctx: &RunRoots) -> Result<Vec<Placement>> {
     Ok(out)
 }
 
-/// Post-run drift check for every domain the scenario seeded. `Err` means
+/// Post-run drift check for every domain the scenario seeded, or explicitly
+/// opted into via `domains = [...]` (for a scenario that seeds nothing but
+/// still needs the layout snapshot guarded — e.g. one that starts from an
+/// empty memory store and only asserts the agent wrote to it). `Err` means
 /// our snapshot of zerostack's internals no longer matches reality (or the
 /// required feature isn't compiled in) — the runner grades Indeterminate
 /// with the returned message, never blaming the agent.
 pub fn verify(sc: &Scenario, roots: &RunRoots, zslogs: &[PathBuf]) -> Result<(), String> {
-    if sc.seed.memory.is_some() {
+    if sc.seed.memory.is_some() || wants(sc, "memory") {
         memory::verify(roots, zslogs)?;
     }
     Ok(())
