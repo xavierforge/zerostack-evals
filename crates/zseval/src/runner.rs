@@ -207,6 +207,9 @@ fn grade_trial(
     // 5. Judge (only when the deterministic floor didn't already fail — a
     //    failed floor is a fail regardless of what the judge thinks).
     let mut judge_verdict: Option<JudgeVerdict> = None;
+    let mut judge_input_tokens = 0u64;
+    let mut judge_output_tokens = 0u64;
+    let mut judge_cost_usd = 0.0f64;
     let mut outcome = if all_pass { Final::Pass } else { Final::Fail };
     if outcome == Final::Pass {
         if let Some(rubric) = &sc.judge {
@@ -223,9 +226,12 @@ fn grade_trial(
                 };
             } else {
                 match judge.judge(rubric, &transcript.render_for_judge(20_000), run_dir) {
-                    Ok(v) => {
-                        judge_verdict = Some(v);
-                        match v {
+                    Ok(o) => {
+                        judge_verdict = Some(o.verdict);
+                        judge_input_tokens = o.input_tokens;
+                        judge_output_tokens = o.output_tokens;
+                        judge_cost_usd = o.cost_usd;
+                        match o.verdict {
                             JudgeVerdict::Yes => {}
                             JudgeVerdict::No => {
                                 outcome = Final::Fail;
@@ -256,7 +262,13 @@ fn grade_trial(
         judge: judge_verdict,
         input_tokens: transcript.input_tokens,
         output_tokens: transcript.output_tokens,
-        cost_usd: transcript.cost_usd,
+        judge_input_tokens,
+        judge_output_tokens,
+        // Judge spend is real API cost even though it grades the agent
+        // rather than being incurred by it — must count against
+        // --max-total-usd like everything else, or a judge-heavy suite could
+        // blow the budget cap while looking like it stayed under it.
+        cost_usd: transcript.cost_usd + judge_cost_usd,
         wall_secs: artifacts.wall_secs,
         tool_call_count: transcript.tool_calls.len(),
         run_dir: run_dir.display().to_string(),
@@ -272,6 +284,8 @@ fn indeterminate(trial: usize, run_dir: &Path, reason: String) -> TrialResult {
         judge: None,
         input_tokens: 0,
         output_tokens: 0,
+        judge_input_tokens: 0,
+        judge_output_tokens: 0,
         // Best-effort: a backend error (e.g. a timeout) can still leave
         // real spend behind in whatever session JSON completed turns wrote
         // before the failure — recovering it here means --max-total-usd

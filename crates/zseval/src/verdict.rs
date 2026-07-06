@@ -38,6 +38,15 @@ pub struct TrialResult {
     pub judge: Option<JudgeVerdict>,
     pub input_tokens: u64,
     pub output_tokens: u64,
+    /// Judge-call token usage, tracked separately from the agent's own
+    /// `input_tokens`/`output_tokens` above — it's eval overhead, not agent
+    /// behavior, so it must never count against a scenario's
+    /// `max_total_tokens`. Zero when no judge ran (or a test double reports
+    /// nothing). Real API spend even so — see `judge::JudgeOutcome`.
+    #[serde(default)]
+    pub judge_input_tokens: u64,
+    #[serde(default)]
+    pub judge_output_tokens: u64,
     pub cost_usd: f64,
     pub wall_secs: f64,
     /// How many tool calls the transcript actually contained — the evidence
@@ -267,6 +276,8 @@ mod exit_code_tests {
             judge: None,
             input_tokens: 0,
             output_tokens: 0,
+            judge_input_tokens: 0,
+            judge_output_tokens: 0,
             cost_usd: 0.0,
             wall_secs: 0.0,
             tool_call_count: 0,

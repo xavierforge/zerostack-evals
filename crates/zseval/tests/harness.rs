@@ -478,9 +478,14 @@ impl zseval::judge::Judge for TestJudge {
         _rubric: &str,
         _evidence: &str,
         _run_dir: &Path,
-    ) -> anyhow::Result<zseval::judge::JudgeVerdict> {
+    ) -> anyhow::Result<zseval::judge::JudgeOutcome> {
         match self {
-            TestJudge::Verdict(v) => Ok(*v),
+            TestJudge::Verdict(v) => Ok(zseval::judge::JudgeOutcome {
+                verdict: *v,
+                input_tokens: 0,
+                output_tokens: 0,
+                cost_usd: 0.0,
+            }),
             _ => anyhow::bail!("judge transport exploded"),
         }
     }
@@ -715,6 +720,8 @@ fn pass_hat_k_is_the_stability_floor() {
         judge: None,
         input_tokens: 0,
         output_tokens: 0,
+        judge_input_tokens: 0,
+        judge_output_tokens: 0,
         cost_usd: 0.0,
         wall_secs: 0.0,
         tool_call_count: 0,
@@ -755,6 +762,8 @@ fn compare_warns_when_tool_call_evidence_drops_to_zero() {
         judge: None,
         input_tokens: 0,
         output_tokens: 0,
+        judge_input_tokens: 0,
+        judge_output_tokens: 0,
         cost_usd: 0.0,
         wall_secs: 0.0,
         tool_call_count,

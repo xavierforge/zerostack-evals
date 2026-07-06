@@ -247,6 +247,8 @@ mod exit_code_tests {
             judge: None,
             input_tokens: 0,
             output_tokens: 0,
+            judge_input_tokens: 0,
+            judge_output_tokens: 0,
             cost_usd: 0.0,
             wall_secs: 0.0,
             tool_call_count,
