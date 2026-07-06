@@ -9,8 +9,9 @@
 //!   dest = "config:config.toml"     # data: | config: | work:
 //!
 //! The core stays subsystem-agnostic: subsystem-specific layout knowledge
-//! (e.g. where a memory file lives) belongs in scenario data, or later in a
-//! dedicated module that expands into these same placements.
+//! (e.g. where a memory file lives) belongs in a `domains::` module that
+//! expands its own scenario-TOML sugar into these same placements — see
+//! `domains::memory` for the pattern.
 
 use std::path::{Path, PathBuf};
 
@@ -56,6 +57,12 @@ pub fn apply(sc: &Scenario, ctx: &SeedCtx) -> Result<()> {
             src: sc.resolve_fixture(&f.src)?,
             dest: resolve_dest(&f.dest, ctx)?,
         });
+    }
+
+    // Subsystem-specific sugar expands into the same generic placements —
+    // one `if let` per `domains::` module.
+    if let Some(mem) = &sc.seed.memory {
+        placements.extend(crate::domains::memory::expand(mem, sc, ctx)?);
     }
 
     for p in &placements {

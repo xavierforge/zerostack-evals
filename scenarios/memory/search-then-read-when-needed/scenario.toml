@@ -1,0 +1,30 @@
+id = "memory-search-then-read-when-needed"
+trials = 3
+task = "What's our deployment strategy, and what was the decisive reason we picked it over the alternatives?"
+
+# Calibration pair with search-snippet-sufficient (same fixtures): the
+# decisive reason lives in an appendix memory_search's snippet never reaches
+# (see _fixtures/deploy-strategy.md) — the model has to notice the snippet
+# is incomplete and follow up with memory_read. This is the recall half of
+# the pair — the model must NOT stop at the search snippet.
+expect = [
+  "tool_called memory_search",
+  "tool_called_after memory_read memory_search",
+  "tool_arg_contains memory_read deploy",
+  "final_contains seconds",
+]
+judge = """
+Does the agent's final answer include both (a) the name of the deployment
+strategy (blue-green), and (b) the decisive reason that only appears in the
+note's full text — that it lets the team switch back to the prior version in
+seconds, rather than the vaguer reasons (recovery time, traffic volume) that
+were rejected?
+Answer only Yes / No / Unknown.
+"""
+timeout_secs = 240
+
+[seed.memory]
+notes = [
+  { name = "deploy-strategy", file = "_fixtures/deploy-strategy.md" },
+  { name = "ops-runbook",     file = "_fixtures/ops-runbook.md" },
+]

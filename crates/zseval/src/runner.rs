@@ -8,6 +8,7 @@ use crate::asserts::Assert;
 use crate::backend::AgentBackend;
 use crate::judge::{self, JudgeVerdict};
 use crate::scenario::Scenario;
+use crate::seed::SeedCtx;
 use crate::transcript::Transcript;
 use crate::verdict::{Final, Report, ScenarioResult, TrialResult};
 
@@ -103,13 +104,55 @@ fn run_trial(
         }
     }
 
+    // 2a. In headless mode zerostack's session JSON never records tool calls
+    // (see transcript.rs's module doc) — the only place they surface is the
+    // `--pure-stdout` markers in each turn's captured stdout. Reconstruct
+    // them here, in turn order, so `tool_called*` asserts have real evidence
+    // for a real (non-mock) run. The mock backend writes no stdout logs, so
+    // this is a no-op there and mock fixtures keep sourcing tool_calls from
+    // session JSON as before.
+    let mut stdout_logs: Vec<PathBuf> = std::fs::read_dir(run_dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
+            name.starts_with("turn-") && name.ends_with(".stdout")
+        })
+        .collect();
+    stdout_logs.sort();
+    for log in &stdout_logs {
+        let base = transcript.tool_calls.len();
+        transcript
+            .tool_calls
+            .extend(crate::transcript::tool_calls_from_stdout_file(log, base));
+    }
+
+    let roots = SeedCtx {
+        data: &artifacts.data_dir,
+        config: &artifacts.config_dir,
+        work: &artifacts.work_dir,
+    };
+
+    // 2b. A scenario that seeds memory is only gradable if our snapshot of
+    // zerostack's memory layout still matches reality — a stale snapshot must
+    // never be silently blamed on the agent.
+    if sc.seed.memory.is_some() {
+        let expected_root = artifacts.config_dir.join("agent").join("memory");
+        let expected_project = crate::domains::memory::project_slug(&artifacts.work_dir);
+        if let Err(reason) = crate::domains::memory::verify_layout(run_dir, &expected_root, &expected_project) {
+            return indeterminate(trial, run_dir, format!("memory layout drift: {reason}"));
+        }
+    }
+
     // 3. Deterministic floor.
     let mut all_pass = true;
     let mut assert_results = Vec::new();
     for line in &sc.expect {
         // Parse already validated at load time.
         let a = Assert::parse(line).expect("validated at load");
-        let r = a.eval(&transcript, &artifacts.data_dir);
+        let r = a.eval(&transcript, &roots);
         if !r.pass {
             all_pass = false;
             reasons.push(format!("assert failed: {} ({})", line, r.detail));

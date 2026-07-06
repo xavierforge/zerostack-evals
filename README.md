@@ -7,22 +7,27 @@ the floor, optional LLM judge for the subjective layer, three-value verdicts
 (pass / fail / indeterminate), pass@k + pass^k across trials, cost tracking
 built in.
 
-The v1 focus is **prompts** — zerostack's named prompt modes (`ask`, `code`,
-`plan`, …) each declare a behaviour contract that is mostly checkable with
-deterministic asserts. Memory and subagent evals are deferred to a later pass
-(see `deferred/`); the core stays subsystem-agnostic so they slot back in as
-scenarios plus, at most, one seeding module — no core changes.
+Coverage spans zerostack's named prompt modes (`ask`, `code`, `plan`, …),
+mostly checkable with deterministic asserts, and its `memory` subsystem
+(`scenarios/memory/`), whose subsystem-specific layout knowledge lives in a
+single quarantined `domains::` module (see "Evaluating another subsystem"
+below) — the core (scenario/backend/seed/asserts/verdict) stays
+subsystem-agnostic. Subagent evals are future work, following the same
+one-module pattern.
 
 ## Layout
 
     crates/zseval/     harness (bin: zseval)
+                          src/domains/  zerostack-subsystem-specific
+                                        knowledge (e.g. memory file layout),
+                                        one module per subsystem, quarantined
+                                        from the generic core
     scenarios/<suite>/<case>/scenario.toml   fixtures sit in a _fixtures dir
                                              beside a case, or in the suite
                                              dir's _fixtures if shared across it
     targets/           zerostack config.toml per provider/model to evaluate
     baselines/         committed reports CI compares against
     results/<tag>/     run outputs, one folder per run (gitignored)
-    deferred/          memory scenarios + domain module, parked for a later pass
 
 ## Quick start
 
@@ -105,6 +110,41 @@ Conventions worth keeping:
 - Prefer `file_contains` outcome checks over transcript checks when the
   behaviour has a filesystem effect.
 - `final_max_lines N` is the direct check for the "keep answers short" rule.
+
+`file_contains`/`file_not_contains` paths are rooted at the run's throwaway
+`ZS_DATA_DIR` by default; prefix with `config:` or `work:` to check the
+isolated config dir or working dir instead, e.g.
+`file_contains config:agent/memory/MEMORY.md tabs`.
+
+## Evaluating another subsystem
+
+A subsystem like `memory` lays out files zerostack itself decides the shape
+of (e.g. `<config_dir>/agent/memory/MEMORY.md`) — that layout knowledge is a
+*snapshot* of zerostack internals, not something the harness core should
+know. It's quarantined to one file, `crates/zseval/src/domains/<name>.rs`,
+which expands its own scenario-TOML sugar (e.g. `[seed.memory]`) into the
+same generic `Placement`s `[[files]]` produces. Adding eval support for
+another subsystem is: one new `domains::` module, one new optional field on
+`SeedSugar`, zero changes to `seed`/`asserts`/`runner`.
+
+Because the knowledge is a snapshot, every `domains::` module pairs its
+layout knowledge with a runtime drift check the runner calls after driving
+the agent (see `domains::memory::verify_layout`). If zerostack's actual
+layout no longer matches what the module assumes, the trial grades
+**Indeterminate** with a message naming the fix — never a silent Fail. This
+is what makes memory evals resilient to zerostack iterating quickly: a
+scenario doesn't quietly start "failing" just because an internal path
+moved, it stops being gradable until someone updates the domain module.
+
+`scenarios/memory/` requires a zerostack build with the `memory` feature
+(not in zerostack's `default` features):
+
+    cargo build --release --features memory --manifest-path ../zerostack/Cargo.toml
+
+Building without `--features memory` doesn't crash anything — the memory
+tools simply never register, `memory_search`/`memory_read`/`memory_write`
+never get called, and the `[seed.memory]` drift check reports "no 'memory
+open:' trace line was found", pointing straight at the missing feature flag.
 
 ## Iterating on prompts
 

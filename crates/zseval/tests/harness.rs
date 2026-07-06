@@ -8,8 +8,15 @@ use zseval::asserts::Assert;
 use zseval::backend::Mock;
 use zseval::runner::{run_suite, RunOptions};
 use zseval::scenario::{discover, Scenario};
+use zseval::seed::{self, SeedCtx};
 use zseval::transcript;
 use zseval::verdict::Final;
+
+/// A `SeedCtx` where all three roots are the same dir — for tests that don't
+/// care about root separation (only about the assert logic itself).
+fn flat_roots(dir: &Path) -> SeedCtx<'_> {
+    SeedCtx { data: dir, config: dir, work: dir }
+}
 
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -44,6 +51,7 @@ fn transcript_schema_mismatch_is_an_error_not_a_panic() {
 fn asserts_dsl_parses_and_evaluates() {
     let t = transcript::parse_file(&fixture("session-search-then-read.json")).unwrap();
     let data_dir = std::env::temp_dir(); // no file_* asserts here
+    let roots = flat_roots(&data_dir);
     let pass_cases = [
         "tool_called memory_search",
         "tool_called_after memory_read memory_search",
@@ -55,7 +63,7 @@ fn asserts_dsl_parses_and_evaluates() {
         "tokens_under 100000",
     ];
     for line in pass_cases {
-        let r = Assert::parse(line).unwrap().eval(&t, &data_dir);
+        let r = Assert::parse(line).unwrap().eval(&t, &roots);
         assert!(r.pass, "expected pass: {line} ({})", r.detail);
     }
     let fail_cases = [
@@ -65,7 +73,7 @@ fn asserts_dsl_parses_and_evaluates() {
         "tokens_under 100",
     ];
     for line in fail_cases {
-        let r = Assert::parse(line).unwrap().eval(&t, &data_dir);
+        let r = Assert::parse(line).unwrap().eval(&t, &roots);
         assert!(!r.pass, "expected fail: {line} ({})", r.detail);
     }
     // Needles may contain spaces; unknown ops must be load-time errors.
@@ -80,9 +88,11 @@ fn final_max_lines_counts_non_empty_lines() {
         "{\"id\":\"a\",\"messages\":[{\"role\":\"assistant\",\"content\":\"That's it.\"}]}",
     )
     .unwrap();
+    let tmp = std::env::temp_dir();
+    let roots = flat_roots(&tmp);
     assert!(Assert::parse("final_max_lines 4")
         .unwrap()
-        .eval(&short, &std::env::temp_dir())
+        .eval(&short, &roots)
         .pass);
 
     let long = transcript::parse_str(
@@ -91,7 +101,7 @@ fn final_max_lines_counts_non_empty_lines() {
     .unwrap();
     assert!(!Assert::parse("final_max_lines 4")
         .unwrap()
-        .eval(&long, &std::env::temp_dir())
+        .eval(&long, &roots)
         .pass);
 }
 
@@ -104,17 +114,107 @@ fn file_asserts_check_environment_outcomes() {
     std::fs::write(sub.join("NOTES.md"), "- [ ] fix bug").unwrap();
 
     let t = transcript::Transcript::default();
-    let ok = Assert::parse("file_contains OUT.md tabs").unwrap().eval(&t, &dir);
+    let roots = flat_roots(&dir);
+    let ok = Assert::parse("file_contains OUT.md tabs").unwrap().eval(&t, &roots);
     assert!(ok.pass, "{}", ok.detail);
     let ok = Assert::parse("file_not_contains projects/*/NOTES.md tabs")
         .unwrap()
-        .eval(&t, &dir);
+        .eval(&t, &roots);
     assert!(ok.pass, "{}", ok.detail);
     let bad = Assert::parse("file_not_contains projects/*/NOTES.md bug")
         .unwrap()
-        .eval(&t, &dir);
+        .eval(&t, &roots);
     assert!(!bad.pass, "{}", bad.detail);
     std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn file_asserts_resolve_data_config_work_prefixes_independently() {
+    // Regression guard: a `config:` path must never accidentally resolve
+    // against the `data:` (or `work:`) root, and vice versa.
+    let base = std::env::temp_dir().join(format!("zseval-test-roots-{}", std::process::id()));
+    let data = base.join("data");
+    let config = base.join("config");
+    let work = base.join("work");
+    for d in [&data, &config, &work] {
+        std::fs::create_dir_all(d).unwrap();
+    }
+    std::fs::create_dir_all(config.join("agent/memory")).unwrap();
+    std::fs::write(data.join("marker.md"), "in-data").unwrap();
+    std::fs::write(config.join("agent/memory/MEMORY.md"), "in-config").unwrap();
+    std::fs::write(work.join("hello.py"), "in-work").unwrap();
+    let roots = SeedCtx { data: &data, config: &config, work: &work };
+    let t = transcript::Transcript::default();
+
+    assert!(Assert::parse("file_contains marker.md in-data").unwrap().eval(&t, &roots).pass);
+    assert!(!Assert::parse("file_contains marker.md in-config").unwrap().eval(&t, &roots).pass);
+    assert!(
+        Assert::parse("file_contains config:agent/memory/MEMORY.md in-config")
+            .unwrap()
+            .eval(&t, &roots)
+            .pass
+    );
+    assert!(
+        !Assert::parse("file_contains config:agent/memory/MEMORY.md in-data")
+            .unwrap()
+            .eval(&t, &roots)
+            .pass
+    );
+    assert!(Assert::parse("file_contains work:hello.py in-work").unwrap().eval(&t, &roots).pass);
+    std::fs::remove_dir_all(&base).ok();
+}
+
+#[test]
+fn memory_seed_sugar_expands_to_config_rooted_placements() {
+    // A scenario declaring [seed.memory] should place MEMORY.md and notes
+    // under <config>/agent/memory/, scoped by the same project_slug
+    // zerostack itself derives from the working directory — never under
+    // data:memory/ (the stale layout the old deferred/ design assumed).
+    let sc_dir = std::env::temp_dir().join(format!("zseval-test-memseed-{}", std::process::id()));
+    let fixtures = sc_dir.join("_fixtures");
+    std::fs::create_dir_all(&fixtures).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        r#"
+id = "memory-seed-test"
+task = "hello"
+expect = ["final_contains x"]
+
+[seed.memory]
+long_term = "_fixtures/MEMORY.md"
+notes = [{ name = "deploy-strategy", file = "_fixtures/deploy.md" }]
+"#,
+    )
+    .unwrap();
+    std::fs::write(fixtures.join("MEMORY.md"), "prefers tabs").unwrap();
+    std::fs::write(fixtures.join("deploy.md"), "blue-green on fly.io").unwrap();
+
+    let sc = Scenario::load(&sc_dir).unwrap();
+    assert!(sc.seed.memory.is_some());
+
+    let run_dir = std::env::temp_dir().join(format!("zseval-test-memrun-{}", std::process::id()));
+    let data = run_dir.join("data");
+    let config = run_dir.join("config");
+    let work = run_dir.join("work");
+    for d in [&data, &config, &work] {
+        std::fs::create_dir_all(d).unwrap();
+    }
+    let ctx = SeedCtx { data: &data, config: &config, work: &work };
+    seed::apply(&sc, &ctx).unwrap();
+
+    let expected_project = zseval::domains::memory::project_slug(&work);
+    let memory_md = config.join("agent/memory/MEMORY.md");
+    let note = config
+        .join("agent/memory/projects")
+        .join(&expected_project)
+        .join("notes/deploy-strategy.md");
+    assert!(memory_md.is_file(), "expected {}", memory_md.display());
+    assert!(note.is_file(), "expected {}", note.display());
+    assert_eq!(std::fs::read_to_string(&memory_md).unwrap(), "prefers tabs");
+    assert_eq!(std::fs::read_to_string(&note).unwrap(), "blue-green on fly.io");
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&run_dir).ok();
 }
 
 #[test]

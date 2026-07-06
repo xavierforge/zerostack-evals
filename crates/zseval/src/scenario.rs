@@ -47,9 +47,23 @@ pub struct Scenario {
     /// Generic file placements: `dest` is `data:…`, `config:…`, or `work:…`.
     #[serde(default)]
     pub files: Vec<FileSeed>,
+    /// Subsystem-specific seeding sugar (`[seed.memory]`, …), expanded into
+    /// generic placements by the matching `domains::` module.
+    #[serde(default)]
+    pub seed: SeedSugar,
     /// Directory this scenario was loaded from (filled by the loader).
     #[serde(skip)]
     pub dir: PathBuf,
+}
+
+/// Subsystem-specific seeding sugar, one optional field per `domains::`
+/// module. Adding support for another subsystem = one new field here plus
+/// its module — the harness core (`seed::apply`) stays generic, it just
+/// expands whichever fields are `Some`.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct SeedSugar {
+    #[serde(default)]
+    pub memory: Option<crate::domains::memory::MemorySeed>,
 }
 
 /// A task is one user message or a scripted sequence of them.

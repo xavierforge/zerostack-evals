@@ -1,10 +1,18 @@
 //! Agent backends — generic driving only, zero domain knowledge.
 //!
 //! `ZsCli` drives the real `zerostack` binary over its public surface
-//! (verified against zerostack source 2026-07-05):
+//! (verified against zerostack source 2026-07-06):
 //!   - `-p/--print` headless single-shot, `-c/--continue` to resume,
 //!     `--model`, `--yolo` (skip permission prompts), `--no-color`,
 //!     positional message.
+//!   - `--pure-stdout` ("With -p: also print tool calls/results to stdout")
+//!     is the only channel that reveals tool calls at all in headless mode:
+//!     zerostack's session persistence only records `tool_call`/`tool_result`
+//!     messages from the interactive TUI's event handler, never from the `-p`
+//!     path (`agent/runner.rs::run_print`) — so a real session JSON never
+//!     contains a tool call. `transcript.rs` reconstructs `ToolCall`s from
+//!     the `◈ name summary` / `◈ name result:` markers this flag prints,
+//!     captured in `turn-N.stdout` below.
 //!   - `--log-file <path>` activates zerostack's trace-level file logging
 //!     (`src/logging.rs`); stderr only shows `warn+` by default, which is
 //!     why a hanging API retry looks silent — the real story is in the
@@ -72,8 +80,13 @@ fn tee(
 pub struct RunArtifacts {
     /// Session JSON files produced, in chronological order.
     pub session_files: Vec<PathBuf>,
-    /// The throwaway ZS_DATA_DIR (for `file_*` outcome asserts).
+    /// The throwaway ZS_DATA_DIR (for `file_*` outcome asserts, default root).
     pub data_dir: PathBuf,
+    /// The throwaway ZS_CONFIG_DIR (`file_*` `config:` root; e.g. memory
+    /// layout lives under `<config_dir>/agent/memory/`).
+    pub config_dir: PathBuf,
+    /// The throwaway working dir (`file_*` `work:` root).
+    pub work_dir: PathBuf,
     pub wall_secs: f64,
 }
 
@@ -169,6 +182,7 @@ impl AgentBackend for ZsCli {
             cmd.arg("-p")
                 .arg("--yolo")
                 .arg("--no-color")
+                .arg("--pure-stdout")
                 .arg("--log-file")
                 .arg(&zs_log);
             // Only force a model when the user asked; otherwise zerostack picks
@@ -276,6 +290,8 @@ impl AgentBackend for ZsCli {
         Ok(RunArtifacts {
             session_files,
             data_dir: data,
+            config_dir: config,
+            work_dir: work,
             wall_secs: started.elapsed().as_secs_f64(),
         })
     }
@@ -317,13 +333,19 @@ impl AgentBackend for Mock {
         run_dir: &Path,
     ) -> Result<RunArtifacts> {
         let data = run_dir.join("data");
+        let config = run_dir.join("config");
+        let work = run_dir.join("work");
         std::fs::create_dir_all(data.join("sessions"))?;
+        std::fs::create_dir_all(&config)?;
+        std::fs::create_dir_all(&work)?;
         let dst = data.join("sessions").join("mock.json");
         std::fs::copy(&self.fixture, &dst)
             .with_context(|| format!("copy mock fixture {}", self.fixture.display()))?;
         Ok(RunArtifacts {
             session_files: vec![dst],
             data_dir: data,
+            config_dir: config,
+            work_dir: work,
             wall_secs: 0.0,
         })
     }

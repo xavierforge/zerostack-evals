@@ -14,6 +14,19 @@
 //! A schema we cannot parse becomes an `Err`, which the runner maps to an
 //! `Indeterminate` verdict — an unreadable transcript is not an agent
 //! failure. If zerostack's schema changes, adapt this file.
+//!
+//! `tool_call`/`tool_result` roles above are only ever written by
+//! zerostack's *interactive* TUI (`ui/event_handler.rs`) — the headless `-p`
+//! path (`agent/runner.rs::run_print`) never calls `Session::add_tool_call`,
+//! so a real session JSON from this harness's backend never contains one.
+//! The only place tool calls surface in headless mode is stdout, and only
+//! with `--pure-stdout`: `◈ {name} {summary}` for a call, `◈ {name}
+//! result:` (followed by the tool's output) for its result. `backend::ZsCli`
+//! always passes `--pure-stdout` and captures each turn's stdout to
+//! `turn-N.stdout`; `tool_calls_from_stdout` below reconstructs `ToolCall`s
+//! from that text. The mock backend has no stdout logs, so its fixtures keep
+//! authoring tool calls directly in the session JSON as before — both paths
+//! feed the same `Transcript.tool_calls`.
 
 use std::path::Path;
 
@@ -112,6 +125,46 @@ impl Transcript {
     }
 }
 
+/// Reconstruct `ToolCall`s from a captured `turn-N.stdout` log (see the
+/// module doc for why this, and not session JSON, is the real source in
+/// headless mode). `index_base` lets a caller keep indices monotonic across
+/// several turns' logs, so `tool_called_after` orders correctly.
+///
+/// A `◈ {name} result:` line marks a tool's *result*, not another call, and
+/// is skipped — its output lines don't start with `◈ ` so nothing else needs
+/// filtering out.
+pub fn tool_calls_from_stdout(text: &str, index_base: usize) -> Vec<ToolCall> {
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let Some(rest) = line.strip_prefix("◈ ") else {
+            continue;
+        };
+        let (name, tail) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
+        let tail = tail.trim();
+        if tail == "result:" {
+            continue;
+        }
+        out.push(ToolCall {
+            index: index_base + out.len(),
+            name: name.to_string(),
+            summary: tail.to_string(),
+            subagent: false,
+        });
+    }
+    out
+}
+
+/// `tool_calls_from_stdout` over a `turn-N.stdout` file on disk. A missing or
+/// unreadable file yields no tool calls rather than an error — every
+/// scenario has a `.stdout` log only when driven by the real CLI backend
+/// (the mock backend has none), so "no file" is an expected, silent no-op.
+pub fn tool_calls_from_stdout_file(path: &Path, index_base: usize) -> Vec<ToolCall> {
+    match std::fs::read_to_string(path) {
+        Ok(text) => tool_calls_from_stdout(&text, index_base),
+        Err(_) => Vec::new(),
+    }
+}
+
 pub fn parse_file(path: &Path) -> Result<Transcript> {
     let text = std::fs::read_to_string(path)
         .with_context(|| format!("read session {}", path.display()))?;
@@ -148,4 +201,49 @@ pub fn parse_str(text: &str) -> Result<Transcript> {
         });
     }
     Ok(t)
+}
+
+#[cfg(test)]
+mod stdout_tool_call_tests {
+    use super::*;
+
+    #[test]
+    fn parses_call_and_skips_result_marker() {
+        let text = "\n◈ bash python3 -c 'print(2+2)'\n◈ bash result:\n4\n\n**4**\n";
+        let calls = tool_calls_from_stdout(text, 0);
+        assert_eq!(calls.len(), 1, "{calls:?}");
+        assert_eq!(calls[0].name, "bash");
+        assert_eq!(calls[0].summary, "python3 -c 'print(2+2)'");
+        assert_eq!(calls[0].index, 0);
+    }
+
+    #[test]
+    fn handles_empty_summary() {
+        // format_tool_args_summary can return "", leaving a trailing space:
+        // `println!("\n◈ {} {}", name, "")` -> "◈ memory_search ".
+        let text = "◈ memory_search \n◈ memory_search result:\nNo matches.\n";
+        let calls = tool_calls_from_stdout(text, 0);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "memory_search");
+        assert_eq!(calls[0].summary, "");
+    }
+
+    #[test]
+    fn preserves_order_across_multiple_calls_and_respects_index_base() {
+        let text = "◈ memory_search deploy\n◈ memory_search result:\nsnippet\n\
+                    ◈ memory_read deploy-strategy\n◈ memory_read result:\nfull text\n";
+        let calls = tool_calls_from_stdout(text, 5);
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0].name, "memory_search");
+        assert_eq!(calls[0].index, 5);
+        assert_eq!(calls[1].name, "memory_read");
+        assert_eq!(calls[1].index, 6);
+        assert!(calls[0].index < calls[1].index);
+    }
+
+    #[test]
+    fn missing_stdout_file_yields_no_calls_not_an_error() {
+        let calls = tool_calls_from_stdout_file(Path::new("/no/such/file.stdout"), 0);
+        assert!(calls.is_empty());
+    }
 }

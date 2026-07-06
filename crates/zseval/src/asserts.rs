@@ -15,17 +15,20 @@
 //!   transcript_contains <needle...>
 //!   transcript_not_contains <needle...>
 //!   tokens_under <n>
-//!   file_contains <path-under-ZS_DATA_DIR> <needle...>       # outcome check
-//!   file_not_contains <path-under-ZS_DATA_DIR> <needle...>   # supports one *
+//!   file_contains <path> <needle...>       # outcome check
+//!   file_not_contains <path> <needle...>   # supports one *
 //!
 //! `file_*` grade the environment, not the transcript — an on-disk effect only
 //! counts if the bytes are there. Paths allow a single `*` path segment, e.g.
-//! `projects/*/OUT.md`.
+//! `projects/*/OUT.md`. `<path>` is rooted at the run's throwaway `ZS_DATA_DIR`
+//! by default; prefix it with `config:` or `work:` to check the isolated
+//! config dir or working dir instead (e.g. `config:agent/memory/MEMORY.md`).
 
 use std::path::Path;
 
 use anyhow::{bail, Result};
 
+use crate::seed::SeedCtx;
 use crate::transcript::Transcript;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -150,8 +153,9 @@ impl Assert {
         })
     }
 
-    /// `data_dir` is the run's throwaway ZS_DATA_DIR (for `file_*`).
-    pub fn eval(&self, t: &Transcript, data_dir: &Path) -> AssertResult {
+    /// `roots` gives `file_*` asserts the run's three isolated dirs
+    /// (data/config/work) to resolve a possibly-prefixed path against.
+    pub fn eval(&self, t: &Transcript, roots: &SeedCtx) -> AssertResult {
         let (pass, detail) = match self {
             Assert::ToolCalled(name) => {
                 let hit = t.tool_calls.iter().any(|c| &c.name == name);
@@ -226,14 +230,14 @@ impl Assert {
                 let total = t.total_tokens();
                 (total < *limit, format!("total tokens {total} < {limit}"))
             }
-            Assert::FileContains { path, needle } => match read_glob(data_dir, path) {
+            Assert::FileContains { path, needle } => match read_glob(roots, path) {
                 Ok(contents) => {
                     let hit = contents.iter().any(|(_, c)| c.contains(needle.as_str()));
                     (hit, format!("some '{path}' contains '{needle}': {hit}"))
                 }
                 Err(e) => (false, format!("file_contains '{path}': {e}")),
             },
-            Assert::FileNotContains { path, needle } => match read_glob(data_dir, path) {
+            Assert::FileNotContains { path, needle } => match read_glob(roots, path) {
                 Ok(contents) => {
                     let offender = contents.iter().find(|(_, c)| c.contains(needle.as_str()));
                     match offender {
@@ -257,9 +261,22 @@ impl Assert {
     }
 }
 
+/// Split a `file_*` path into the run-root it targets and the path relative
+/// to that root. No prefix defaults to `data:`, matching every scenario
+/// written before `config:`/`work:` prefixes existed.
+fn resolve_root<'a>(pattern: &'a str, roots: &SeedCtx<'a>) -> (&'a Path, &'a str) {
+    match pattern.split_once(':') {
+        Some(("data", rest)) => (roots.data, rest),
+        Some(("config", rest)) => (roots.config, rest),
+        Some(("work", rest)) => (roots.work, rest),
+        _ => (roots.data, pattern),
+    }
+}
+
 /// Read files under `root/pattern` where pattern may contain at most one `*`
-/// path segment (e.g. `memory/projects/*/SCRATCHPAD.md`).
-fn read_glob(root: &Path, pattern: &str) -> Result<Vec<(String, String)>> {
+/// path segment (e.g. `agent/memory/projects/*/notes/foo.md`).
+fn read_glob(roots: &SeedCtx, pattern: &str) -> Result<Vec<(String, String)>> {
+    let (root, pattern) = resolve_root(pattern, roots);
     let mut out = Vec::new();
     if let Some(star_pos) = pattern.find('*') {
         let (prefix, suffix) = pattern.split_at(star_pos);

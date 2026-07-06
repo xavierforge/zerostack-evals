@@ -48,9 +48,10 @@ prompt edit whose score it moves.
 - `pass^k` is the stability floor; a change that lifts `pass@k` but not
   `pass^k` is not yet an improvement.
 
-## Deferred
+## Subsystems beyond prompts
 
-Memory and subagent evals are parked under `deferred/` (scenarios plus the
-`domains/memory.rs` module) until the prompt suite is solid. When they come
-back, the memory-layout knowledge returns as its own module that expands into
-the generic `[[files]]` placements — the harness core stays subsystem-agnostic.
+Memory evals (`scenarios/memory/`) are live, backed by the
+`crates/zseval/src/domains/memory.rs` module — see the README's "Evaluating
+another subsystem" section for how that quarantine works and why a stale
+snapshot of zerostack's internals grades Indeterminate instead of Fail.
+Subagent evals are future work, following the same one-module pattern.
