@@ -163,16 +163,7 @@ impl Scenario {
             sc.resolve_fixture(&f.src)
                 .with_context(|| format!("{}: bad [[files]] src", sc.id))?;
         }
-        if let Some(mem) = &sc.seed.memory {
-            if let Some(p) = &mem.long_term {
-                sc.resolve_fixture(p)
-                    .with_context(|| format!("{}: bad [seed.memory] long_term", sc.id))?;
-            }
-            for n in &mem.notes {
-                sc.resolve_fixture(&n.file)
-                    .with_context(|| format!("{}: bad [seed.memory] note '{}'", sc.id, n.name))?;
-            }
-        }
+        crate::domains::validate(&sc)?;
         Ok(sc)
     }
 

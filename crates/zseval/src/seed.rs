@@ -53,11 +53,9 @@ pub fn apply(sc: &Scenario, ctx: &RunRoots) -> Result<()> {
         });
     }
 
-    // Subsystem-specific sugar expands into the same generic placements —
-    // one `if let` per `domains::` module.
-    if let Some(mem) = &sc.seed.memory {
-        placements.extend(crate::domains::memory::expand(mem, sc, ctx)?);
-    }
+    // Subsystem-specific sugar expands into the same generic placements;
+    // which domains exist is `domains::`' business, not ours.
+    placements.extend(crate::domains::expand(sc, ctx)?);
 
     for p in &placements {
         if let Some(parent) = p.dest.parent() {

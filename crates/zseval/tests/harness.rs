@@ -254,6 +254,65 @@ notes = [{ name = "deploy-strategy", file = "_fixtures/deploy.md" }]
 }
 
 #[test]
+fn domain_dispatch_is_the_single_entry_point() {
+    // "Which domains exist" must live in domains/mod.rs only: the core calls
+    // domains::{validate, expand, verify} and never names a specific
+    // subsystem. This exercises all three dispatch functions on a
+    // [seed.memory] scenario and on a domain-free scenario.
+    let sc_dir = std::env::temp_dir().join(format!("zseval-test-dispatch-{}", std::process::id()));
+    let fixtures = sc_dir.join("_fixtures");
+    std::fs::create_dir_all(&fixtures).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        r#"
+id = "dispatch-test"
+task = "hello"
+expect = ["final_contains x"]
+
+[seed.memory]
+long_term = "_fixtures/MEMORY.md"
+"#,
+    )
+    .unwrap();
+    std::fs::write(fixtures.join("MEMORY.md"), "prefers tabs").unwrap();
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    // validate: happy path is Ok (the fail-fast path is covered by
+    // load_fails_fast_on_missing_memory_note_fixture).
+    zseval::domains::validate(&sc).unwrap();
+
+    // expand: memory sugar becomes generic placements rooted at config:.
+    let run_dir = std::env::temp_dir().join(format!("zseval-test-dispatchrun-{}", std::process::id()));
+    let (data, config, work) = (run_dir.join("data"), run_dir.join("config"), run_dir.join("work"));
+    for d in [&data, &config, &work] {
+        std::fs::create_dir_all(d).unwrap();
+    }
+    let ctx = RunRoots {
+        data: &data,
+        config: &config,
+        work: &work,
+    };
+    let placements = zseval::domains::expand(&sc, &ctx).unwrap();
+    assert_eq!(placements.len(), 1);
+    assert_eq!(placements[0].dest, config.join("agent/memory/MEMORY.md"));
+
+    // verify: dispatches to the memory drift check only when the scenario
+    // seeds memory; a domain-free scenario is always Ok.
+    let roots = ctx;
+    let missing = run_dir.join("turn-0.zslog"); // zslog without a memory-open line
+    std::fs::write(&missing, "no memory line here\n").unwrap();
+    let err = zseval::domains::verify(&sc, &roots, std::slice::from_ref(&missing)).unwrap_err();
+    assert!(err.contains("--features memory"), "{err}");
+
+    let mut no_domain = sc.clone();
+    no_domain.seed.memory = None;
+    assert!(zseval::domains::verify(&no_domain, &roots, &[missing]).is_ok());
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&run_dir).ok();
+}
+
+#[test]
 fn load_fails_fast_on_missing_files_fixture() {
     // A typo'd [[files]] src should fail at load time (zseval list / the
     // very start of a run), not mid-run as a burned-API-call indeterminate.

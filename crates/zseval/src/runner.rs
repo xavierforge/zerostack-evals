@@ -107,16 +107,14 @@ fn run_trial(
 
     let roots = artifacts.roots();
 
-    // 2b. A scenario that seeds memory is only gradable if our snapshot of
-    // zerostack's memory layout still matches reality — a stale snapshot must
-    // never be silently blamed on the agent. domains::memory::verify derives
-    // the expected root/project itself from `roots`, the same way `expand`
-    // seeded it, so there's one computation to keep in sync, not two.
-    if sc.seed.memory.is_some() {
-        let zslogs: Vec<PathBuf> = artifacts.turns.iter().map(|t| t.zslog.clone()).collect();
-        if let Err(reason) = crate::domains::memory::verify(&roots, &zslogs) {
-            return indeterminate(trial, run_dir, format!("memory layout drift: {reason}"));
-        }
+    // 2b. A scenario that seeds a domain's files is only gradable if our
+    // snapshot of that subsystem's layout still matches reality — a stale
+    // snapshot must never be silently blamed on the agent. Each domain
+    // derives its expectations from `roots` the same way `expand` seeded
+    // them, so there's one computation to keep in sync, not two.
+    let zslogs: Vec<PathBuf> = artifacts.turns.iter().map(|t| t.zslog.clone()).collect();
+    if let Err(reason) = crate::domains::verify(sc, &roots, &zslogs) {
+        return indeterminate(trial, run_dir, format!("domain drift: {reason}"));
     }
 
     // 3. Deterministic floor.

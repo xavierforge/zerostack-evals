@@ -22,7 +22,7 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::Deserialize;
 
 use crate::backend::RunRoots;
@@ -48,6 +48,20 @@ pub struct NoteSeed {
 /// layout ever changes, not two that can quietly drift apart.
 fn layout_root(config: &Path) -> PathBuf {
     config.join("agent").join("memory")
+}
+
+/// Load-time check that every declared fixture actually resolves — a typo'd
+/// path fails `zseval list`/load, not mid-run after burning an API call.
+pub fn validate(mem: &MemorySeed, sc: &Scenario) -> Result<()> {
+    if let Some(p) = &mem.long_term {
+        sc.resolve_fixture(p)
+            .with_context(|| format!("{}: bad [seed.memory] long_term", sc.id))?;
+    }
+    for n in &mem.notes {
+        sc.resolve_fixture(&n.file)
+            .with_context(|| format!("{}: bad [seed.memory] note '{}'", sc.id, n.name))?;
+    }
+    Ok(())
 }
 
 /// Expand memory sugar into generic placements, rooted at
