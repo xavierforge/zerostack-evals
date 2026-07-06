@@ -1,0 +1,5 @@
+# zseval target — evaluate against Anthropic's API directly.
+# Requires: export ANTHROPIC_API_KEY=sk-ant-...
+# The key is intentionally NOT in this file; zseval passes the env through.
+provider = "anthropic"
+model = "claude-sonnet-4-6"

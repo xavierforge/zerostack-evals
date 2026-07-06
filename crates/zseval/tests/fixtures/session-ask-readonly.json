@@ -1,0 +1,14 @@
+{
+  "id": "readonly1",
+  "name": "ask readonly",
+  "messages": [
+    { "role": "user", "content": "Prepend a line print('hi') to the top of hello.py.", "estimated_tokens": 30 },
+    { "role": "tool_call", "content": "read hello.py", "estimated_tokens": 6 },
+    { "role": "tool_result", "content": "def greet(name):\n    return f\"hello {name}\"", "estimated_tokens": 20 },
+    { "role": "assistant", "content": "This is read-only (ask) mode, so I can't modify files. Switch to the code or default prompt and try again.", "estimated_tokens": 40 }
+  ],
+  "compactions": [],
+  "total_input_tokens": 1200,
+  "total_output_tokens": 60,
+  "total_cost": 0.004
+}

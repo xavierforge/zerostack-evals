@@ -1,0 +1,22 @@
+# Build artifacts (regenerable, huge)
+/target
+
+# Raw run outputs: full transcripts, per-trial sandboxes, cost/latency numbers,
+# and machine-specific data. Never commit — it bloats history and can leak
+# details about whoever ran the eval (prompts under test, model, spend, paths).
+# The versioned record of "how the suite scored" is the distilled report in
+# baselines/, not this tree.
+/results
+
+# Local snapshots and secrets
+*.zip
+.env
+.env.*
+
+# OS / editor junk
+.DS_Store
+*.swp
+*~
+
+# stray tool caches
+.mypy_cache/

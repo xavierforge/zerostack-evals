@@ -1,0 +1,6 @@
+# zseval target — evaluate through OpenRouter.
+# Requires: export OPENROUTER_API_KEY=sk-or-...
+# Replace `model` with the exact model id your OpenRouter account uses
+# (OpenRouter ids are namespaced, e.g. "anthropic/claude-sonnet-4.6").
+provider = "openrouter"
+model = "anthropic/claude-sonnet-4.6"

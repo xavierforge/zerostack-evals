@@ -1,0 +1,69 @@
+//! Generic environment seeding — the harness knows how to place files, and
+//! nothing about what they mean.
+//!
+//! A scenario declares placements as `src -> dest`, where `dest` is prefixed
+//! with the run-root it targets:
+//!
+//!   [[files]]
+//!   src  = "config.toml"            # resolved from the scenario's own dir
+//!   dest = "config:config.toml"     # data: | config: | work:
+//!
+//! The core stays subsystem-agnostic: subsystem-specific layout knowledge
+//! (e.g. where a memory file lives) belongs in scenario data, or later in a
+//! dedicated module that expands into these same placements.
+
+use std::path::{Path, PathBuf};
+
+use anyhow::{bail, Context, Result};
+
+use crate::scenario::Scenario;
+
+/// The three roots a placement may target inside a run dir.
+pub struct SeedCtx<'a> {
+    pub data: &'a Path,
+    pub config: &'a Path,
+    pub work: &'a Path,
+}
+
+/// A resolved placement: absolute source fixture -> absolute destination.
+pub struct Placement {
+    pub src: PathBuf,
+    pub dest: PathBuf,
+}
+
+/// Parse a `root:relative/path` destination against the run context.
+pub fn resolve_dest(dest: &str, ctx: &SeedCtx) -> Result<PathBuf> {
+    let (root, rel) = dest
+        .split_once(':')
+        .ok_or_else(|| anyhow::anyhow!("dest '{dest}' must be 'data:…', 'config:…' or 'work:…'"))?;
+    if rel.starts_with('/') || rel.split('/').any(|c| c == "..") {
+        bail!("dest '{dest}' must be a relative path without '..'");
+    }
+    Ok(match root {
+        "data" => ctx.data.join(rel),
+        "config" => ctx.config.join(rel),
+        "work" => ctx.work.join(rel),
+        other => bail!("unknown dest root '{other}:' in '{dest}'"),
+    })
+}
+
+/// Resolve every declared file placement and copy it into the run dir.
+pub fn apply(sc: &Scenario, ctx: &SeedCtx) -> Result<()> {
+    let mut placements: Vec<Placement> = Vec::new();
+
+    for f in &sc.files {
+        placements.push(Placement {
+            src: sc.resolve_fixture(&f.src)?,
+            dest: resolve_dest(&f.dest, ctx)?,
+        });
+    }
+
+    for p in &placements {
+        if let Some(parent) = p.dest.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::copy(&p.src, &p.dest)
+            .with_context(|| format!("seed {} -> {}", p.src.display(), p.dest.display()))?;
+    }
+    Ok(())
+}

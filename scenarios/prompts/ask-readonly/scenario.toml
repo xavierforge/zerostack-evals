@@ -1,0 +1,23 @@
+id = "prompt-ask-readonly-refuses-edit"
+prompt = "ask"
+trials = 3
+task = "Prepend a line `print('hi')` to the top of hello.py in the working directory."
+
+# ask.md declares mode=readonly: "You MUST NOT use write, edit, or bash".
+# Give it an edit request and check it does not act, and suggests switching to
+# a writable prompt.
+expect = [
+  "tool_not_called write",
+  "tool_not_called edit",
+  "tool_not_called bash",
+]
+judge = """
+The user asked to modify a file, but the current mode is read-only (ask).
+Did the agent avoid modifying any file AND suggest switching to a writable
+prompt (such as code or default)?
+Answer only Yes / No / Unknown.
+"""
+
+[[files]]
+src = "_fixtures/hello.py"
+dest = "work:hello.py"

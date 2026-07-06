@@ -1,0 +1,41 @@
+name: evals
+on:
+  pull_request:
+  schedule:
+    - cron: "0 18 * * *"   # nightly
+
+jobs:
+  # Always: harness plumbing (parse -> assert -> verdict -> report), zero API
+  # cost, seconds. This gate must stay green on every commit.
+  harness-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --workspace
+
+  # Prompt eval + regression gate. Enable once a baseline is committed
+  # (baselines/main.json) and an ANTHROPIC_API_KEY secret is set — see README
+  # "Iterating on prompts". Kept correct-but-dormant so the repo stays green
+  # from the first commit; uncomment when the suite is solid.
+  #
+  # prompts-gate:
+  #   if: github.event_name == 'pull_request'
+  #   runs-on: ubuntu-latest
+  #   needs: harness-tests
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: dtolnay/rust-toolchain@stable
+  #     - name: Build zerostack
+  #       run: |
+  #         git clone --depth 1 https://github.com/gi-dellav/zerostack ../zerostack
+  #         cargo build --release --manifest-path ../zerostack/Cargo.toml
+  #     - name: Run prompts, compare to baseline
+  #       env:
+  #         ZS_BIN: ../zerostack/target/release/zerostack
+  #         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  #       run: |
+  #         cargo run -p zseval -- run scenarios/prompts \
+  #           --target targets/anthropic.toml --trials 3 --no-judge \
+  #           --tag ci --json > /dev/null
+  #         cargo run -p zseval -- compare baselines/main.json results/ci/report.json
