@@ -272,11 +272,28 @@ fn indeterminate(trial: usize, run_dir: &Path, reason: String) -> TrialResult {
         judge: None,
         input_tokens: 0,
         output_tokens: 0,
-        cost_usd: 0.0,
+        // Best-effort: a backend error (e.g. a timeout) can still leave
+        // real spend behind in whatever session JSON completed turns wrote
+        // before the failure — recovering it here means --max-total-usd
+        // never undercounts a trial that grades Indeterminate.
+        cost_usd: recover_cost_usd(run_dir),
         wall_secs: 0.0,
         tool_call_count: 0,
         run_dir: run_dir.display().to_string(),
     }
+}
+
+/// Sum `total_cost` out of every `*.json` under `run_dir/data/sessions/`,
+/// tolerating missing directories and unparseable/partial files (a session
+/// file can be mid-write when a timeout kills the agent) — this must never
+/// itself fail or panic, since it runs on the error path.
+fn recover_cost_usd(run_dir: &Path) -> f64 {
+    crate::backend::discover_session_files(&run_dir.join("data"))
+        .iter()
+        .filter_map(|p| std::fs::read_to_string(p).ok())
+        .filter_map(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .filter_map(|v| v.get("total_cost").and_then(|c| c.as_f64()))
+        .sum()
 }
 
 fn print_trial_line(id: &str, tr: &TrialResult) {

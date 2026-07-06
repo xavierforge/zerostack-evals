@@ -572,6 +572,79 @@ judge = "Did the agent answer the question?"
     std::fs::remove_dir_all(&sc_dir).ok();
 }
 
+/// A backend that writes a partial session (as if some turns completed and
+/// spent real money) before failing — simulating a timeout mid-run.
+struct PartialFailureBackend {
+    partial_cost: f64,
+}
+
+impl zseval::backend::AgentBackend for PartialFailureBackend {
+    fn name(&self) -> &str {
+        "partial-failure"
+    }
+    fn run(
+        &self,
+        _sc: &Scenario,
+        _model: Option<&str>,
+        run_dir: &Path,
+    ) -> anyhow::Result<zseval::backend::RunArtifacts> {
+        let sessions = run_dir.join("data").join("sessions");
+        std::fs::create_dir_all(&sessions).unwrap();
+        std::fs::write(
+            sessions.join("partial.json"),
+            format!(
+                r#"{{"id":"p","messages":[],"total_cost":{}}}"#,
+                self.partial_cost
+            ),
+        )
+        .unwrap();
+        anyhow::bail!("simulated timeout after turn 1")
+    }
+}
+
+#[test]
+fn indeterminate_trial_recovers_cost_already_spent_before_the_failure() {
+    // A timeout after turn 1 of 3 already burned real API cost — an
+    // indeterminate trial that reports $0 spent would let --max-total-usd
+    // silently undercount, letting a run blow through the budget the caller
+    // set. Recovery is best-effort: it scans whatever session JSON exists
+    // under the run_dir even though the backend itself errored.
+    let sc_dir = std::env::temp_dir().join(format!("zseval-costrecover-sc-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        "id = \"cost-recover-test\"\ntask = \"hi\"\nexpect = [\"final_contains x\"]\n",
+    )
+    .unwrap();
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-costrecover-results-{}", std::process::id()));
+    let backend = PartialFailureBackend {
+        partial_cost: 0.0275,
+    };
+    let opts = RunOptions {
+        model: None,
+        target: None,
+        trials_override: Some(1),
+        tag: "t".into(),
+        no_judge: true,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+    };
+    let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
+    let tr = &report.scenarios[0].trials[0];
+    assert_eq!(tr.outcome, Final::Indeterminate);
+    assert!(
+        (tr.cost_usd - 0.0275).abs() < 1e-9,
+        "expected recovered cost ~0.0275, got {}",
+        tr.cost_usd
+    );
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
 #[test]
 fn regrade_regrades_existing_artifacts_without_driving_the_agent() {
     // The whole point of `regrade`: after editing an assert to be stricter,
