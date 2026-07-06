@@ -15,22 +15,27 @@ pub fn civil_date_string(z: i64) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
-/// Compact UTC timestamp "YYYYMMDD-HHMMSS", for run-folder names.
+/// Compact UTC timestamp "YYYYMMDD-HHMMSS-mmm-pid", for run-folder names.
+/// Millisecond + pid suffix so two runs auto-tagged back-to-back (e.g. a
+/// script looping `zseval run` without an explicit `--tag`) never collide on
+/// the same `results/<tag>/` directory and silently overwrite each other.
 pub fn compact_timestamp() -> String {
-    let secs = std::time::SystemTime::now()
+    let dur = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+        .unwrap_or_default();
+    let secs = dur.as_secs();
     let ymd: String = civil_date_string((secs / 86_400) as i64)
         .chars()
         .filter(|c| *c != '-')
         .collect();
     let rem = secs % 86_400;
     format!(
-        "{ymd}-{:02}{:02}{:02}",
+        "{ymd}-{:02}{:02}{:02}-{:03}-{}",
         rem / 3600,
         (rem % 3600) / 60,
-        rem % 60
+        rem % 60,
+        dur.subsec_millis(),
+        std::process::id()
     )
 }
 
@@ -58,6 +63,29 @@ pub fn tail_of(path: &std::path::Path, lines: usize) -> String {
             all[start..].join("\n")
         }
         _ => String::from("(empty)"),
+    }
+}
+
+#[cfg(test)]
+mod compact_timestamp_tests {
+    use super::*;
+
+    #[test]
+    fn format_is_ymd_hms_millis_pid() {
+        let ts = compact_timestamp();
+        let parts: Vec<&str> = ts.split('-').collect();
+        assert_eq!(parts.len(), 4, "{ts}");
+        assert_eq!(parts[0].len(), 8, "{ts}"); // YYYYMMDD
+        assert_eq!(parts[1].len(), 6, "{ts}"); // HHMMSS
+        assert_eq!(parts[2].len(), 3, "{ts}"); // millis
+        assert!(parts[0].chars().all(|c| c.is_ascii_digit()), "{ts}");
+        assert!(parts[1].chars().all(|c| c.is_ascii_digit()), "{ts}");
+        assert!(parts[2].chars().all(|c| c.is_ascii_digit()), "{ts}");
+        assert_eq!(
+            parts[3],
+            std::process::id().to_string(),
+            "pid suffix should be this process's own pid"
+        );
     }
 }
 

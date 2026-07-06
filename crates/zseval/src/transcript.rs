@@ -65,7 +65,14 @@ pub struct Msg {
 
 #[derive(Debug, Clone)]
 pub struct ToolCall {
-    /// Index into `messages`, so ordering asserts can compare positions.
+    /// A monotonic position for ordering asserts (`tool_called_after`) to
+    /// compare against — *not* an index into `messages`. Tool calls parsed
+    /// from a session's own messages (`tool_call`/`subagent_tool_call` roles)
+    /// do use their message index; ones reconstructed from a `turn-N.stdout`
+    /// log (the real headless-mode path — see this module's doc) instead
+    /// count up from `index_base` across that turn's `◈ ` markers, since
+    /// there's no message list to index into. Both number spaces only need
+    /// to preserve relative order among tool calls, which they do.
     pub index: usize,
     pub name: String,
     /// Human summary of args as zerostack rendered it (may be truncated).
@@ -175,7 +182,13 @@ impl Transcript {
 ///
 /// A `◈ {name} result:` line marks a tool's *result*, not another call, and
 /// is skipped — its output lines don't start with `◈ ` so nothing else needs
-/// filtering out.
+/// filtering out. Caveat: this is a line-prefix match against zerostack's own
+/// marker, not a structured format — a tool's *output* that happens to
+/// contain a line starting with `◈ ` (e.g. `bash cat`-ing a file using that
+/// character) would be misread as another call. Unlikely in practice and not
+/// currently guarded against; this is the one channel that carries tool
+/// calls at all in headless mode, so there's no independent source to
+/// cross-check it against (see the module doc).
 pub fn tool_calls_from_stdout(text: &str, index_base: usize) -> Vec<ToolCall> {
     let mut out = Vec::new();
     for line in text.lines() {

@@ -265,7 +265,7 @@ fn grade_trial(
             all_pass = false;
             reasons.push(format!("assert failed: {} ({})", line, r.detail));
         }
-        assert_results.push(r.into());
+        assert_results.push(r);
     }
 
     // 4. Budgets are graded negatives: the agent DID overspend.

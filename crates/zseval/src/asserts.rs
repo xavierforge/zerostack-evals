@@ -313,7 +313,7 @@ fn read_glob(roots: &RunRoots, pattern: &str) -> Result<Vec<(String, String)>> {
     Ok(out)
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AssertResult {
     pub spec: String,
     pub pass: bool,

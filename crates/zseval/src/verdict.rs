@@ -34,7 +34,7 @@ pub struct TrialResult {
     #[serde(default)]
     pub reasons: Vec<String>,
     #[serde(default)]
-    pub asserts: Vec<AssertResultOwned>,
+    pub asserts: Vec<AssertResult>,
     pub judge: Option<JudgeVerdict>,
     pub input_tokens: u64,
     pub output_tokens: u64,
@@ -60,24 +60,6 @@ pub struct TrialResult {
     pub tool_call_count: usize,
     /// Where the raw transcript(s) and stdout/stderr live, for `explain`.
     pub run_dir: String,
-}
-
-/// AssertResult mirror that also deserializes (compare reads reports back).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AssertResultOwned {
-    pub spec: String,
-    pub pass: bool,
-    pub detail: String,
-}
-
-impl From<AssertResult> for AssertResultOwned {
-    fn from(a: AssertResult) -> Self {
-        AssertResultOwned {
-            spec: a.spec,
-            pass: a.pass,
-            detail: a.detail,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

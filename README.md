@@ -45,7 +45,7 @@ as a usage mistake — a broken environment never looks like a clean pass.
 
     # fast local iteration: one scenario, one trial, skip the judge.
     # Omitting --tag auto-names the run folder by suite+provider+model+time,
-    # e.g. results/ask-readonly_anthropic-claude-sonnet-4-6_20260706-093404/
+    # e.g. results/ask-readonly_anthropic-claude-sonnet-4-6_20260706-093404-512-83921/
     cargo run -p zseval -- run scenarios/prompts/ask-readonly \
       --target targets/anthropic.toml --trials 1 --no-judge
 
