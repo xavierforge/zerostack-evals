@@ -136,16 +136,28 @@ impl ScenarioResult {
             .any(|t| t.outcome != Final::Indeterminate)
     }
 
-    pub fn trial_pass_rate(&self) -> f64 {
-        let graded: Vec<&TrialResult> = self
-            .trials
+    /// How many trials actually produced a verdict — the pass-rate
+    /// denominator, and the thing that sets the smallest possible nonzero
+    /// step between two pass rates (`1 / n_graded_trials`). `compare` uses
+    /// this to warn when a regression threshold is finer than any diff this
+    /// scenario could actually produce (see AGENTS.md on trials and k).
+    pub fn n_graded_trials(&self) -> usize {
+        self.trials
             .iter()
             .filter(|t| t.outcome != Final::Indeterminate)
-            .collect();
-        if graded.is_empty() {
+            .count()
+    }
+
+    pub fn trial_pass_rate(&self) -> f64 {
+        let n = self.n_graded_trials();
+        if n == 0 {
             return 0.0;
         }
-        graded.iter().filter(|t| t.outcome == Final::Pass).count() as f64 / graded.len() as f64
+        self.trials
+            .iter()
+            .filter(|t| t.outcome == Final::Pass)
+            .count() as f64
+            / n as f64
     }
 }
 

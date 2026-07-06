@@ -39,6 +39,15 @@ pub struct Comparison {
     /// regression signal by itself; surfaced so a moved ruler is visible
     /// instead of silently blamed on the agent (see AGENTS.md's guardrail).
     pub definition_changed: Vec<String>,
+    /// Shared, gradable scenarios where `threshold` is finer than the
+    /// smallest nonzero step this many graded trials can produce
+    /// (`1 / n_graded_trials`) — e.g. 3 trials can only move in steps of
+    /// 0.333, so a threshold of 0.05 means *any single trial flipping* is
+    /// enough to call it a regression, regardless of the threshold's
+    /// nominal value. Not wrong, but easy to mistake for real statistical
+    /// tolerance; surfaced so that mismatch is visible instead of silently
+    /// producing a noisier gate than the threshold implies.
+    pub low_resolution: Vec<String>,
     /// Whether baseline and candidate were evaluated against a different
     /// provider/model (`Report.model`) — comparing across targets isn't
     /// inherently wrong (that's the A/B use case), but it must never be
@@ -74,6 +83,7 @@ pub fn compare(base: &Report, cand: &Report, threshold: f64) -> Comparison {
     let mut errored = Vec::new();
     let mut evidence_warnings = Vec::new();
     let mut definition_changed = Vec::new();
+    let mut low_resolution = Vec::new();
     let mut added = Vec::new();
     let mut removed = Vec::new();
 
@@ -105,6 +115,15 @@ pub fn compare(base: &Report, cand: &Report, threshold: f64) -> Comparison {
                 if regression {
                     regressions.push(b.id.clone());
                 }
+                // The smallest nonzero step candidate's own pass rate can
+                // move by (1/n) — if that's already coarser than the
+                // threshold, one trial flipping is indistinguishable from a
+                // real regression at this k, no matter the threshold's
+                // nominal value.
+                let step = 1.0 / c.n_graded_trials().max(1) as f64;
+                if step > threshold {
+                    low_resolution.push(b.id.clone());
+                }
                 rows.push(Row {
                     id: b.id.clone(),
                     base_rate,
@@ -132,6 +151,7 @@ pub fn compare(base: &Report, cand: &Report, threshold: f64) -> Comparison {
         errored,
         evidence_warnings,
         definition_changed,
+        low_resolution,
         target_mismatch: base.model != cand.model,
         base_model: base.model.clone(),
         cand_model: cand.model.clone(),
@@ -219,6 +239,17 @@ pub fn print_human(c: &Comparison) {
              fine while the evidence channel itself is broken — see AGENTS.md):"
         );
         for id in &c.evidence_warnings {
+            println!("  {id}");
+        }
+    }
+    if !c.low_resolution.is_empty() {
+        println!(
+            "\n⚠ threshold is finer than these scenarios' trial count can resolve \
+             (any single trial flipping outcome is enough to call it a regression \
+             here, regardless of the threshold's nominal value — raise --trials or \
+             loosen --threshold if that's not what you want):"
+        );
+        for id in &c.low_resolution {
             println!("  {id}");
         }
     }
@@ -323,6 +354,42 @@ mod exit_code_tests {
         )]);
         let c = compare(&base, &cand, 0.05);
         assert_eq!(c.exit_code(), 0);
+    }
+
+    #[test]
+    fn warns_when_threshold_is_finer_than_trial_count_can_resolve() {
+        // 3 graded trials can only move in steps of 1/3 ≈ 0.333 — a default
+        // 0.05 threshold means any single trial flipping already counts as
+        // a regression, which is worth flagging as not real statistical
+        // headroom, independent of whether this comparison actually
+        // regressed.
+        let base = report(vec![ScenarioResult::from_trials(
+            "s".into(),
+            vec![trial(Final::Pass, 0), trial(Final::Pass, 0), trial(Final::Pass, 0)],
+        )]);
+        let cand = report(vec![ScenarioResult::from_trials(
+            "s".into(),
+            vec![trial(Final::Pass, 0), trial(Final::Pass, 0), trial(Final::Pass, 0)],
+        )]);
+        let c = compare(&base, &cand, 0.05);
+        assert_eq!(c.low_resolution, vec!["s".to_string()]);
+    }
+
+    #[test]
+    fn no_low_resolution_warning_when_threshold_fits_the_trial_count() {
+        // Same 3 trials, but a threshold of 0.4 is coarser than the 0.333
+        // step 3 trials can produce — no warning needed, the gate is
+        // already tighter than what one flipped trial could trigger.
+        let base = report(vec![ScenarioResult::from_trials(
+            "s".into(),
+            vec![trial(Final::Pass, 0), trial(Final::Pass, 0), trial(Final::Pass, 0)],
+        )]);
+        let cand = report(vec![ScenarioResult::from_trials(
+            "s".into(),
+            vec![trial(Final::Pass, 0), trial(Final::Pass, 0), trial(Final::Pass, 0)],
+        )]);
+        let c = compare(&base, &cand, 0.4);
+        assert!(c.low_resolution.is_empty());
     }
 
     #[test]

@@ -69,6 +69,14 @@ prompt edit whose score it moves.
   targets`) — see the README's "What a report identifies" section. Neither
   flips the exit code by itself, but both mean the pass-rate diff above may
   not be the apples-to-apples comparison it looks like.
+- The default `--threshold 0.05` assumes finer resolution than a low trial
+  count can actually produce: with 3 trials, pass rate only moves in steps of
+  1/3 ≈ 0.333, so *any* single trial flipping outcome already reads as a
+  regression, regardless of the threshold's nominal value. `compare` flags
+  this (`⚠ threshold is finer than these scenarios' trial count can
+  resolve`) rather than let a 5%-looking gate quietly behave like a
+  zero-tolerance one. Before turning on a CI gate, either raise `--trials` or
+  raise `--threshold` to actually fit — don't just ignore the warning.
 
 ## Subsystems beyond prompts
 
