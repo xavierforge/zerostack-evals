@@ -109,13 +109,12 @@ fn run_trial(
 
     // 2b. A scenario that seeds memory is only gradable if our snapshot of
     // zerostack's memory layout still matches reality — a stale snapshot must
-    // never be silently blamed on the agent.
+    // never be silently blamed on the agent. domains::memory::verify derives
+    // the expected root/project itself from `roots`, the same way `expand`
+    // seeded it, so there's one computation to keep in sync, not two.
     if sc.seed.memory.is_some() {
-        let expected_root = artifacts.config_dir.join("agent").join("memory");
-        let expected_project = crate::domains::memory::project_slug(&artifacts.work_dir);
-        if let Err(reason) =
-            crate::domains::memory::verify_layout(run_dir, &expected_root, &expected_project)
-        {
+        let zslogs: Vec<PathBuf> = artifacts.turns.iter().map(|t| t.zslog.clone()).collect();
+        if let Err(reason) = crate::domains::memory::verify(&roots, &zslogs) {
             return indeterminate(trial, run_dir, format!("memory layout drift: {reason}"));
         }
     }

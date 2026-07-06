@@ -9,7 +9,7 @@
 //!
 //! `memory` is NOT a zerostack default feature — a binary under eval must be
 //! built `cargo build --features memory`, or the tools never register and
-//! `verify_layout` below will say so.
+//! `verify` below will say so.
 //!
 //! Scenario sugar:
 //!   [seed.memory]
@@ -42,10 +42,18 @@ pub struct NoteSeed {
     pub file: PathBuf,
 }
 
+/// Where `Mem::open()` roots memory for a given run's config dir. The one
+/// place this path is computed — `expand` (seeding) and `verify` (grading)
+/// both call it, so there is exactly one fact to update if zerostack's
+/// layout ever changes, not two that can quietly drift apart.
+fn layout_root(config: &Path) -> PathBuf {
+    config.join("agent").join("memory")
+}
+
 /// Expand memory sugar into generic placements, rooted at
 /// `<config>/agent/memory/` (matches `Mem::open()`).
 pub fn expand(mem: &MemorySeed, sc: &Scenario, ctx: &RunRoots) -> Result<Vec<Placement>> {
-    let root = ctx.config.join("agent").join("memory");
+    let root = layout_root(ctx.config);
     let proj = root.join("projects").join(project_slug(ctx.work));
     let mut out = Vec::new();
     if let Some(p) = &mem.long_term {
@@ -94,42 +102,30 @@ pub fn project_slug(path: &Path) -> String {
 }
 
 /// Cross-check our snapshot of zerostack's memory layout against reality.
-///
-/// zerostack's `Mem::open()` logs `memory open: root=…, project=…` at debug
-/// level; the harness always captures a trace-level log per turn via
-/// `--log-file` (`zerostack=trace`, see zerostack's `src/logging.rs`), so
-/// that line is there whenever the `memory` feature is compiled in and the
-/// tool actually ran. Scan every `turn-*.zslog` under `run_dir`:
-///   - no zslog files at all -> nothing to verify (e.g. the mock backend).
-///   - zslogs exist but the line never appears -> the memory subsystem never
+/// Computes the expected root/project once (via `layout_root` and
+/// `project_slug`, the same helpers `expand` seeds with) and scans the given
+/// zslogs for the `memory open: root=…, project=…` line zerostack's
+/// `Mem::open()` logs at debug level — the harness always captures a
+/// trace-level log per turn via `--log-file` (`zerostack=trace`, see
+/// zerostack's `src/logging.rs`), so that line is there whenever the
+/// `memory` feature is compiled in and the tool actually ran.
+///   - no zslogs given -> nothing to verify (e.g. the mock backend).
+///   - zslogs given but the line never appears -> the memory subsystem never
 ///     opened (feature not compiled in, or the model never touched memory).
-///   - the line appears with a different root/project than we seeded -> our
+///   - the line appears with a different root/project than expected -> our
 ///     snapshot of zerostack's internals is stale.
 /// Every failure mode returns `Err` with a message naming the fix, so the
 /// runner can grade Indeterminate instead of blaming the agent.
-pub fn verify_layout(
-    run_dir: &Path,
-    expected_root: &Path,
-    expected_project: &str,
-) -> Result<(), String> {
-    let mut logs: Vec<PathBuf> = std::fs::read_dir(run_dir)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| {
-            let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
-            name.starts_with("turn-") && name.ends_with(".zslog")
-        })
-        .collect();
-    logs.sort();
-    if logs.is_empty() {
+pub fn verify(roots: &RunRoots, zslogs: &[PathBuf]) -> Result<(), String> {
+    if zslogs.is_empty() {
         return Ok(());
     }
+    let expected_root = layout_root(roots.config);
+    let expected_project = project_slug(roots.work);
 
     let expected_root_str = expected_root.display().to_string();
     let mut found = false;
-    for log in &logs {
+    for log in zslogs {
         let text = std::fs::read_to_string(log).unwrap_or_default();
         for line in text.lines() {
             let Some(rest) = line.split_once("memory open: root=").map(|(_, r)| r) else {
@@ -191,51 +187,105 @@ mod tests {
     }
 
     #[test]
-    fn verify_layout_ok_when_no_zslogs_present() {
-        let dir = std::env::temp_dir().join(format!("zsmem-test-nolog-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        assert!(verify_layout(&dir, Path::new("/whatever"), "slug").is_ok());
-        std::fs::remove_dir_all(&dir).ok();
+    fn verify_ok_when_no_zslogs_present() {
+        let roots = RunRoots {
+            data: Path::new("/d"),
+            config: Path::new("/c"),
+            work: Path::new("/w"),
+        };
+        assert!(verify(&roots, &[]).is_ok());
     }
 
     #[test]
-    fn verify_layout_errs_when_feature_never_opened_memory() {
+    fn verify_errs_when_feature_never_opened_memory() {
         let dir = std::env::temp_dir().join(format!("zsmem-test-missing-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(
-            dir.join("turn-0.zslog"),
-            "some trace line with no memory open\n",
-        )
-        .unwrap();
-        let err = verify_layout(&dir, Path::new("/whatever"), "slug").unwrap_err();
+        let log = dir.join("turn-0.zslog");
+        std::fs::write(&log, "some trace line with no memory open\n").unwrap();
+        let roots = RunRoots {
+            data: &dir,
+            config: &dir,
+            work: &dir,
+        };
+        let err = verify(&roots, &[log]).unwrap_err();
         assert!(err.contains("--features memory"), "{err}");
         std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
-    fn verify_layout_errs_on_root_drift() {
+    fn verify_errs_on_root_drift() {
         let dir = std::env::temp_dir().join(format!("zsmem-test-drift-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
+        let config = dir.join("config");
+        let work = dir.join("work");
+        let expected_project = project_slug(&work);
+        let log = dir.join("turn-0.zslog");
         std::fs::write(
-            dir.join("turn-0.zslog"),
-            "2026-01-01T00:00:00Z DEBUG zerostack: memory open: root=/actual/root, project=slug\n",
+            &log,
+            format!(
+                "2026-01-01T00:00:00Z DEBUG zerostack: memory open: root=/actual/root, project={expected_project}\n"
+            ),
         )
         .unwrap();
-        let err = verify_layout(&dir, Path::new("/expected/root"), "slug").unwrap_err();
+        let roots = RunRoots {
+            data: &dir,
+            config: &config,
+            work: &work,
+        };
+        let err = verify(&roots, &[log]).unwrap_err();
         assert!(err.contains("root drift"), "{err}");
         std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
-    fn verify_layout_passes_on_exact_match() {
-        let dir = std::env::temp_dir().join(format!("zsmem-test-match-{}", std::process::id()));
+    fn verify_errs_on_project_drift() {
+        let dir = std::env::temp_dir().join(format!("zsmem-test-projdrift-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
+        let config = dir.join("config");
+        let work = dir.join("work");
+        let expected_root = layout_root(&config);
+        let log = dir.join("turn-0.zslog");
         std::fs::write(
-            dir.join("turn-0.zslog"),
-            "2026-01-01T00:00:00Z DEBUG zerostack: memory open: root=/expected/root, project=slug-1234\n",
+            &log,
+            format!(
+                "2026-01-01T00:00:00Z DEBUG zerostack: memory open: root={}, project=some-other-slug\n",
+                expected_root.display()
+            ),
         )
         .unwrap();
-        assert!(verify_layout(&dir, Path::new("/expected/root"), "slug-1234").is_ok());
+        let roots = RunRoots {
+            data: &dir,
+            config: &config,
+            work: &work,
+        };
+        let err = verify(&roots, &[log]).unwrap_err();
+        assert!(err.contains("project-slug drift"), "{err}");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn verify_passes_on_exact_match() {
+        let dir = std::env::temp_dir().join(format!("zsmem-test-match-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let config = dir.join("config");
+        let work = dir.join("work");
+        let expected_root = layout_root(&config);
+        let expected_project = project_slug(&work);
+        let log = dir.join("turn-0.zslog");
+        std::fs::write(
+            &log,
+            format!(
+                "2026-01-01T00:00:00Z DEBUG zerostack: memory open: root={}, project={expected_project}\n",
+                expected_root.display()
+            ),
+        )
+        .unwrap();
+        let roots = RunRoots {
+            data: &dir,
+            config: &config,
+            work: &work,
+        };
+        assert!(verify(&roots, &[log]).is_ok());
         std::fs::remove_dir_all(&dir).ok();
     }
 }
