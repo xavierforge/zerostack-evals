@@ -15,6 +15,10 @@ below) — the core (scenario/backend/seed/asserts/verdict) stays
 subsystem-agnostic. Subagent evals are future work, following the same
 one-module pattern.
 
+A run or compare that comes back fully ungradable (every trial indeterminate,
+or nothing shared was comparable) exits **2**, the same "harness error" code
+as a usage mistake — a broken environment never looks like a clean pass.
+
 ## Layout
 
     crates/zseval/     harness (bin: zseval)
@@ -58,6 +62,21 @@ No zerostack build handy? Exercise the plumbing with the mock backend:
     cargo run -p zseval -- run scenarios/prompts/ask-readonly \
       --backend mock=crates/zseval/tests/fixtures/session-ask-readonly.json \
       --no-judge
+
+`--backend mock=<path>` also accepts a *directory* shaped like a captured
+trial dir (`data/sessions/*.json` plus `turn-N.{stdout,stderr,zslog}`), which
+replays the stdout-based tool-call markers too — the only channel that
+carries tool calls in headless mode (see "How it drives zerostack" below).
+
+Edited an assert and want to know if it would flip a past trial's verdict,
+without spending another API call?
+
+    cargo run -p zseval -- regrade scenarios/prompts/ask-readonly \
+      results/candidate/prompt-ask-readonly-refuses-edit/trial-0/
+
+`regrade` re-scores that trial dir's frozen artifacts against the
+scenario's *current* asserts/judge and rewrites its `trial.json` — nothing
+about the agent is re-run.
 
 ## How it drives zerostack
 
@@ -121,16 +140,20 @@ isolated config dir or working dir instead, e.g.
 A subsystem like `memory` lays out files zerostack itself decides the shape
 of (e.g. `<config_dir>/agent/memory/MEMORY.md`) — that layout knowledge is a
 *snapshot* of zerostack internals, not something the harness core should
-know. It's quarantined to one file, `crates/zseval/src/domains/<name>.rs`,
-which expands its own scenario-TOML sugar (e.g. `[seed.memory]`) into the
-same generic `Placement`s `[[files]]` produces. Adding eval support for
-another subsystem is: one new `domains::` module, one new optional field on
-`SeedSugar`, zero changes to `seed`/`asserts`/`runner`.
+know. It's quarantined to one file, `crates/zseval/src/domains/<name>.rs`.
+The core never names a specific subsystem: `Scenario::load`, `seed::apply`,
+and the runner call exactly three dispatch functions —
+`domains::{validate, expand, verify}` (`crates/zseval/src/domains/mod.rs`) —
+and those three functions are the *only* place "which domains exist" is
+listed. Adding eval support for another subsystem is: one new `domains::`
+module, one new optional field on `SeedSugar`, one match arm in each of the
+three dispatch functions — zero changes to `scenario`/`seed`/`runner`
+otherwise.
 
 Because the knowledge is a snapshot, every `domains::` module pairs its
-layout knowledge with a runtime drift check the runner calls after driving
-the agent (see `domains::memory::verify_layout`). If zerostack's actual
-layout no longer matches what the module assumes, the trial grades
+layout knowledge with a runtime drift check `domains::verify` dispatches to
+after driving the agent (see `domains::memory::verify`). If zerostack's
+actual layout no longer matches what the module assumes, the trial grades
 **Indeterminate** with a message naming the fix — never a silent Fail. This
 is what makes memory evals resilient to zerostack iterating quickly: a
 scenario doesn't quietly start "failing" just because an internal path
@@ -160,6 +183,25 @@ takes `--json`. A typical loop:
 
 When a run reports indeterminate scenarios, fix the environment/schema first —
 those are excluded from the pass rates and never counted as regressions.
+
+## What a report identifies
+
+Every `report.json` records what it evaluated against (`"model"`:
+`"<provider>/<model>"`, resolved from `--target`'s config.toml plus any
+`--model` override — `"provider-default"` when neither is known) and, per
+scenario, a content hash of that scenario's `scenario.toml`. `zseval compare`
+uses both:
+
+- **Different targets** — comparing a baseline evaluated against one
+  provider/model to a candidate evaluated against another prints a warning
+  (still runs the diff; that's the A/B use case) so a regression check never
+  silently becomes an apples-to-oranges comparison.
+- **Changed scenario definition** — if a shared scenario's `scenario.toml`
+  differs between baseline and candidate, `compare` warns instead of quietly
+  diffing two different tests under the same id (see AGENTS.md's guardrail
+  on not moving the ruler while measuring). A baseline committed before this
+  field existed has an empty hash and is treated as "unknown", not a false
+  positive.
 
 ## Troubleshooting
 

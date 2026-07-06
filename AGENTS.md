@@ -16,9 +16,18 @@ every subcommand takes `--json`, and exit codes are the contract
    - exit 0 and the target scenario went up → done; hand the diff to a human.
    - exit 1 → `zseval explain results/attempt-N/<scenario>/trial-0/`, read the
      failed asserts and transcript, go back to step 2.
-   - lots of indeterminate → fix the environment/schema first, not the prompt.
-     Indeterminate scenarios are excluded from the pass rates and are never
-     counted as regressions.
+   - exit 2 → harness error, not a prompt problem: every shared scenario was
+     ungradable on one side (broken build, bad target, expired key). Fix the
+     environment before drawing any conclusion from the numbers.
+   - lots of indeterminate (but not all) → fix the environment/schema first,
+     not the prompt. Indeterminate scenarios are excluded from the pass rates
+     and are never counted as regressions.
+
+Tightened or fixed an assert on a scenario you already have trial artifacts
+for? `zseval regrade <scenario-dir> <trial-dir> --no-judge` re-scores the
+existing artifacts against the new assert without spending another API
+call — useful for checking an assert edit is well-formed before the next
+full run.
 
 ## Guardrails
 
@@ -54,6 +63,12 @@ prompt edit whose score it moves.
   (see `transcript.rs`'s module doc). This warning doesn't flip the exit
   code (it's not a behavior regression), but treat it as seriously as one:
   the pass rate above it may be meaningless.
+- `zseval compare` also warns when a shared scenario's own definition changed
+  (`⚠ scenario definition changed`) or when baseline and candidate were
+  evaluated against different providers/models (`⚠ comparing different
+  targets`) — see the README's "What a report identifies" section. Neither
+  flips the exit code by itself, but both mean the pass-rate diff above may
+  not be the apples-to-apples comparison it looks like.
 
 ## Subsystems beyond prompts
 
