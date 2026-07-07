@@ -1,0 +1,28 @@
+id = "prompt-frontend-design-commits-to-direction"
+prompt = "frontend-design"
+trials = 3
+task = "Build a landing page hero section in hero.html for a monospace-font coding CLI tool. Direction: brutalist tone, a dark background with exactly one accent color (no purple gradients), and a distinctive display-font pairing — not Inter, Roboto, Arial, or system-ui. This is the final direction; no need to check in before implementing. Reply with a one-line note of the font and color choices you used."
+
+# frontend-design.md's Process gates implementation behind proposing a
+# direction and getting approval (step 3 before step 4) — the task supplies
+# the direction and explicitly waives that check-in so a single turn can
+# still reach implementation. "What Not To Do" bans Inter/Roboto/Arial/
+# system-ui and purple gradients by name. The task also asks for a one-line
+# note of choices made, specifically so the judge has something in the final
+# message to grade (see docs/EVAL-COVERAGE-PLAN.md's judge-evidence rule —
+# the judge never sees hero.html's actual bytes).
+expect = [
+  "file_contains work:hero.html <html",
+  "file_not_contains work:hero.html Inter",
+  "file_not_contains work:hero.html Roboto",
+  "file_not_contains work:hero.html Arial",
+]
+judge = """
+The user asked for a distinctive display-font pairing (not Inter, Roboto,
+Arial, or system-ui) and a dark background with exactly one accent color
+(no purple gradients), then asked the agent to note its font and color
+choices in its reply. Did the final response name a specific, non-generic
+font pairing and color choice — rather than a vague "used a modern font"
+or no mention at all?
+Answer only Yes / No / Unknown.
+"""

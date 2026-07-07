@@ -1,0 +1,30 @@
+id = "prompt-write-prompt-follows-format"
+prompt = "write-prompt"
+trials = 3
+task = "reference-prompts/ask.md is one of zerostack's existing prompt files — note its `%%mode=readonly` directive on line 1. Using that same zerostack prompt-file convention, write a new prompt called 'tutor' into tutor.md: it explains code to the user in plain language, but must never write, edit, or run bash — read-only, exactly like ask.md."
+
+# write-prompt.md is model/framework-agnostic prompt engineering (Step 1-4
+# talk about "target model family", "prompt surface" — it does not itself
+# teach zerostack's `%%mode=` directive convention). Rather than assume the
+# model already knows that convention, this scenario points it at a real
+# zerostack prompt file to mimic, since write-prompt.md's own Step 2
+# ("Inventory External Context... reference files by path") explicitly
+# calls for reading such reference material before writing.
+#
+# No judge here: the interesting check (did the new prompt actually adopt
+# the %%mode=readonly convention, not just prose promising read-only
+# behavior) is a literal string in the file — a deterministic assert per
+# docs/EVAL-COVERAGE-PLAN.md's judge-evidence rule. A first draft's judge
+# asked about tutor.md's body text and came back "No" on a trial whose own
+# final message described exactly the right content ("the same tool
+# prohibition as ask.md") — the judge cannot see the file, so it was
+# grading its own blindness, not the agent.
+expect = [
+  "tool_called read",
+  "tool_called write",
+  "file_contains work:tutor.md %%mode=readonly",
+]
+
+[[files]]
+src = "_fixtures/ask.md"
+dest = "work:reference-prompts/ask.md"
