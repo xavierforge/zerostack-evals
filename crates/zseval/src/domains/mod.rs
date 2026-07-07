@@ -9,14 +9,19 @@
 //! The three functions below are the core's *only* entry points into domain
 //! knowledge — `Scenario::load` calls `validate`, `seed::apply` calls
 //! `expand`, the runner calls `verify`. Adding eval support for another
-//! subsystem (subagents, chains, …) = one new module here, one `SeedSugar`
-//! field, one arm in each function below. Nothing outside this file ever
-//! names a specific domain.
+//! subsystem (subagents, chains, …) = one new module here, one arm in each
+//! function below, plus one new `SeedSugar` field *if and only if* the
+//! domain actually seeds something — a domain with nothing to place (see
+//! `subagents`, whose scenarios opt in purely via `domains = [...]`) skips
+//! that field entirely. Nothing outside this file ever names a specific
+//! domain.
 //!
 //! Because this knowledge is a snapshot of zerostack internals, every module
 //! here pairs its layout knowledge with a runtime drift check dispatched via
 //! `verify` after driving the agent — a stale snapshot grades Indeterminate,
-//! never a silent Fail (see `memory::verify`).
+//! never a silent Fail (see `memory::verify`). A domain with no reliable
+//! drift evidence at all (see `subagents::verify`) says so explicitly in its
+//! own module doc rather than faking a check.
 
 use std::path::PathBuf;
 
@@ -27,13 +32,14 @@ use crate::scenario::Scenario;
 use crate::seed::Placement;
 
 pub mod memory;
+pub mod subagents;
 
 /// Every domain name a scenario's `domains = [...]` field may declare — the
 /// only other place (besides `[seed.*]` presence) that decides "which
 /// domains apply to this scenario," kept as one list so both routes stay in
 /// sync and a typo'd name is a load-time error, not a silently-skipped
 /// drift check.
-const KNOWN_DOMAINS: &[&str] = &["memory"];
+const KNOWN_DOMAINS: &[&str] = &["memory", "subagents"];
 
 fn wants(sc: &Scenario, name: &str) -> bool {
     sc.domains.iter().any(|d| d == name)
@@ -77,6 +83,12 @@ pub fn expand(sc: &Scenario, ctx: &RunRoots) -> Result<Vec<Placement>> {
 pub fn verify(sc: &Scenario, roots: &RunRoots, zslogs: &[PathBuf]) -> Result<(), String> {
     if sc.seed.memory.is_some() || wants(sc, "memory") {
         memory::verify(roots, zslogs)?;
+    }
+    // subagents has no [seed.*] sugar (nothing to seed), so `wants` is the
+    // only route in — see subagents.rs's module doc for why `verify` there
+    // is a deliberate no-op rather than a real drift check.
+    if wants(sc, "subagents") {
+        subagents::verify(roots, zslogs)?;
     }
     Ok(())
 }

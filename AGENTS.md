@@ -84,4 +84,7 @@ Memory evals (`scenarios/memory/`) are live, backed by the
 `crates/zseval/src/domains/memory.rs` module — see the README's "Evaluating
 another subsystem" section for how that quarantine works and why a stale
 snapshot of zerostack's internals grades Indeterminate instead of Fail.
-Subagent evals are future work, following the same one-module pattern.
+Subagent evals (`scenarios/subagents/`) are also live, backed by
+`crates/zseval/src/domains/subagents.rs` — a leaner variant of the same
+pattern, since the `task` tool has no seeding surface and (as of this
+writing) no reliable drift-check evidence in zerostack's own logs.

@@ -8,12 +8,12 @@ the floor, optional LLM judge for the subjective layer, three-value verdicts
 built in.
 
 Coverage spans zerostack's named prompt modes (`ask`, `code`, `plan`, …),
-mostly checkable with deterministic asserts, and its `memory` subsystem
-(`scenarios/memory/`), whose subsystem-specific layout knowledge lives in a
-single quarantined `domains::` module (see "Evaluating another subsystem"
+mostly checkable with deterministic asserts; its `memory` subsystem
+(`scenarios/memory/`); and its subagent delegation via the `task` tool
+(`scenarios/subagents/`) — each subsystem's layout knowledge lives in its
+own quarantined `domains::` module (see "Evaluating another subsystem"
 below) — the core (scenario/backend/seed/asserts/verdict) stays
-subsystem-agnostic. Subagent evals are future work, following the same
-one-module pattern.
+subsystem-agnostic.
 
 A run or compare that comes back fully ungradable (every trial indeterminate,
 or nothing shared was comparable) exits **2**, the same "harness error" code
@@ -150,9 +150,9 @@ and the runner call exactly three dispatch functions —
 `domains::{validate, expand, verify}` (`crates/zseval/src/domains/mod.rs`) —
 and those three functions are the *only* place "which domains exist" is
 listed. Adding eval support for another subsystem is: one new `domains::`
-module, one new optional field on `SeedSugar`, one match arm in each of the
-three dispatch functions — zero changes to `scenario`/`seed`/`runner`
-otherwise.
+module, one match arm in each of the three dispatch functions, plus one new
+optional field on `SeedSugar` *if* the subsystem actually has something to
+seed — zero changes to `scenario`/`seed`/`runner` otherwise.
 
 Because the knowledge is a snapshot, every `domains::` module pairs its
 layout knowledge with a runtime drift check `domains::verify` dispatches to
@@ -180,6 +180,15 @@ Building without `--features memory` doesn't crash anything — the memory
 tools simply never register, `memory_search`/`memory_read`/`memory_write`
 never get called, and the `[seed.memory]` drift check reports "no 'memory
 open:' trace line was found", pointing straight at the missing feature flag.
+
+`domains::subagents` (`scenarios/subagents/`) is the same pattern applied to
+a subsystem with nothing to seed and, as of this writing, no reliable
+startup trace line either — zerostack's `task` tool (subagent delegation)
+logs nothing at all, unlike memory's `Mem::open()`. Its `verify` is a
+deliberate no-op rather than a drift check; scenarios opt in with
+`domains = ["subagents"]` alone, and vacuous-pass protection comes entirely
+from pairing `tool_called`/`tool_not_called task` with a positive assert in
+the scenario itself. See the module's own doc for the full investigation.
 
 ## Iterating on prompts
 

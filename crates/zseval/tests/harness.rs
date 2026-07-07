@@ -364,11 +364,11 @@ fn unknown_domain_name_fails_at_load_not_mid_run() {
     std::fs::write(
         sc_dir.join("scenario.toml"),
         "id = \"bad-domain\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
-         domains = [\"subagents\"]\n",
+         domains = [\"chains\"]\n",
     )
     .unwrap();
     let err = Scenario::load(&sc_dir).unwrap_err();
-    assert!(format!("{err:#}").contains("unknown domain 'subagents'"), "{err:#}");
+    assert!(format!("{err:#}").contains("unknown domain 'chains'"), "{err:#}");
     std::fs::remove_dir_all(&sc_dir).ok();
 }
 
