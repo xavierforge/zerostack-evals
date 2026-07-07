@@ -1,0 +1,43 @@
+id = "tools-grep-over-bash"
+prompt = "code"
+trials = 3
+
+# `prompt = "code"` explicitly: an omitted `prompt =` also resolves to
+# code.md today (zerostack's own `cfg.default_prompt.unwrap_or("code")`
+# fallback, since neither target sets `default_prompt`), but naming it
+# avoids relying on that fallback. code.md's own Tool Usage Guidelines (a
+# rule repeated verbatim across nearly every zerostack prompt file): "Use
+# specialized tools (grep, find_files, read) over bash commands (rg, find,
+# cat) for file operations." Verified: exactly one file in this fixture
+# project (src/rate_limiter.py) contains the string "rate_limit".
+task = "Which file in this project mentions rate_limit?"
+expect = [
+  "tool_called grep",
+  "no_tool_call_contains grep -r",
+  "no_tool_call_contains rg ",
+  "final_contains rate_limiter.py",
+]
+
+[[files]]
+src = "_fixtures/src/api_client.py"
+dest = "work:src/api_client.py"
+
+[[files]]
+src = "_fixtures/src/rate_limiter.py"
+dest = "work:src/rate_limiter.py"
+
+[[files]]
+src = "_fixtures/src/util.py"
+dest = "work:src/util.py"
+
+[[files]]
+src = "_fixtures/src/dupes.py"
+dest = "work:src/dupes.py"
+
+[[files]]
+src = "_fixtures/tests/test_util.py"
+dest = "work:tests/test_util.py"
+
+[[files]]
+src = "_fixtures/README.md"
+dest = "work:README.md"

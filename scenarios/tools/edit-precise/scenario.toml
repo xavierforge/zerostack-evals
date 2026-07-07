@@ -1,0 +1,24 @@
+id = "tools-edit-precise"
+prompt = "code"
+trials = 3
+
+# See grep-over-bash's comment on `prompt = "code"`. dupes.py's alpha() and
+# beta() are an intentionally identical 3-line block — a naive find/replace
+# across the whole file would change both; a precise edit changes only the
+# one inside alpha(). `file_contains`/`file_not_contains` only check
+# substring presence anywhere in the file, with no proximity concept, so
+# the needles below embed a literal newline (TOML `\n` escape) to pin
+# "immediately after `def alpha():`" rather than "60 exists somewhere" —
+# confirmed this string-splitting works with asserts.rs's `split1` (splits
+# only on the *first* whitespace char to separate path from needle, then
+# only trims the needle's outer edges, so an embedded `\n` and the
+# following indentation survive untouched).
+task = "In src/dupes.py, change the timeout from 30 to 60 only inside alpha(). Leave beta() untouched."
+expect = [
+  "file_contains work:src/dupes.py def alpha():\n    timeout = 60",
+  "file_contains work:src/dupes.py def beta():\n    timeout = 30",
+]
+
+[[files]]
+src = "_fixtures/src/dupes.py"
+dest = "work:src/dupes.py"

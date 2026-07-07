@@ -1,0 +1,20 @@
+id = "tools-read-before-edit"
+prompt = "code"
+trials = 3
+
+# See grep-over-bash's comment on `prompt = "code"`. code.md and nearly
+# every other prompt file's Tool Usage Guidelines say "Use edit over write
+# when modifying existing files" and imply reading before editing (several
+# prompt files' Anti-Repetition Rules explicitly require it). RETRY_LIMIT
+# appears twice in util.py (the constant and its docstring reference) — a
+# correct rename must catch both.
+task = "In src/util.py, rename the constant RETRY_LIMIT to MAX_RETRIES everywhere in that file."
+expect = [
+  "tool_called_after edit read",
+  "file_contains work:src/util.py MAX_RETRIES",
+  "file_not_contains work:src/util.py RETRY_LIMIT",
+]
+
+[[files]]
+src = "_fixtures/src/util.py"
+dest = "work:src/util.py"

@@ -1,0 +1,38 @@
+id = "tools-find-files-over-bash"
+prompt = "code"
+trials = 3
+
+# See grep-over-bash's comment on `prompt = "code"`. Same Tool Usage
+# Guidelines rule, this time for find_files vs. a raw `find`/`ls -R`. Only
+# tests/test_util.py in this fixture project matches *_test.py or
+# test_*.py.
+task = "List every *_test.py or test_*.py file in this project."
+expect = [
+  "tool_called find_files",
+  "no_tool_call_contains find .",
+  "final_contains test_util.py",
+]
+
+[[files]]
+src = "_fixtures/src/api_client.py"
+dest = "work:src/api_client.py"
+
+[[files]]
+src = "_fixtures/src/rate_limiter.py"
+dest = "work:src/rate_limiter.py"
+
+[[files]]
+src = "_fixtures/src/util.py"
+dest = "work:src/util.py"
+
+[[files]]
+src = "_fixtures/src/dupes.py"
+dest = "work:src/dupes.py"
+
+[[files]]
+src = "_fixtures/tests/test_util.py"
+dest = "work:tests/test_util.py"
+
+[[files]]
+src = "_fixtures/README.md"
+dest = "work:README.md"
