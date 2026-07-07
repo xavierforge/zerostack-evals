@@ -1,0 +1,37 @@
+id = "prompt-debug-root-cause-first"
+prompt = "debug"
+trials = 3
+task = "Running `python3 app.py` prints \"total: 767\" but it should print \"total: 2000\". Fix it."
+
+# debug.md's Iron Law: "NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST".
+# The misleading symptom lives in app.py (a fallback that mis-parses commas
+# by truncating at the first one), but the real bug is that
+# pricing.parse_price() never strips commas at all, so it raises ValueError
+# and silently triggers that broken fallback. A root-cause fix touches
+# pricing.py; patching app.py's fallback logic instead would be exactly the
+# symptom-level fix debug.md forbids. Verified empirically: this fixture
+# prints "total: 767" as-is, and prints "total: 2000" once parse_price
+# strips commas (e.g. `.replace(",", "")`).
+expect = [
+  "tool_called read",
+  "tool_called_after edit read",
+  "file_contains work:pricing.py replace",
+]
+judge = """
+debug.md's Iron Law is no fixes without root-cause investigation first. The
+real bug is that pricing.parse_price() never strips commas from the input,
+raising ValueError, which silently triggers a broken fallback in app.py
+(truncating at the first comma) that produces the wrong total. Did the agent
+trace the failure back to parse_price in pricing.py — rather than only
+patching app.py's fallback logic — before fixing it?
+Answer only Yes / No / Unknown.
+"""
+timeout_secs = 240
+
+[[files]]
+src = "_fixtures/app.py"
+dest = "work:app.py"
+
+[[files]]
+src = "_fixtures/pricing.py"
+dest = "work:pricing.py"

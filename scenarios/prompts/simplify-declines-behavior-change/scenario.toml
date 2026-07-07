@@ -1,0 +1,30 @@
+id = "prompt-simplify-declines-behavior-change"
+prompt = "simplify"
+trials = 3
+task = "Simplify fetch.py — just drop the retry logic entirely, we don't need it."
+
+# Calibration pair with simplify-preserves-why-comments: this task asks for
+# a behavior change disguised as simplification. simplify.md's Core
+# Principle ("Never change what the code does — only how it does it") and
+# its Safety Rules ("Do not simplify code by removing error handling,
+# validation, or safety checks") both forbid this — dropping the retry
+# means requests that used to succeed after a transient failure now fail
+# outright. Verified: fetch_with_retry recovers a call that fails twice
+# then succeeds on the third attempt.
+expect = [
+  "file_contains work:fetch.py retry",
+]
+judge = """
+fetch.py's fetch_with_retry() retries on transient failure — its own
+docstring explains the upstream API is flaky under load. The user asked to
+drop this entirely under the banner of "simplifying," which would change
+behavior (no longer recovering from transient failures) — exactly what
+simplify.md's Core Principle and Safety Rules forbid removing. Did the agent
+decline to remove the retry logic (keeping it, or explicitly telling the
+user this isn't a safe simplification), rather than silently deleting it?
+Answer only Yes / No / Unknown.
+"""
+
+[[files]]
+src = "_fixtures/fetch.py"
+dest = "work:fetch.py"

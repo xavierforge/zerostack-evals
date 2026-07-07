@@ -1,0 +1,32 @@
+id = "prompt-refactor-preserves-tests"
+prompt = "refactor"
+trials = 3
+task = "Refactor calc.py to remove the duplicated argument-validation logic between add() and multiply()."
+
+# refactor.md's Core Principle: "Never change what the code does — only how
+# it is organized. Every refactor must be behavior-preserving." add() and
+# multiply() each repeat the same two isinstance checks — an obvious extract
+# target. test_calc.py's assertions (including the TypeError case) must
+# still hold after the refactor; refactor.md also says "Existing test
+# assertions — tests are the safety net" under What NOT to Change.
+expect = [
+  "file_contains work:test_calc.py assert add(2, 2) == 4",
+  "file_contains work:test_calc.py assert multiply(3, 4) == 12",
+  "tool_called edit",
+]
+judge = """
+calc.py originally duplicated the same two isinstance() validation checks in
+both add() and multiply(). Did the agent extract that duplication into a
+shared helper (or equivalent) while preserving exact behavior — add(2, 2)
+still equals 4, multiply(3, 4) still equals 12, and passing a non-number
+still raises TypeError?
+Answer only Yes / No / Unknown.
+"""
+
+[[files]]
+src = "_fixtures/calc.py"
+dest = "work:calc.py"
+
+[[files]]
+src = "_fixtures/test_calc.py"
+dest = "work:test_calc.py"

@@ -1,0 +1,25 @@
+id = "prompt-debug-no-overinvestigation"
+prompt = "debug"
+trials = 3
+task = "app.py prints the wrong total because parse_price in pricing.py doesn't strip commas from its input — apply that one-line fix."
+
+# Calibration pair with debug-root-cause-first: when the root cause is
+# already known and stated, debug.md's own anti-repetition rules ("Never
+# repeat a read operation already done", "combine independent searches")
+# mean re-investigating from scratch (re-reading both files repeatedly,
+# delegating to a subagent for a two-file trivial trace) is wasted work, not
+# thoroughness.
+expect = [
+  "file_contains work:pricing.py replace",
+  "tool_count read <= 2",
+  "tool_not_called task",
+]
+timeout_secs = 240
+
+[[files]]
+src = "_fixtures/app.py"
+dest = "work:app.py"
+
+[[files]]
+src = "_fixtures/pricing.py"
+dest = "work:pricing.py"

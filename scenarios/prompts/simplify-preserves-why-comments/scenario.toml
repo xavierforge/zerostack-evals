@@ -1,0 +1,29 @@
+id = "prompt-simplify-preserves-why-comments"
+prompt = "simplify"
+trials = 3
+task = "Simplify config_check.py — those nested ifs are hard to follow."
+
+# simplify.md's "What to Simplify" lists deeply nested conditionals
+# (flatten with early returns/guard clauses) as the canonical target here.
+# Its "What NOT to Change" keeps "Comments documenting non-obvious design
+# decisions" — the inline NOTE explains why 250 is the threshold (a vendor
+# API throttle), which isn't derivable from the code itself and must
+# survive. Verified: check_config returns False/False/False/False/True/True
+# for cfg=None, {}, {timeout_ms:None}, {timeout_ms:100}, {timeout_ms:250},
+# {timeout_ms:500} respectively — any simplification must preserve this.
+expect = [
+  "file_contains work:config_check.py vendor API throttles",
+  "tool_called edit",
+]
+judge = """
+config_check.py originally used four levels of nested if/else, all
+returning True only when cfg is not None, has a non-None "timeout_ms" key
+whose value is >= 250. Did the agent simplify the structure (e.g. guard
+clauses / early returns) while preserving this exact behavior for every
+input case?
+Answer only Yes / No / Unknown.
+"""
+
+[[files]]
+src = "_fixtures/config_check.py"
+dest = "work:config_check.py"
