@@ -25,13 +25,15 @@ pub struct RunOptions {
     pub max_total_usd: Option<f64>,
     /// How many trials of the *same* scenario to drive concurrently — trials
     /// are independent (each gets its own isolated run_dir), so this is pure
-    /// wall-clock win with no change to grading. Scenarios themselves stay
-    /// sequential: the cost-cap check below is scenario-granular ("a
-    /// scenario runs its full trial count or not at all"), and interleaving
-    /// scenarios too would only complicate that for no benefit, since a
-    /// suite's wall time is dominated by trials-per-scenario, not scenario
-    /// count. `1` (the default) reproduces the old strictly-sequential,
-    /// live-printed behavior exactly.
+    /// wall-clock win with no change to grading. Trial 0 always runs solo
+    /// first to warm the provider's prompt cache (see
+    /// `run_trials_for_scenario`); only the remaining trials fan out.
+    /// Scenarios themselves stay sequential: the cost-cap check below is
+    /// scenario-granular ("a scenario runs its full trial count or not at
+    /// all"), and interleaving scenarios too would only complicate that for
+    /// no benefit, since a suite's wall time is dominated by
+    /// trials-per-scenario, not scenario count. `1` (the default) reproduces
+    /// the old strictly-sequential, live-printed behavior exactly.
     pub jobs: usize,
 }
 
@@ -85,9 +87,11 @@ pub fn run_suite(
 /// Run every trial of one scenario, then return results ordered by trial
 /// index regardless of completion order. `jobs <= 1` keeps the exact old
 /// path (sequential, printed as each trial finishes) since that's the
-/// default; `jobs > 1` runs a bounded pool of worker threads pulling trial
-/// indices off a shared counter — trials are independent (their own run_dir,
-/// no shared state), so this is the only thing that changes, not grading.
+/// default; `jobs > 1` runs trial 0 solo first (to warm the provider's
+/// prompt cache — see the comment at that step), then a bounded pool of
+/// worker threads pulling the remaining trial indices off a shared counter —
+/// trials are independent (their own run_dir, no shared state), so timing is
+/// the only thing that changes, not grading.
 fn run_trials_for_scenario(
     sc: &Scenario,
     backend: &dyn AgentBackend,
@@ -118,8 +122,23 @@ fn run_trials_for_scenario(
         return Ok(out);
     }
 
-    let jobs = opts.jobs.min(trials);
-    let next = AtomicUsize::new(0);
+    // Warm the provider's prompt cache before fanning out: every trial of a
+    // scenario opens with a byte-identical request (same tool definitions,
+    // same system prompt, same task text), so racing all of them from a cold
+    // start makes each one pay the cache-WRITE rate on that shared prefix —
+    // on Anthropic, 1.25x the base input price, where a cache read is 0.1x.
+    // Running trial 0 alone first turns the other trials' opening requests
+    // into cache reads, at the wall-clock cost of one solo trial per
+    // scenario. Grading is untouched: trials stay fully independent; this
+    // only changes when they start.
+    let first = run_one(0)?;
+    print_trial_line(&sc.id, &first);
+    if trials == 1 {
+        return Ok(vec![first]);
+    }
+
+    let jobs = opts.jobs.min(trials - 1);
+    let next = AtomicUsize::new(1);
     let outcome: Result<Vec<(usize, TrialResult)>> = std::thread::scope(|scope| {
         let handles: Vec<_> = (0..jobs)
             .map(|_| {
@@ -136,7 +155,7 @@ fn run_trials_for_scenario(
                 })
             })
             .collect();
-        let mut all = Vec::with_capacity(trials);
+        let mut all = Vec::with_capacity(trials - 1);
         for h in handles {
             match h.join() {
                 Ok(Ok(mine)) => all.extend(mine),
@@ -149,13 +168,12 @@ fn run_trials_for_scenario(
     let mut all = outcome?;
     // Deterministic output regardless of which worker finished first.
     all.sort_by_key(|(trial, _)| *trial);
-    let out: Vec<TrialResult> = all
-        .into_iter()
-        .map(|(_, tr)| {
-            print_trial_line(&sc.id, &tr);
-            tr
-        })
-        .collect();
+    let mut out = Vec::with_capacity(trials);
+    out.push(first);
+    for (_, tr) in all {
+        print_trial_line(&sc.id, &tr);
+        out.push(tr);
+    }
     Ok(out)
 }
 

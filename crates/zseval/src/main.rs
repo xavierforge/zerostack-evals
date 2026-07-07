@@ -71,8 +71,9 @@ USAGE:
 
   --jobs N runs up to N trials of the same scenario concurrently (default 1,
   strictly sequential). Trials are independent — their own isolated run_dir —
-  so this only changes wall-clock time, never grading. Scenarios themselves
-  always run one at a time.
+  so this only changes wall-clock time, never grading. Trial 0 always runs
+  solo first to warm the provider's prompt cache before the rest fan out.
+  Scenarios themselves always run one at a time.
 
   regrade re-scores an already-completed <trial-dir> against <scenario-dir>'s
   *current* asserts/judge, without driving the agent again — for checking

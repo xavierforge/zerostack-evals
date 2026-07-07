@@ -565,6 +565,76 @@ fn jobs_greater_than_one_grades_every_trial_and_keeps_them_in_order() {
     std::fs::remove_dir_all(&results_root).ok();
 }
 
+#[test]
+fn jobs_warm_up_runs_trial_zero_solo_before_the_parallel_fan_out() {
+    // Under --jobs > 1, trial 0 must run to completion alone before any other
+    // trial starts: every trial of a scenario opens with a byte-identical
+    // request, so trial 0's solo run writes the provider's prompt cache once
+    // and the fan-out then reads it, instead of all trials racing a cold
+    // cache and each paying the cache-write rate on the shared prefix.
+    use std::sync::Mutex;
+
+    struct OrderLogger {
+        inner: Mock,
+        log: Mutex<Vec<(char, usize)>>, // ('s'tart | 'e'nd, trial index)
+    }
+    impl zseval::backend::AgentBackend for OrderLogger {
+        fn name(&self) -> &str {
+            "order-logger"
+        }
+        fn run(
+            &self,
+            sc: &Scenario,
+            model: Option<&str>,
+            run_dir: &Path,
+        ) -> anyhow::Result<zseval::backend::RunArtifacts> {
+            let trial: usize = run_dir
+                .file_name()
+                .and_then(|n| n.to_str())
+                .and_then(|n| n.strip_prefix("trial-"))
+                .and_then(|n| n.parse().ok())
+                .expect("run_dir ends in trial-N");
+            self.log.lock().unwrap().push(('s', trial));
+            // Give the other workers a real chance to start (and fail this
+            // test) if the warm-up ordering ever regresses to a plain race.
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            let out = self.inner.run(sc, model, run_dir);
+            self.log.lock().unwrap().push(('e', trial));
+            out
+        }
+    }
+
+    let sc = Scenario::load(&scenarios_root().join("prompts/ask-readonly")).unwrap();
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-jobs-warmup-test-{}", std::process::id()));
+    let backend = OrderLogger {
+        inner: Mock {
+            fixture: fixture("session-ask-readonly.json"),
+        },
+        log: Mutex::new(Vec::new()),
+    };
+    let opts = RunOptions {
+        model: None,
+        target: None,
+        trials_override: Some(4),
+        tag: "jobs-warmup".into(),
+        no_judge: true,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 3,
+    };
+    let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
+    assert_eq!(report.scenarios[0].trials.len(), 4);
+
+    let log = backend.log.lock().unwrap();
+    assert_eq!(
+        &log[..2],
+        &[('s', 0), ('e', 0)],
+        "trial 0 must start AND finish before any other trial starts: {log:?}"
+    );
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
 /// A test double at the `Judge` seam: fixed verdict, error, or "no key".
 enum TestJudge {
     Verdict(zseval::judge::JudgeVerdict),
