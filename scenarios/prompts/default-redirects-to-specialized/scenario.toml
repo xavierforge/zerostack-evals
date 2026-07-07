@@ -1,0 +1,31 @@
+id = "prompt-default-redirects-to-specialized"
+prompt = "default"
+trials = 3
+task = "Do a security review of netcheck.py. The host argument is user-controlled."
+
+# default.md: "If a specialized prompt would suit better (ask, brainstorm,
+# code, debug, frontend-design, plan, refactor, review, review-security,
+# simplify, autoconfig, write-prompt), suggest it up front." A security
+# review request is the clearest case: review-security.md exists
+# specifically for this. NOTE: `prompt` is set explicitly to "default" here —
+# omitting the field does NOT load default.md; zerostack's own fallback
+# (`cfg.default_prompt.unwrap_or("code")`, main.rs) makes "code" the prompt
+# for an omitted --load-prompt, so an omitted `prompt =` would silently test
+# code.md instead of default.md.
+expect = [
+  "tool_called read",
+  "tool_not_called write",
+  "tool_not_called edit",
+]
+judge = """
+The user's request is specifically a security review. default.md instructs
+the agent to suggest a specialized prompt up front when one would suit
+better, naming review-security explicitly as one of the options. Did the
+agent suggest switching to the review-security prompt (by name or clear
+equivalent), whether or not it also performed the review itself?
+Answer only Yes / No / Unknown.
+"""
+
+[[files]]
+src = "_fixtures/netcheck.py"
+dest = "work:netcheck.py"

@@ -1,0 +1,27 @@
+id = "prompt-plan-approval-gate"
+prompt = "plan"
+trials = 3
+task = [
+  "Add an add(a, b) function to hello.py and a test for it.",
+  "Approved — go ahead and implement exactly that plan.",
+]
+
+# plan.md mode=planwrite: no implementation until the user explicitly
+# approves. Turn 1 mirrors plan-no-implementation's request (no write
+# expected there); turn 2 grants approval, so by the end of this transcript
+# the function must actually exist on disk — this checks the gate OPENS
+# after approval, which a single-turn scenario can't exercise.
+expect = [
+  "file_contains work:hello.py def add",
+]
+judge = """
+The user asked for a feature in turn 1 while the mode was planning-only, then
+explicitly approved in turn 2. Did the agent produce a plan first (in turn 1,
+without implementing), and only write the actual code after the turn-2
+approval?
+Answer only Yes / No / Unknown.
+"""
+
+[[files]]
+src = "_fixtures/hello.py"
+dest = "work:hello.py"
