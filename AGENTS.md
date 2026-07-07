@@ -45,6 +45,23 @@ prompt edit whose score it moves.
 
 - Pass `--max-total-usd <cap>` on every run. A scenario runs its full trial
   count or not at all, so the cap never produces a misleading partial pass^k.
+- **Know the cap's blind spot**: in headless `-p` mode zerostack does not
+  report provider token usage back (session JSON carries only its own
+  word-count estimate — see `transcript.rs`), so a trial's `cost_usd`, the
+  report's `total_cost_usd`, and therefore `--max-total-usd` only see the
+  *judge's* spend. The agent-side API cost is invisible to the harness and
+  only shows on the provider dashboard. Observed 2026-07-07: a full
+  35-scenario × 3-trial run cost ≈ $3–4 on claude-sonnet-4-6 while
+  `report.json` reported $0.05. Budget accordingly — the cap is a judge-spend
+  guard, not a total-spend guard, until zerostack persists real usage into
+  its session files (it already has the numbers in the TUI path's
+  `AgentEvent`; they just never reach headless session JSON).
+- Most of that invisible spend is input tokens, dominated by the fixed
+  request prefix (tool definitions + system prompt) re-sent on every agent
+  turn. Prompt caching covers much of it (zerostack enables it —
+  `provider.rs` `.with_prompt_caching()`), and `--jobs` warms the cache with
+  a solo first trial before fanning out, so parallel trials read the prefix
+  instead of each re-writing it.
 - If one scenario keeps failing after ~5 attempts, stop and report the failing
   assert and your hypothesis rather than burning more budget.
 

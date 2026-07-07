@@ -53,7 +53,11 @@ as a usage mistake — a broken environment never looks like a clean pass.
     # --jobs N runs up to N trials of the *same* scenario concurrently — each
     # trial is already isolated in its own run_dir, so this is pure
     # wall-clock win with no change to grading; scenarios still run one at a
-    # time. Omit it (or pass --jobs 1) for the old strictly-sequential path.
+    # time. Trial 0 always runs solo first to warm the provider's prompt
+    # cache (every trial of a scenario opens with an identical request; the
+    # fan-out then hits cache reads instead of racing cold and each paying
+    # the cache-write rate). Omit --jobs (or pass 1) for the old
+    # strictly-sequential path.
     cargo run -p zseval -- run scenarios --target targets/anthropic.toml \
       --trials 3 --jobs 3 --tag candidate --json
     cargo run -p zseval -- compare baselines/main.json results/candidate/report.json
@@ -225,6 +229,12 @@ uses both:
   positive.
 
 ## Troubleshooting
+
+**Report says a run cost cents; the provider dashboard says dollars** — both
+are right. Headless zerostack doesn't report provider token usage back, so
+`report.json`'s `cost_usd`/`total_cost_usd` (and the `--max-total-usd` cap)
+only capture judge calls; the agent's own API spend is invisible to the
+harness. See AGENTS.md's Budget section for the details and magnitude.
 
 **`????` (indeterminate) with `timeout after Ns at turn 0`** — the agent never
 came back. zerostack's stderr only shows `warn+` by default, so a hanging API
