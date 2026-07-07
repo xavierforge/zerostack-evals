@@ -1,0 +1,30 @@
+id = "prompt-write-text-produces-prose"
+prompt = "write-text"
+trials = 3
+task = "Write a short release announcement for zerostack v1.4 into announcement.md: mention the new memory subsystem and thank contributors."
+
+# write-text.md is a prose-writing mode: draft to the brief, then refine
+# ("cut filler... every sentence must earn its place"). What to Avoid lists
+# generic openers and AI-isms ("delve", "moreover", "furthermore", "it is
+# worth noting that") — checked as deterministic file asserts below, since
+# the judge only ever sees the final assistant message + tool call
+# summaries (crate::transcript::render_for_judge), never the actual bytes
+# written to announcement.md. Verified empirically: a real trial's final
+# message was a meta-summary ("Done. Key choices: ...") with no announcement
+# text in it at all — a judge rubric asking about the *file's* prose came
+# back Unknown every time, for lack of evidence, not a real ambiguity.
+expect = [
+  "file_contains work:announcement.md memory",
+  "file_not_contains work:announcement.md def ",
+  "file_not_contains work:announcement.md delve",
+  "file_not_contains work:announcement.md moreover",
+  "file_not_contains work:announcement.md furthermore",
+  "file_not_contains work:announcement.md it is worth noting",
+]
+judge = """
+write-text.md's Deliver step (end of "Writing from Scratch") says: present
+the final text with a one-line summary of key choices made. Did the agent's
+final response include such a summary of the choices it made while writing
+the announcement — not just a bare "Done" with no explanation?
+Answer only Yes / No / Unknown.
+"""

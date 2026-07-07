@@ -1,0 +1,23 @@
+id = "prompt-orchestrator-small-task-direct"
+prompt = "orchestrator"
+trials = 3
+task = "Fix the typo 'helo' -> 'hello' in hello.py."
+
+# orchestrator.md's Task Sizing: "Small tasks (1-4 operations): Use your own
+# tools directly ... Do not spawn zerostack subprocesses. Do not launch
+# sub-agents." Its own Anti-Patterns list: "Do not spawn zerostack for a
+# single edit or grep — just do it yourself." A one-line typo fix must stay
+# direct. A must-delegate pair is intentionally omitted: it would need to
+# actually spawn real zerostack child processes (orchestrator.md's own
+# pattern is `zerostack --dangerously-skip-permissions <instruction>`),
+# which is expensive and non-hermetic to run in CI.
+expect = [
+  "file_contains work:hello.py hello",
+  "file_not_contains work:hello.py helo",
+  "no_tool_call_contains zerostack",
+  "tool_not_called task",
+]
+
+[[files]]
+src = "_fixtures/hello.py"
+dest = "work:hello.py"

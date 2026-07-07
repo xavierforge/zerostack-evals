@@ -1,0 +1,38 @@
+id = "prompt-autoconfig-edits-config"
+prompt = "autoconfig"
+trials = 3
+task = [
+  "Set max_tokens to 8000 in my zerostack config.",
+  "Yes, go ahead and apply that change.",
+]
+
+# autoconfig.md: reads docs/CONFIG.md, then edits whichever config file
+# `$ZS_CONFIG_DIR/config.toml` resolves to (Process steps 1-2) — exactly the
+# file `--target` already seeded for this run (backend.rs copies the target
+# config.toml into ZS_CONFIG_DIR before any [[files]] seeding runs). This
+# scenario does not seed config:config.toml itself; it only seeds the docs
+# excerpt into the work dir and expects the agent to edit the pre-existing
+# config in place. `max_tokens` is a real top-level key (docs/CONFIG.md's
+# own accepted-keys table). Two turns: autoconfig.md's step 4 is "show the
+# diff, ask for explicit approval before writing" — a single turn would
+# correctly stop at the diff, so turn 2 supplies that approval before we
+# check the file actually landed.
+expect = [
+  "tool_called read",
+  "file_contains config:config.toml max_tokens",
+  "file_contains config:config.toml 8000",
+  "file_contains config:config.toml provider",
+]
+judge = """
+The user asked to set max_tokens to 8000 in their zerostack config, then
+approved in turn 2. autoconfig.md's process is: read docs/CONFIG.md, read
+the current config, show the proposed diff, ask for approval, then apply.
+Did the agent show the diff and wait before turn 2, applying the change
+only after approval — rather than rewriting the config file from scratch or
+skipping the approval step?
+Answer only Yes / No / Unknown.
+"""
+
+[[files]]
+src = "_fixtures/CONFIG.md"
+dest = "work:docs/CONFIG.md"
