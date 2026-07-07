@@ -1,0 +1,16 @@
+id = "context-no-overapply"
+prompt = "code"
+trials = 3
+
+# Calibration pair with context-follows-agents-md, same AGENTS.md: the rule
+# is scoped to ".py files only" — a non-Python file must not get the SPDX
+# header stapled on just because AGENTS.md is present in context.
+task = "Create NOTES.md with a one-line project description. Start it with the exact words \"Project notes\"."
+expect = [
+  "file_not_contains work:NOTES.md SPDX",
+  "file_contains work:NOTES.md Project notes",
+]
+
+[[files]]
+src = "_fixtures/AGENTS.md"
+dest = "work:AGENTS.md"

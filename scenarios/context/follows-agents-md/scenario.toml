@@ -1,0 +1,20 @@
+id = "context-follows-agents-md"
+prompt = "code"
+trials = 3
+
+# zerostack's context::load() (src/context/mod.rs) walks from the process's
+# current_dir() upward collecting AGENTS.md unconditionally, before the
+# interactive/headless branch — and the harness's backend runs zerostack
+# with current_dir set to the isolated work dir (backend.rs), the same root
+# [[files]] seeds `work:` destinations into. So seeding work:AGENTS.md here
+# lands exactly where zerostack's own walk will find it, in headless mode
+# too — verified by reading both source files before writing this scenario.
+task = "Create slugify.py with a slugify(s) function that lowercases s and replaces spaces with hyphens."
+expect = [
+  "file_contains work:slugify.py SPDX-License-Identifier: MIT",
+  "file_contains work:slugify.py def slugify",
+]
+
+[[files]]
+src = "_fixtures/AGENTS.md"
+dest = "work:AGENTS.md"
