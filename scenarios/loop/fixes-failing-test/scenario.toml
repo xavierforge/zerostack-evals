@@ -1,0 +1,32 @@
+id = "loop-fixes-failing-test"
+mode = "loop"
+trials = 3
+task = "test_calc.py is failing. Find the bug in calc.py and fix it."
+
+# Outcome check is the validation command's own success marker
+# (transcript_contains ALL TESTS PASS) rather than a prescriptive fix
+# needle — any correct fix to add() counts, not just the exact
+# `return a + b` this fixture happens to need. The file_not_contains line
+# pins that the seeded bug is actually gone (guards against test_calc.py
+# itself being gutted/weakened instead of calc.py being fixed). No tool_*
+# or tokens_under asserts here: mode = "loop" has no tool-call or
+# token-usage evidence (run_headless_loop hardcodes pure_stdout=false and
+# never saves a session) — Scenario::load rejects them at load time.
+expect = [
+  "file_not_contains work:calc.py return a - b",
+  "transcript_contains ALL TESTS PASS",
+]
+timeout_secs = 600
+max_cost_usd = 1.0
+
+[loop]
+max_iterations = 3
+run = "python3 test_calc.py"
+
+[[files]]
+src = "_fixtures/calc.py"
+dest = "work:calc.py"
+
+[[files]]
+src = "_fixtures/test_calc.py"
+dest = "work:test_calc.py"

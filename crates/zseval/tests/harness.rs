@@ -418,6 +418,187 @@ notes = [{ name = "ghost", file = "_fixtures/ghost.md" }]
     std::fs::remove_dir_all(&sc_dir).ok();
 }
 
+fn write_scenario(name: &str, toml: &str) -> PathBuf {
+    let sc_dir = std::env::temp_dir().join(format!("zseval-test-{name}-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(sc_dir.join("scenario.toml"), toml).unwrap();
+    sc_dir
+}
+
+#[test]
+fn loop_mode_requires_a_loop_table() {
+    let sc_dir = write_scenario(
+        "loop-no-table",
+        "id = \"x\"\nmode = \"loop\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    assert!(
+        format!("{err:#}").contains("requires a [loop] table"),
+        "{err:#}"
+    );
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
+fn loop_table_rejected_on_a_print_scenario() {
+    let sc_dir = write_scenario(
+        "loop-table-on-print",
+        "id = \"x\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
+         [loop]\nmax_iterations = 3\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    assert!(
+        format!("{err:#}").contains("only valid with mode = \"loop\""),
+        "{err:#}"
+    );
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
+fn loop_mode_rejects_zero_max_iterations() {
+    let sc_dir = write_scenario(
+        "loop-zero-max",
+        "id = \"x\"\nmode = \"loop\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
+         [loop]\nmax_iterations = 0\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    assert!(
+        format!("{err:#}").contains("max_iterations must be >= 1"),
+        "{err:#}"
+    );
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
+fn loop_mode_rejects_multi_turn_task() {
+    let sc_dir = write_scenario(
+        "loop-multi-turn",
+        "id = \"x\"\nmode = \"loop\"\ntask = [\"first\", \"second\"]\n\
+         expect = [\"final_contains x\"]\n[loop]\nmax_iterations = 3\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    assert!(
+        format!("{err:#}").contains("exactly one task turn"),
+        "{err:#}"
+    );
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
+fn loop_mode_rejects_every_tool_and_token_assert() {
+    let cases: &[(&str, &str)] = &[
+        ("tool_called write", "tool_called"),
+        ("tool_not_called write", "tool_not_called"),
+        ("tool_called_after edit read", "tool_called_after"),
+        ("tool_count read <= 2", "tool_count"),
+        ("tool_arg_contains bash rm", "tool_arg_contains"),
+        ("no_tool_call_contains zerostack", "no_tool_call_contains"),
+        ("tokens_under 1000", "tokens_under"),
+    ];
+    for (line, op) in cases {
+        let sc_dir = write_scenario(
+            &format!("loop-bad-assert-{op}"),
+            &format!(
+                "id = \"x\"\nmode = \"loop\"\ntask = \"hello\"\nexpect = [\"{line}\"]\n\
+                 [loop]\nmax_iterations = 3\n"
+            ),
+        );
+        let err = Scenario::load(&sc_dir).unwrap_err();
+        assert!(
+            format!("{err:#}").contains(op),
+            "assert '{line}' should be rejected mentioning '{op}': {err:#}"
+        );
+        std::fs::remove_dir_all(&sc_dir).ok();
+    }
+}
+
+#[test]
+fn loop_scenario_loads_and_grades_from_iteration_records_via_mock() {
+    // No zerostack build needed: build a fixture shaped like a captured
+    // mode = "loop" trial dir (data/loops/<uuid>/iter-*.json, no session
+    // file at all — run_headless_loop never calls save_session) and drive
+    // it through Mock, exactly the plumbing a real --loop run would produce.
+    let fixture_dir =
+        std::env::temp_dir().join(format!("zseval-loopfixture-{}", std::process::id()));
+    let iter_dir = fixture_dir.join("data/loops/11111111-1111-1111-1111-111111111111");
+    std::fs::create_dir_all(&iter_dir).unwrap();
+    std::fs::write(
+        iter_dir.join("iter-0001.json"),
+        r#"{"iteration":1,"timestamp":"2026-01-01T00:00:00Z","prompt":"fix the bug","response":"I changed calc.py.","validation_output":"AssertionError: add(2,2) != 4","summary":"attempt 1"}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        iter_dir.join("iter-0002.json"),
+        r#"{"iteration":2,"timestamp":"2026-01-01T00:01:00Z","prompt":"still failing, try again","response":"Fixed the off-by-one.","validation_output":"ALL TESTS PASS","summary":"attempt 2"}"#,
+    )
+    .unwrap();
+
+    let sc_dir = write_scenario(
+        "loop-mock-scenario",
+        "id = \"loop-mock-scenario\"\nmode = \"loop\"\ntask = \"fix the bug\"\n\
+         expect = [\"final_contains off-by-one\", \"transcript_contains ALL TESTS PASS\"]\n\
+         [loop]\nmax_iterations = 3\nrun = \"python3 test_calc.py\"\n",
+    );
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-loopfixture-results-{}", std::process::id()));
+    let backend = Mock {
+        fixture: fixture_dir.clone(),
+    };
+    let opts = RunOptions {
+        model: None,
+        target: None,
+        trials_override: Some(1),
+        tag: "loop-mock".into(),
+        no_judge: true,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 1,
+    };
+    let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
+    let tr = &report.scenarios[0].trials[0];
+    assert_eq!(tr.outcome, Final::Pass, "{tr:?}");
+
+    std::fs::remove_dir_all(&fixture_dir).ok();
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+#[test]
+fn loop_iterations_are_readable_directly_for_explain() {
+    let dir = std::env::temp_dir().join(format!("zseval-loopiter-read-{}", std::process::id()));
+    let iter_dir = dir.join("loops/s1");
+    std::fs::create_dir_all(&iter_dir).unwrap();
+    std::fs::write(
+        iter_dir.join("iter-0002.json"),
+        r#"{"iteration":2,"timestamp":"t","prompt":"p2","response":"r2","validation_output":null,"summary":"s2"}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        iter_dir.join("iter-0001.json"),
+        r#"{"iteration":1,"timestamp":"t","prompt":"p1","response":"r1","validation_output":"v1","summary":"s1"}"#,
+    )
+    .unwrap();
+
+    let iters = transcript::read_loop_iterations(&dir).unwrap();
+    assert_eq!(iters.len(), 2);
+    // Sorted by the `iteration` field, not filename order (both already
+    // agree here, but the field is the contract, not the zero-padding).
+    assert_eq!(iters[0].iteration, 1);
+    assert_eq!(iters[0].validation_output.as_deref(), Some("v1"));
+    assert_eq!(iters[1].iteration, 2);
+    assert_eq!(iters[1].validation_output, None);
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn loop_iterations_missing_dir_is_empty_not_an_error() {
+    let iters = transcript::read_loop_iterations(Path::new("/no/such/data-dir")).unwrap();
+    assert!(iters.is_empty());
+}
+
 #[test]
 fn scenario_load_stores_parsed_asserts() {
     // The "every expect line is valid" invariant is enforced by the type,

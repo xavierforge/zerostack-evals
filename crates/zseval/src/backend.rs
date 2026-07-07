@@ -89,6 +89,104 @@ fn tee(
     })
 }
 
+/// Spawn `cmd`, tee its stdout/stderr to `stdout_log`/`stderr_log` (and the
+/// console under `--verbose`), and wait — enforcing `timeout` measured from
+/// `overall_started`, with the same kill-and-diagnose-on-expiry and
+/// non-zero-exit handling either way. Shared by the per-turn `-p`/
+/// `--continue` path and the single-invocation `--loop` path so their
+/// timeout/heartbeat/diagnostic behavior can't drift apart. `repro_flag` is
+/// only cosmetic — it's substituted into the timeout error's "reproduce
+/// manually" hint (`-p` vs `--loop`).
+#[allow(clippy::too_many_arguments)]
+fn spawn_and_wait(
+    mut cmd: Command,
+    bin: &Path,
+    model: Option<&str>,
+    repro_flag: &str,
+    overall_started: Instant,
+    timeout: Duration,
+    turn_label: usize,
+    stdout_log: &Path,
+    stderr_log: &Path,
+    zs_log: &Path,
+) -> Result<()> {
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd
+        .spawn()
+        .with_context(|| format!("spawn {}", bin.display()))?;
+    let t_out = tee(
+        child.stdout.take().expect("piped"),
+        stdout_log.to_path_buf(),
+        "out",
+        turn_label,
+    );
+    let t_err = tee(
+        child.stderr.take().expect("piped"),
+        stderr_log.to_path_buf(),
+        "err",
+        turn_label,
+    );
+
+    // Poll-based timeout (std has no wait_timeout) + heartbeat so a
+    // long-running turn is visibly alive, not silently stuck.
+    let mut next_heartbeat = Duration::from_secs(15);
+    let status = loop {
+        match child.try_wait()? {
+            Some(status) => break status,
+            None => {
+                if overall_started.elapsed() > timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    let _ = (t_out.join(), t_err.join());
+                    bail!(
+                        "timeout after {}s at turn {turn_label}\n\
+                         --- tail of {} (zerostack trace) ---\n{}\n\
+                         --- tail of {} ---\n{}\n\
+                         --- tail of {} ---\n{}\n\
+                         hint: rerun with --verbose, or reproduce manually:\n  \
+                         ZS_DATA_DIR=$(mktemp -d) {} {repro_flag} --yolo --no-color{} \
+                         --log-level debug 'ping'",
+                        timeout.as_secs(),
+                        zs_log.display(),
+                        tail_of(zs_log, 25),
+                        stderr_log.display(),
+                        tail_of(stderr_log, 10),
+                        stdout_log.display(),
+                        tail_of(stdout_log, 10),
+                        bin.display(),
+                        model.map(|m| format!(" --model {m}")).unwrap_or_default(),
+                    );
+                }
+                if overall_started.elapsed() > next_heartbeat && !verbose() {
+                    eprintln!(
+                        "     ... turn {turn_label} still running ({}s elapsed; --verbose \
+                         streams live output; trace: {})",
+                        overall_started.elapsed().as_secs(),
+                        zs_log.display(),
+                    );
+                    next_heartbeat += Duration::from_secs(15);
+                }
+                std::thread::sleep(Duration::from_millis(200));
+            }
+        }
+    };
+    let _ = (t_out.join(), t_err.join());
+    if !status.success() {
+        bail!(
+            "turn {turn_label}: zerostack exited with {status}\n\
+             --- tail of {} ---\n{}\n\
+             --- tail of {} (zerostack trace) ---\n{}",
+            stderr_log.display(),
+            tail_of(stderr_log, 10),
+            zs_log.display(),
+            tail_of(zs_log, 25),
+        );
+    }
+    Ok(())
+}
+
 /// The three logs captured for one turn (one `zerostack` invocation).
 /// Constructing this is backend's job — it's the module that decides the
 /// `turn-N.{stdout,stderr,zslog}` naming convention in the first place, so
@@ -223,6 +321,39 @@ impl AgentBackend for ZsCli {
             },
         )?;
 
+        let roots = RunDirs {
+            run_dir: &run_dir,
+            data: &data,
+            config: &config,
+            work: &work,
+            tmp: &tmp,
+            home: &home,
+        };
+
+        match &sc.loop_cfg {
+            Some(loop_cfg) => self.run_loop(sc, loop_cfg, model, &roots),
+            None => self.run_print(sc, model, &roots),
+        }
+    }
+}
+
+/// The five isolated directories one trial's invocation(s) run inside —
+/// bundled so both `run_print` and `run_loop` take one argument instead of
+/// five, now that there are two invocation shapes to share it between.
+struct RunDirs<'a> {
+    run_dir: &'a Path,
+    data: &'a Path,
+    config: &'a Path,
+    work: &'a Path,
+    tmp: &'a Path,
+    home: &'a Path,
+}
+
+impl ZsCli {
+    /// `mode = "print"` (default): the per-turn `-p`/`--continue` loop —
+    /// unchanged behavior from before `mode`/`loop` existed, just relocated
+    /// out of `AgentBackend::run` now that it has a loop-mode sibling.
+    fn run_print(&self, sc: &Scenario, model: Option<&str>, d: &RunDirs) -> Result<RunArtifacts> {
         let started = Instant::now();
         let timeout = Duration::from_secs(sc.timeout_secs);
         let turns = sc.task.turns();
@@ -246,11 +377,11 @@ impl AgentBackend for ZsCli {
             }
             let turn_started = Instant::now();
 
-            let stdout_log = run_dir.join(format!("turn-{i}.stdout"));
-            let stderr_log = run_dir.join(format!("turn-{i}.stderr"));
+            let stdout_log = d.run_dir.join(format!("turn-{i}.stdout"));
+            let stderr_log = d.run_dir.join(format!("turn-{i}.stderr"));
             // zerostack's own trace-level log: this is where API retries,
             // tool dispatch, and provider errors actually show up.
-            let zs_log = run_dir.join(format!("turn-{i}.zslog"));
+            let zs_log = d.run_dir.join(format!("turn-{i}.zslog"));
 
             let mut cmd = Command::new(&self.bin);
             cmd.arg("-p")
@@ -273,87 +404,24 @@ impl AgentBackend for ZsCli {
                 cmd.arg("--continue");
             }
             cmd.arg(turn.msg());
-            cmd.current_dir(&work)
-                .env("ZS_DATA_DIR", &data)
-                .env("ZS_CONFIG_DIR", &config)
-                .env("TMPDIR", &tmp)
-                .env("HOME", &home)
-                // Never let the child block on our terminal: any unexpected
-                // interactive prompt now fails fast (EOF) instead of hanging
-                // silently until the timeout.
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped());
+            cmd.current_dir(d.work)
+                .env("ZS_DATA_DIR", d.data)
+                .env("ZS_CONFIG_DIR", d.config)
+                .env("TMPDIR", d.tmp)
+                .env("HOME", d.home);
 
-            let mut child = cmd
-                .spawn()
-                .with_context(|| format!("spawn {}", self.bin.display()))?;
-            let t_out = tee(
-                child.stdout.take().expect("piped"),
-                stdout_log.clone(),
-                "out",
+            spawn_and_wait(
+                cmd,
+                &self.bin,
+                model,
+                "-p",
+                started,
+                timeout,
                 i,
-            );
-            let t_err = tee(
-                child.stderr.take().expect("piped"),
-                stderr_log.clone(),
-                "err",
-                i,
-            );
-
-            // Poll-based timeout (std has no wait_timeout) + heartbeat so a
-            // long-running turn is visibly alive, not silently stuck.
-            let mut next_heartbeat = Duration::from_secs(15);
-            let status = loop {
-                match child.try_wait()? {
-                    Some(status) => break status,
-                    None => {
-                        if started.elapsed() > timeout {
-                            let _ = child.kill();
-                            let _ = child.wait();
-                            let _ = (t_out.join(), t_err.join());
-                            bail!(
-                                "timeout after {}s at turn {i}\n\
-                                 --- tail of {} (zerostack trace) ---\n{}\n\
-                                 --- tail of {} ---\n{}\n\
-                                 --- tail of {} ---\n{}\n\
-                                 hint: rerun with --verbose, or reproduce manually:\n  \
-                                 ZS_DATA_DIR=$(mktemp -d) {} -p --yolo --no-color{} --log-level debug 'ping'",
-                                sc.timeout_secs,
-                                zs_log.display(),
-                                tail_of(&zs_log, 25),
-                                stderr_log.display(),
-                                tail_of(&stderr_log, 10),
-                                stdout_log.display(),
-                                tail_of(&stdout_log, 10),
-                                self.bin.display(),
-                                model.map(|m| format!(" --model {m}")).unwrap_or_default(),
-                            );
-                        }
-                        if started.elapsed() > next_heartbeat && !verbose() {
-                            eprintln!(
-                                "     ... turn {i} still running ({}s elapsed; --verbose streams live output; trace: {})",
-                                started.elapsed().as_secs(),
-                                zs_log.display(),
-                            );
-                            next_heartbeat += Duration::from_secs(15);
-                        }
-                        std::thread::sleep(Duration::from_millis(200));
-                    }
-                }
-            };
-            let _ = (t_out.join(), t_err.join());
-            if !status.success() {
-                bail!(
-                    "turn {i}: zerostack exited with {status}\n\
-                     --- tail of {} ---\n{}\n\
-                     --- tail of {} (zerostack trace) ---\n{}",
-                    stderr_log.display(),
-                    tail_of(&stderr_log, 10),
-                    zs_log.display(),
-                    tail_of(&zs_log, 25),
-                );
-            }
+                &stdout_log,
+                &stderr_log,
+                &zs_log,
+            )?;
             if verbose() {
                 eprintln!(
                     "  <- turn {i} ok ({:.1}s)",
@@ -367,17 +435,93 @@ impl AgentBackend for ZsCli {
             });
         }
 
-        let session_files = discover_session_files(&data);
+        let session_files = discover_session_files(d.data);
         if session_files.is_empty() {
-            bail!("no session file produced under {}", data.display());
+            bail!("no session file produced under {}", d.data.display());
         }
 
         Ok(RunArtifacts {
             session_files,
             turns: turn_logs,
-            data_dir: data,
-            config_dir: config,
-            work_dir: work,
+            data_dir: d.data.to_path_buf(),
+            config_dir: d.config.to_path_buf(),
+            work_dir: d.work.to_path_buf(),
+            wall_secs: started.elapsed().as_secs_f64(),
+        })
+    }
+
+    /// `mode = "loop"`: one single `zerostack --loop --loop-max N [--loop-run
+    /// CMD] <task>` invocation instead of the per-turn `-p` loop.
+    /// `Scenario::load` already guarantees `sc.task` is exactly one turn and
+    /// `loop_cfg.max_iterations >= 1` for any scenario that reaches here.
+    ///
+    /// No session file is produced (`run_headless_loop` never calls
+    /// `save_session`) — grading evidence is the iteration records at
+    /// `$ZS_DATA_DIR/loops/<uuid>/iter-NNNN.json`, which `transcript.rs`
+    /// folds in directly from `data_dir`, so `session_files` is legitimately
+    /// empty here (unlike `run_print`, this is not an error condition).
+    fn run_loop(
+        &self,
+        sc: &Scenario,
+        loop_cfg: &crate::scenario::LoopCfg,
+        model: Option<&str>,
+        d: &RunDirs,
+    ) -> Result<RunArtifacts> {
+        let started = Instant::now();
+        let timeout = Duration::from_secs(sc.timeout_secs);
+        let turn = &sc.task.turns()[0];
+
+        let stdout_log = d.run_dir.join("turn-0.stdout");
+        let stderr_log = d.run_dir.join("turn-0.stderr");
+        let zs_log = d.run_dir.join("turn-0.zslog");
+
+        let mut cmd = Command::new(&self.bin);
+        cmd.arg("--loop")
+            .arg("--yolo")
+            .arg("--no-color")
+            .arg("--log-file")
+            .arg(&zs_log)
+            .arg("--loop-max")
+            .arg(loop_cfg.max_iterations.to_string());
+        if let Some(run_cmd) = &loop_cfg.run {
+            cmd.arg("--loop-run").arg(run_cmd);
+        }
+        if let Some(m) = model {
+            cmd.arg("--model").arg(m);
+        }
+        if let Some(name) = &sc.prompt {
+            cmd.arg("--load-prompt").arg(name);
+        }
+        cmd.arg(turn.msg());
+        cmd.current_dir(d.work)
+            .env("ZS_DATA_DIR", d.data)
+            .env("ZS_CONFIG_DIR", d.config)
+            .env("TMPDIR", d.tmp)
+            .env("HOME", d.home);
+
+        spawn_and_wait(
+            cmd,
+            &self.bin,
+            model,
+            "--loop",
+            started,
+            timeout,
+            0,
+            &stdout_log,
+            &stderr_log,
+            &zs_log,
+        )?;
+
+        Ok(RunArtifacts {
+            session_files: Vec::new(),
+            turns: vec![TurnArtifacts {
+                stdout: stdout_log,
+                stderr: stderr_log,
+                zslog: zs_log,
+            }],
+            data_dir: d.data.to_path_buf(),
+            config_dir: d.config.to_path_buf(),
+            work_dir: d.work.to_path_buf(),
             wall_secs: started.elapsed().as_secs_f64(),
         })
     }
@@ -406,6 +550,27 @@ pub fn discover_session_files(data_dir: &Path) -> Vec<PathBuf> {
             .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
     });
     out
+}
+
+/// Recursively copy a directory tree — used by `Mock` to replay a captured
+/// `mode = "loop"` fixture's `data/loops/**` into a fresh run_dir (unlike
+/// turn logs, these can't just be read in place: `transcript.rs` expects
+/// them under `artifacts.data_dir`, which is the new run_dir here, not the
+/// fixture's original one).
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for e in std::fs::read_dir(src).with_context(|| format!("read {}", src.display()))? {
+        let e = e?;
+        let from = e.path();
+        let to = dst.join(e.file_name());
+        if from.is_dir() {
+            copy_dir_recursive(&from, &to)?;
+        } else {
+            std::fs::copy(&from, &to)
+                .with_context(|| format!("copy {} -> {}", from.display(), to.display()))?;
+        }
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -450,26 +615,44 @@ impl AgentBackend for Mock {
         std::fs::create_dir_all(&work)?;
 
         if self.fixture.is_dir() {
+            // A `mode = "loop"` fixture has no `data/sessions/` at all (loop
+            // mode never calls `save_session`) — tolerate a missing dir
+            // instead of erroring, and only bail if *neither* sessions nor
+            // loop iteration records exist (nothing to grade at all).
             let src_sessions = self.fixture.join("data").join("sessions");
             let mut session_files = Vec::new();
-            let entries = std::fs::read_dir(&src_sessions)
-                .with_context(|| format!("read {}", src_sessions.display()))?;
-            for e in entries.flatten() {
-                let p = e.path();
-                if p.extension().map(|x| x == "json").unwrap_or(false) {
-                    let dst = data.join("sessions").join(p.file_name().unwrap());
-                    std::fs::copy(&p, &dst).with_context(|| format!("copy {}", p.display()))?;
-                    session_files.push(dst);
+            if let Ok(entries) = std::fs::read_dir(&src_sessions) {
+                for e in entries.flatten() {
+                    let p = e.path();
+                    if p.extension().map(|x| x == "json").unwrap_or(false) {
+                        let dst = data.join("sessions").join(p.file_name().unwrap());
+                        std::fs::copy(&p, &dst)
+                            .with_context(|| format!("copy {}", p.display()))?;
+                        session_files.push(dst);
+                    }
                 }
-            }
-            if session_files.is_empty() {
-                bail!("no session file found under {}", src_sessions.display());
             }
             session_files.sort_by_key(|p| {
                 std::fs::metadata(p)
                     .and_then(|m| m.modified())
                     .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
             });
+
+            // Unlike turn logs (read in place from the fixture, below), loop
+            // iteration records must be copied: `transcript.rs`'s
+            // `loop_transcript` reads them from `artifacts.data_dir`, which
+            // here is the fresh run_dir's `data/`, not the fixture's.
+            let src_loops = self.fixture.join("data").join("loops");
+            if src_loops.is_dir() {
+                copy_dir_recursive(&src_loops, &data.join("loops"))?;
+            }
+
+            if session_files.is_empty() && !src_loops.is_dir() {
+                bail!(
+                    "no session file or loop iteration records found under {}",
+                    self.fixture.display()
+                );
+            }
             // Turn logs are replayed in place from the fixture, not copied —
             // they're read-only evidence, and the fixture dir outlives this
             // run_dir.

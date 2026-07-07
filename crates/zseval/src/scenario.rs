@@ -31,6 +31,14 @@ pub struct Scenario {
     pub prompt: Option<String>,
     #[serde(default = "default_trials")]
     pub trials: usize,
+    /// `print` (default) drives zerostack's per-turn `-p`/`--continue` path;
+    /// `loop` drives a single `--loop` invocation instead — see `LoopCfg`.
+    #[serde(default)]
+    pub mode: Mode,
+    /// Required iff `mode = "loop"`; a load-time error otherwise either way
+    /// (missing when needed, present when not) — see `Scenario::load`.
+    #[serde(default, rename = "loop")]
+    pub loop_cfg: Option<LoopCfg>,
     pub task: Task,
     /// Deterministic floor: one assert per line, mini-DSL (see asserts.rs).
     #[serde(default)]
@@ -74,6 +82,55 @@ pub struct Scenario {
     /// a candidate run — see `util::fnv1a_hex`.
     #[serde(skip)]
     pub content_hash: String,
+}
+
+/// Which zerostack invocation shape drives this scenario. `Loop` trades away
+/// tool-call and token-usage evidence (see `LoopCfg`'s doc) for the ability
+/// to test multi-iteration autonomous behavior; `Scenario::load` enforces
+/// that trade-off can't be silently ignored (rejects `tool_*`/`tokens_under`
+/// asserts on a loop scenario).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Mode {
+    #[default]
+    Print,
+    Loop,
+}
+
+/// `mode = "loop"` sugar: drives `zerostack --loop --loop-max
+/// <max_iterations> [--loop-run <run>] <task>` as a single invocation,
+/// instead of the per-turn `-p`/`--continue` loop `Mode::Print` uses.
+///
+/// Two consequences that shape what a loop scenario can assert on, both
+/// verified against zerostack v1.6.1's `run_headless_loop` (`main.rs`) and
+/// `extras/loop/*.rs`:
+///   - **No session file.** `run_headless_loop` never calls `save_session`;
+///     grading evidence instead comes from `$ZS_DATA_DIR/loops/<uuid>/
+///     iter-NNNN.json` records (prompt/response/validation_output per
+///     iteration — `extras/loop/transcript.rs::save_iteration`) plus the
+///     filesystem. `transcript.rs`'s `from_run` folds these in as ordinary
+///     messages; `final_contains`/`transcript_contains`/`file_*` all work
+///     unchanged.
+///   - **No tool-call evidence at all.** The loop's own `run_print` call
+///     hardcodes `pure_stdout: false`, so the `◈ name ...` markers that are
+///     the *only* tool-call channel in headless mode never appear —
+///     regardless of what CLI flags the harness passes. A `tool_not_called`
+///     assert would therefore pass vacuously against evidence that could
+///     never have shown a call either way. `Scenario::load` rejects every
+///     `tool_*` assert and `tokens_under` (no usage evidence either, same
+///     root cause) on a loop scenario at load time instead of letting that
+///     footgun ship.
+#[derive(Debug, Clone, Deserialize)]
+pub struct LoopCfg {
+    /// `--loop-max`. Required (not optional) because `--loop` alone runs
+    /// unbounded — every loop scenario must declare a hard ceiling.
+    pub max_iterations: u32,
+    /// `--loop-run`: a shell command run after each iteration, its output
+    /// fed into the next iteration's prompt. The natural place for a
+    /// "make the tests pass" scenario's pass/fail signal to show up in the
+    /// graded transcript (via `transcript_contains`).
+    #[serde(default)]
+    pub run: Option<String>,
 }
 
 /// Subsystem-specific seeding sugar, one optional field per `domains::`
@@ -148,6 +205,30 @@ fn default_timeout() -> u64 {
     300
 }
 
+/// Which asserts depend on evidence loop mode never produces (see
+/// `LoopCfg`'s doc) — `Some(name)` names the offending op for the load-time
+/// error; everything else (file/final/transcript asserts) is fine, since
+/// those grade the filesystem or the loop's own iteration records.
+fn loop_incompatible_assert(a: &crate::asserts::Assert) -> Option<&'static str> {
+    use crate::asserts::Assert::*;
+    match a {
+        ToolCalled(_) => Some("tool_called"),
+        ToolNotCalled(_) => Some("tool_not_called"),
+        ToolCalledAfter { .. } => Some("tool_called_after"),
+        ToolCount { .. } => Some("tool_count"),
+        ToolArgContains { .. } => Some("tool_arg_contains"),
+        NoToolCallContains(_) => Some("no_tool_call_contains"),
+        TokensUnder(_) => Some("tokens_under"),
+        FinalContains(_)
+        | FinalNotContains(_)
+        | FinalMaxLines(_)
+        | TranscriptContains(_)
+        | TranscriptNotContains(_)
+        | FileContains { .. }
+        | FileNotContains { .. } => None,
+    }
+}
+
 impl Scenario {
     pub fn load(dir: &Path) -> Result<Scenario> {
         let path = dir.join("scenario.toml");
@@ -170,6 +251,39 @@ impl Scenario {
             let a = crate::asserts::Assert::parse(line)
                 .with_context(|| format!("{}: bad assert '{line}'", sc.id))?;
             sc.asserts.push(a);
+        }
+        match (sc.mode, &sc.loop_cfg) {
+            (Mode::Loop, None) => {
+                bail!("{}: mode = \"loop\" requires a [loop] table", sc.id)
+            }
+            (Mode::Print, Some(_)) => {
+                bail!("{}: [loop] table is only valid with mode = \"loop\"", sc.id)
+            }
+            (Mode::Loop, Some(lc)) if lc.max_iterations == 0 => {
+                bail!("{}: [loop].max_iterations must be >= 1", sc.id)
+            }
+            _ => {}
+        }
+        if sc.mode == Mode::Loop {
+            if sc.task.turns().len() != 1 {
+                bail!(
+                    "{}: mode = \"loop\" supports exactly one task turn — loop mode has no \
+                     multi-turn/--continue concept, it drives a single `--loop` invocation",
+                    sc.id
+                );
+            }
+            for (line, a) in sc.expect.iter().zip(&sc.asserts) {
+                if let Some(op) = loop_incompatible_assert(a) {
+                    bail!(
+                        "{}: assert '{line}' uses '{op}', which mode = \"loop\" scenarios can't \
+                         use — loop mode has no tool-call or token-usage evidence \
+                         (run_headless_loop hardcodes pure_stdout=false and never saves a \
+                         session); grade on file_contains/transcript_contains/final_contains \
+                         instead",
+                        sc.id
+                    );
+                }
+            }
         }
         for f in &sc.files {
             let probe = std::path::Path::new(".");

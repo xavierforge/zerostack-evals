@@ -22,3 +22,8 @@
 .mypy_cache/
 __pycache__/
 *.pyc
+
+# Local-only planning notes (never committed; kept out of git history on
+# purpose — internal scratch, not a project artifact)
+/EVAL-COVERAGE-PLAN.md
+/UPSTREAM-REQUIREMENTS.md

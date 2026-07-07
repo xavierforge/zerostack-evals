@@ -57,6 +57,23 @@ struct RawMessage {
     content: String,
 }
 
+/// One `$ZS_DATA_DIR/loops/<session-id>/iter-NNNN.json` record — the
+/// grading evidence for `mode = "loop"` scenarios, since `run_headless_loop`
+/// never calls `save_session` (see `scenario::LoopCfg`'s doc). Shape mirrors
+/// `extras/loop/transcript.rs::save_iteration` in zerostack.
+#[derive(Debug, Clone, Deserialize)]
+struct RawLoopIteration {
+    iteration: u32,
+    #[allow(dead_code)]
+    timestamp: String,
+    prompt: String,
+    response: String,
+    #[serde(default)]
+    validation_output: Option<String>,
+    #[allow(dead_code)]
+    summary: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct Msg {
     pub role: String,
@@ -171,8 +188,102 @@ impl Transcript {
             t.tool_calls
                 .extend(tool_calls_from_stdout_file(&turn.stdout, base));
         }
+        t.absorb(loop_transcript(&artifacts.data_dir)?);
         Ok(t)
     }
+}
+
+/// One `mode = "loop"` iteration, exposed for `explain` to print alongside
+/// (loop scenarios have no session file to dump instead — see
+/// `scenario::LoopCfg`'s doc).
+#[derive(Debug, Clone)]
+pub struct LoopIteration {
+    pub iteration: u32,
+    pub prompt: String,
+    pub response: String,
+    pub validation_output: Option<String>,
+}
+
+/// Read every `$ZS_DATA_DIR/loops/*/iter-*.json` record, sorted by the
+/// record's own `iteration` field (not the filename — the filename's
+/// zero-padding, `iter-0001.json`, happens to sort correctly today, but the
+/// field is the source of truth). Empty, not an error, when the `loops`
+/// directory doesn't exist at all — the ordinary case for every
+/// `mode = "print"` scenario and the mock backend's non-loop fixtures. An
+/// unreadable/malformed iter file that *does* exist is an `Err`, the same
+/// rule session files already follow (-> Indeterminate at the runner).
+pub fn read_loop_iterations(data_dir: &Path) -> Result<Vec<LoopIteration>> {
+    let loops_dir = data_dir.join("loops");
+    let session_dirs = match std::fs::read_dir(&loops_dir) {
+        Ok(rd) => rd,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let mut iter_files = Vec::new();
+    for e in session_dirs.flatten() {
+        let p = e.path();
+        if !p.is_dir() {
+            continue;
+        }
+        let Ok(inner) = std::fs::read_dir(&p) else {
+            continue;
+        };
+        for f in inner.flatten() {
+            let fp = f.path();
+            if fp.extension().map(|x| x == "json").unwrap_or(false) {
+                iter_files.push(fp);
+            }
+        }
+    }
+    if iter_files.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut records = Vec::with_capacity(iter_files.len());
+    for f in &iter_files {
+        let text =
+            std::fs::read_to_string(f).with_context(|| format!("read {}", f.display()))?;
+        let rec: RawLoopIteration =
+            serde_json::from_str(&text).with_context(|| format!("parse {}", f.display()))?;
+        records.push(LoopIteration {
+            iteration: rec.iteration,
+            prompt: rec.prompt,
+            response: rec.response,
+            validation_output: rec.validation_output,
+        });
+    }
+    records.sort_by_key(|r| r.iteration);
+    Ok(records)
+}
+
+/// Fold loop iteration records into a `Transcript` — the only evidence a
+/// `mode = "loop"` scenario produces (see `scenario::LoopCfg`'s doc). Per
+/// iteration: a `user` message (the built loop prompt), an `assistant`
+/// message (the response, also becoming `final_assistant` — the *last*
+/// iteration wins, same "last one absorbed wins" rule `absorb` uses
+/// elsewhere), and — when present — a `tool_result`-role message carrying
+/// `--loop-run`'s output, so `transcript_contains` can grade a validation
+/// command's pass/fail text without it polluting `final_assistant`.
+fn loop_transcript(data_dir: &Path) -> Result<Transcript> {
+    let mut t = Transcript::default();
+    for r in read_loop_iterations(data_dir)? {
+        t.messages.push(Msg {
+            role: "user".to_string(),
+            content: r.prompt,
+        });
+        t.messages.push(Msg {
+            role: "assistant".to_string(),
+            content: r.response.clone(),
+        });
+        t.final_assistant = r.response;
+        if let Some(v) = r.validation_output {
+            t.messages.push(Msg {
+                role: "tool_result".to_string(),
+                content: v,
+            });
+        }
+    }
+    Ok(t)
 }
 
 /// Reconstruct `ToolCall`s from a captured `turn-N.stdout` log (see the

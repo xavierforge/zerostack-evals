@@ -325,6 +325,33 @@ fn cmd_explain(rest: Vec<String>) -> anyhow::Result<ExitCode> {
             }
         }
     }
+    // `mode = "loop"` scenarios have no session file at all — their evidence
+    // is the per-iteration records under data/loops/<uuid>/iter-NNNN.json
+    // (see scenario::LoopCfg's doc). A missing/empty dir is silently a
+    // no-op here, same as the sessions dir above.
+    match zseval::transcript::read_loop_iterations(&dir.join("data")) {
+        Ok(iters) if !iters.is_empty() => {
+            for it in &iters {
+                println!("== loop iteration {} ==", it.iteration);
+                let response_head: String = it.response.replace('\n', " ").chars().take(300).collect();
+                println!("response: {response_head}");
+                if let Some(v) = &it.validation_output {
+                    let tail: String = v
+                        .replace('\n', " ")
+                        .chars()
+                        .rev()
+                        .take(300)
+                        .collect::<String>()
+                        .chars()
+                        .rev()
+                        .collect();
+                    println!("validation_output (tail): {tail}");
+                }
+            }
+        }
+        Ok(_) => {}
+        Err(err) => println!("(loop iterations unreadable: {err:#})"),
+    }
     // Dump every captured per-turn log (zerostack trace + stderr), in turn
     // order, however many turns the scenario had. This is a separate process
     // from the run that produced `dir`, so there's no live RunArtifacts to

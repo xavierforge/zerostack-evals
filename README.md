@@ -143,6 +143,40 @@ Conventions worth keeping:
 isolated config dir or working dir instead, e.g.
 `file_contains config:agent/memory/MEMORY.md tabs`.
 
+### `mode = "loop"` scenarios
+
+    id     = "loop-fixes-failing-test"
+    mode   = "loop"                # default is "print" (the -p/--continue path above)
+    trials = 3
+    task   = "test_calc.py is failing. Find the bug in calc.py and fix it."
+    expect = [
+      "file_not_contains work:calc.py return a - b",
+      "transcript_contains ALL TESTS PASS",
+    ]
+
+    [loop]
+    max_iterations = 3            # required — --loop is unbounded otherwise
+    run = "python3 test_calc.py"  # optional — --loop-run; output feeds the next iteration
+
+Drives a single `zerostack --loop --loop-max N [--loop-run CMD] <task>`
+invocation instead of the per-turn `-p`/`--continue` loop, so `task` must be
+a single turn (no array). `loop` is in zerostack's default features — no
+extra build flag needed.
+
+Two things loop mode gives up, both enforced at load time so a scenario
+can't silently ship a footgun:
+- **No session file** — `run_headless_loop` never calls `save_session`.
+  Grading evidence is `$ZS_DATA_DIR/loops/<uuid>/iter-NNNN.json` records
+  (prompt/response/validation_output per iteration), which `transcript.rs`
+  folds in as ordinary messages — `final_contains`/`transcript_contains`/
+  `file_*` all work unchanged; `zseval explain` dumps them too.
+- **No tool-call evidence at all** — the loop's own headless call hardcodes
+  no stdout tool-call markers, regardless of CLI flags. `tool_called` /
+  `tool_not_called` / `tool_called_after` / `tool_count` /
+  `tool_arg_contains` / `no_tool_call_contains` / `tokens_under` are all
+  rejected on a `mode = "loop"` scenario at load time — grade on
+  `file_contains`/`transcript_contains`/`final_contains` instead.
+
 ## Evaluating another subsystem
 
 A subsystem like `memory` lays out files zerostack itself decides the shape
