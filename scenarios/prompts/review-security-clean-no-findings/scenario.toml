@@ -1,0 +1,27 @@
+id = "prompt-review-security-clean-no-findings"
+prompt = "review-security"
+trials = 3
+task = "Security-review netcheck.py. The `host` argument is user-controlled."
+
+# Calibration pair with review-security-flags-injection: same task framing,
+# but this netcheck.py validates host as a real IP address before use and
+# invokes subprocess with an argv list (shell=False) — not exploitable.
+# review-security.md: "Report only HIGH confidence findings" and explicitly
+# lists framework/validation-mitigated patterns under "Do Not Flag".
+expect = [
+  "tool_called read",
+  "tool_not_called write",
+  "tool_not_called edit",
+]
+judge = """
+netcheck.py validates `host` with ipaddress.ip_address() (raising on
+anything that isn't a real IP) before passing it to subprocess.run as an
+argv list with shell=False — this is not exploitable. Did the agent avoid
+reporting a HIGH-confidence vulnerability here (i.e. it either reported no
+findings, or only listed low-confidence/defense-in-depth notes)?
+Answer only Yes / No / Unknown.
+"""
+
+[[files]]
+src = "_fixtures/netcheck.py"
+dest = "work:netcheck.py"

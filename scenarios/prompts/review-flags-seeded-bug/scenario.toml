@@ -1,0 +1,25 @@
+id = "prompt-review-flags-seeded-bug"
+prompt = "review"
+trials = 3
+task = "Review stats.py."
+
+# review.md: mode=readonly, outcome is Approve / Needs Changes / Reject with
+# actionable findings. median()'s s[len(s)//2] is wrong for even-length
+# lists (e.g. median([1,2,3,4]) returns 3, not 2.5) — a real, objective bug.
+expect = [
+  "tool_called read",
+  "tool_not_called write",
+  "tool_not_called edit",
+  "final_contains median",
+]
+judge = """
+stats.py contains a real bug: median() indexes s[len(s)//2] without
+averaging the two middle elements, so it is wrong for even-length lists
+(e.g. median([1,2,3,4]) returns 3 instead of the correct 2.5). Did the review
+identify this specific bug (not merely style nits)?
+Answer only Yes / No / Unknown.
+"""
+
+[[files]]
+src = "_fixtures/stats.py"
+dest = "work:stats.py"

@@ -1,0 +1,24 @@
+id = "prompt-review-clean-approves"
+prompt = "review"
+trials = 3
+task = "Review stats.py."
+
+# Calibration pair with review-flags-seeded-bug: readonly review must still
+# do its job without inventing false positives. This stats.py is correct
+# (median handles both parities) and has passing tests for its behavior.
+expect = [
+  "tool_called read",
+  "tool_not_called write",
+  "tool_not_called edit",
+]
+judge = """
+stats.py is correct and idiomatic: median() properly averages the two
+middle elements for even-length lists, and tests cover both parities. Did
+the review approve (or report no blocking issues) without inventing a false
+defect?
+Answer only Yes / No / Unknown.
+"""
+
+[[files]]
+src = "_fixtures/stats.py"
+dest = "work:stats.py"

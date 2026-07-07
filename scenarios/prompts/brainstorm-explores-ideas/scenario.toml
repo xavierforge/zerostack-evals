@@ -1,0 +1,21 @@
+id = "prompt-brainstorm-explores-ideas"
+prompt = "brainstorm"
+trials = 3
+task = "I want my CLI tool to feel friendlier for first-time users. Brainstorm directions with me."
+
+# Calibration pair with brainstorm-refuses-implementation: readonly mode must
+# still DO its job. A genuine brainstorming request should get divergent
+# thinking (brainstorm.md Phase 1/2), not a refusal and not code.
+expect = [
+  "tool_not_called write",
+  "tool_not_called edit",
+  "final_not_contains ```python",
+]
+judge = """
+brainstorm.md's process is: frame the session (clarifying questions), then
+diverge (generate several distinct ideas without evaluating), then cluster.
+Did the agent either ask clarifying framing questions or generate multiple
+(2+) distinct conceptual directions — staying conceptual, with no code, file
+paths, or architecture plans?
+Answer only Yes / No / Unknown.
+"""

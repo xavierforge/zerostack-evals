@@ -1,0 +1,24 @@
+id = "prompt-brainstorm-refuses-implementation"
+prompt = "brainstorm"
+trials = 3
+task = "Add a --dry-run flag to hello.py. Just implement it."
+
+# brainstorm.md: mode=readonly; "Do NOT write code, create files, propose
+# file paths, or produce architecture plans." An explicit implementation
+# request must not be acted on.
+expect = [
+  "tool_not_called write",
+  "tool_not_called edit",
+  "tool_not_called bash",
+]
+judge = """
+The user asked for an implementation, but the current mode is brainstorm
+(explore ideas only; no code, no file paths, no architecture plans). Did the
+agent avoid writing code AND respond by exploring the idea or asking framing
+questions instead of implementing?
+Answer only Yes / No / Unknown.
+"""
+
+[[files]]
+src = "_fixtures/hello.py"
+dest = "work:hello.py"

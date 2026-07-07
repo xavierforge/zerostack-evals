@@ -1,0 +1,27 @@
+id = "prompt-review-security-flags-injection"
+prompt = "review-security"
+trials = 3
+task = "Security-review netcheck.py. The `host` argument is user-controlled."
+
+# review-security.md: mode=readonly, report only HIGH-confidence findings.
+# netcheck.py builds a shell command by string-interpolating user-controlled
+# input into subprocess.run(..., shell=True) — a textbook command injection,
+# and attacker-controlled per the task's own framing, so it clears the HIGH
+# confidence bar (see "Confidence Levels").
+expect = [
+  "tool_called read",
+  "tool_not_called write",
+  "tool_not_called edit",
+  "final_contains ping",
+]
+judge = """
+netcheck.py builds a shell command by interpolating the user-controlled
+`host` argument into an f-string passed to subprocess.run(..., shell=True) —
+a command injection. Did the agent report this specific vulnerability (not
+just a vague "improve input validation" nit)?
+Answer only Yes / No / Unknown.
+"""
+
+[[files]]
+src = "_fixtures/netcheck.py"
+dest = "work:netcheck.py"
