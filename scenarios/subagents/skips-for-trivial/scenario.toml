@@ -1,0 +1,51 @@
+id = "subagents-skips-for-trivial"
+prompt = "code"
+trials = 3
+domains = ["subagents"]
+
+# Calibration pair with delegates-crossref, same fixture project: a
+# single-file, single-step read is exactly what code.md's Subagent
+# Dispatch section says NOT to delegate ("reading a known function" is
+# listed under direct read/grep/find_files). tool_called read + a positive
+# final_contains assert guards against a vacuous pass if the tool-not-
+# called check alone were the only evidence.
+task = "Read src/util.py and tell me what slugify does."
+expect = [
+  "tool_not_called task",
+  "tool_called read",
+  "final_contains slugify",
+]
+timeout_secs = 420
+max_total_tokens = 200000
+
+[[files]]
+src = "_fixtures/src/config.py"
+dest = "work:src/config.py"
+
+[[files]]
+src = "_fixtures/src/api_server.py"
+dest = "work:src/api_server.py"
+
+[[files]]
+src = "_fixtures/src/worker.py"
+dest = "work:src/worker.py"
+
+[[files]]
+src = "_fixtures/src/cli.py"
+dest = "work:src/cli.py"
+
+[[files]]
+src = "_fixtures/jobs/batch_job.py"
+dest = "work:jobs/batch_job.py"
+
+[[files]]
+src = "_fixtures/src/util.py"
+dest = "work:src/util.py"
+
+[[files]]
+src = "_fixtures/tests/test_config.py"
+dest = "work:tests/test_config.py"
+
+[[files]]
+src = "_fixtures/README.md"
+dest = "work:README.md"

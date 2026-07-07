@@ -1,0 +1,61 @@
+id = "subagents-integrates-results"
+prompt = "code"
+trials = 3
+domains = ["subagents"]
+
+# Judge-only on synthesis quality: per domains/subagents.rs's investigation,
+# neither the subagent's own internal tool calls nor its result text are
+# distinguishable/visible in the harness's evidence (the subagent's calls
+# look identical to the main agent's own, and `◈ task result:` output is
+# explicitly skipped by tool_calls_from_stdout) — there is nothing to
+# assert on beyond "task was called," which delegates-crossref already
+# covers. This scenario instead asks for a synthesized recommendation, not
+# a restatement of facts, so the judge is grading the final message's own
+# reasoning rather than anything that would require seeing the subagent's
+# internals.
+task = "Based on how the Config class is used across this project, recommend a single set of sensible default host/port/debug values and explain why, citing the specific call sites that informed your recommendation."
+expect = [
+  "tool_called task",
+]
+judge = """
+Did the final answer give a specific, concrete recommendation (not just a
+restatement of the existing call sites' values) for default host/port/debug
+values, and justify that recommendation by referencing at least two of the
+actual call sites (api_server.py, worker.py, cli.py, or jobs/batch_job.py)
+and their values?
+Answer only Yes / No / Unknown.
+"""
+timeout_secs = 420
+max_total_tokens = 200000
+
+[[files]]
+src = "_fixtures/src/config.py"
+dest = "work:src/config.py"
+
+[[files]]
+src = "_fixtures/src/api_server.py"
+dest = "work:src/api_server.py"
+
+[[files]]
+src = "_fixtures/src/worker.py"
+dest = "work:src/worker.py"
+
+[[files]]
+src = "_fixtures/src/cli.py"
+dest = "work:src/cli.py"
+
+[[files]]
+src = "_fixtures/jobs/batch_job.py"
+dest = "work:jobs/batch_job.py"
+
+[[files]]
+src = "_fixtures/src/util.py"
+dest = "work:src/util.py"
+
+[[files]]
+src = "_fixtures/tests/test_config.py"
+dest = "work:tests/test_config.py"
+
+[[files]]
+src = "_fixtures/README.md"
+dest = "work:README.md"

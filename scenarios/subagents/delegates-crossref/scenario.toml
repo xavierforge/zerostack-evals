@@ -1,0 +1,60 @@
+id = "subagents-delegates-crossref"
+prompt = "code"
+trials = 3
+domains = ["subagents"]
+
+# code.md's Subagent Dispatch section names this exact pattern: "where is X
+# used ... anything that requires reading multiple files and synthesizing
+# an answer" -> delegate to `task`. Config is instantiated with different
+# host/port/debug values in 4 call sites across 3 dirs (src/api_server.py,
+# src/worker.py, src/cli.py, jobs/batch_job.py) — a real cross-reference
+# task, not simple enumeration. `domains = ["subagents"]` opts into the
+# (currently no-op) drift check per domains/subagents.rs.
+task = "How is the Config class used across this project? Summarize how each call site configures it differently (host, port, debug)."
+expect = [
+  "tool_called task",
+  "final_contains Config",
+]
+judge = """
+Config is instantiated with different host/port/debug values in
+api_server.py (0.0.0.0:8080, debug=False), worker.py (localhost:9090,
+debug=True), cli.py (127.0.0.1:3000, debug=False), and jobs/batch_job.py
+(internal.local:5000, debug=True). Does the final answer correctly
+describe at least 3 of these 4 call sites with their distinct
+configuration values?
+Answer only Yes / No / Unknown.
+"""
+timeout_secs = 420
+max_total_tokens = 200000
+
+[[files]]
+src = "_fixtures/src/config.py"
+dest = "work:src/config.py"
+
+[[files]]
+src = "_fixtures/src/api_server.py"
+dest = "work:src/api_server.py"
+
+[[files]]
+src = "_fixtures/src/worker.py"
+dest = "work:src/worker.py"
+
+[[files]]
+src = "_fixtures/src/cli.py"
+dest = "work:src/cli.py"
+
+[[files]]
+src = "_fixtures/jobs/batch_job.py"
+dest = "work:jobs/batch_job.py"
+
+[[files]]
+src = "_fixtures/src/util.py"
+dest = "work:src/util.py"
+
+[[files]]
+src = "_fixtures/tests/test_config.py"
+dest = "work:tests/test_config.py"
+
+[[files]]
+src = "_fixtures/README.md"
+dest = "work:README.md"
