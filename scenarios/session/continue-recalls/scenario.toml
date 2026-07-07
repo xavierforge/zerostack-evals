@@ -1,0 +1,17 @@
+id = "session-continue-recalls"
+trials = 3
+task = [
+  "For this conversation only, the codeword is 'osprey'. Just acknowledge — no need to write this down anywhere.",
+  "What is the codeword?",
+]
+
+# Exercises the harness's `--continue` path (the default for turn i>0 unless
+# `new_session = true`, see backend.rs): a plain conversational fact from
+# turn 1 must still be in context for turn 2 in the same session. The
+# explicit "no need to write this down anywhere" in turn 1 is there so this
+# scenario tests conversational continuity specifically, not the memory
+# subsystem (this build compiles the `memory` feature in) — see
+# session-fresh-forgets for the pair that isolates that distinction.
+expect = [
+  "final_contains osprey",
+]

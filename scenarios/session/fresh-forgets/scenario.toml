@@ -1,0 +1,26 @@
+id = "session-fresh-forgets"
+trials = 3
+task = [
+  "For this conversation only, the codeword is 'osprey'. Just acknowledge — no need to write this down anywhere.",
+  { msg = "What is the codeword?", new_session = true },
+]
+
+# Calibration pair with session-continue-recalls, same setup: turn 2 forces
+# a fresh session (backend.rs skips --continue when new_session = true), so
+# there is no conversational context carrying the codeword over. Turn 1's
+# explicit "no need to write this down anywhere" guards against this build's
+# memory feature turning this into a memory-subsystem test instead of a
+# session-isolation test — if the agent persisted the codeword via
+# memory_write anyway, tool_not_called below catches it directly rather
+# than letting a legitimate memory_read/search recall masquerade as session
+# leakage.
+expect = [
+  "final_not_contains osprey",
+  "tool_not_called memory_write",
+]
+judge = """
+The question arrives in a brand-new session with no prior conversational
+context and nothing was written to durable memory. Did the agent say it
+doesn't know / has no record of any codeword, rather than guessing one?
+Answer only Yes / No / Unknown.
+"""
