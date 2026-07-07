@@ -1,11 +1,275 @@
 {
   "schema_version": 2,
-  "tag": "main",
-  "model": "provider-default",
+  "tag": "main-refresh",
+  "model": "anthropic/claude-sonnet-4-6",
   "backend": "zs-cli",
-  "timestamp": "2026-07-06T15:26:01Z",
+  "timestamp": "2026-07-07T03:14:24Z",
   "trials": 3,
   "scenarios": [
+    {
+      "id": "context-follows-agents-md",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"SPDX-License-Identifier: MIT\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'SPDX-License-Identifier: MIT': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"def slugify\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'def slugify': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 4.00622764,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/context-follows-agents-md/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"SPDX-License-Identifier: MIT\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'SPDX-License-Identifier: MIT': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"def slugify\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'def slugify': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 4.410339364,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/context-follows-agents-md/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"SPDX-License-Identifier: MIT\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'SPDX-License-Identifier: MIT': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"def slugify\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'def slugify': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 4.2097447,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/context-follows-agents-md/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "f427223a7766e707"
+    },
+    {
+      "id": "context-no-overapply",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:NOTES.md\", needle: \"SPDX\" }",
+              "pass": true,
+              "detail": "no 'work:NOTES.md' contains 'SPDX'"
+            },
+            {
+              "spec": "FileContains { path: \"work:NOTES.md\", needle: \"Project notes\" }",
+              "pass": true,
+              "detail": "some 'work:NOTES.md' contains 'Project notes': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 4.812492252,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/context-no-overapply/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:NOTES.md\", needle: \"SPDX\" }",
+              "pass": true,
+              "detail": "no 'work:NOTES.md' contains 'SPDX'"
+            },
+            {
+              "spec": "FileContains { path: \"work:NOTES.md\", needle: \"Project notes\" }",
+              "pass": true,
+              "detail": "some 'work:NOTES.md' contains 'Project notes': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 5.607900946,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/context-no-overapply/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:NOTES.md\", needle: \"SPDX\" }",
+              "pass": true,
+              "detail": "no 'work:NOTES.md' contains 'SPDX'"
+            },
+            {
+              "spec": "FileContains { path: \"work:NOTES.md\", needle: \"Project notes\" }",
+              "pass": true,
+              "detail": "some 'work:NOTES.md' contains 'Project notes': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 4.608435888,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/context-no-overapply/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "b98a61f20b0ee7e1"
+    },
+    {
+      "id": "memory-no-write-smalltalk",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"teapot\")",
+              "pass": true,
+              "detail": "final contains 'teapot': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 4.20924263,
+          "tool_call_count": 0,
+          "run_dir": "results/main-refresh/memory-no-write-smalltalk/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"teapot\")",
+              "pass": true,
+              "detail": "final contains 'teapot': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 2.604718564,
+          "tool_call_count": 0,
+          "run_dir": "results/main-refresh/memory-no-write-smalltalk/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"teapot\")",
+              "pass": true,
+              "detail": "final contains 'teapot': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 5.407383534,
+          "tool_call_count": 0,
+          "run_dir": "results/main-refresh/memory-no-write-smalltalk/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "e3066694325a6fba"
+    },
     {
       "id": "memory-search-snippet-sufficient",
       "trials": [
@@ -33,10 +297,12 @@
           "judge": null,
           "input_tokens": 0,
           "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
           "cost_usd": 0.0,
-          "wall_secs": 3.677689708,
+          "wall_secs": 4.008262214,
           "tool_call_count": 1,
-          "run_dir": "results/main/memory-search-snippet-sufficient/trial-0"
+          "run_dir": "results/main-refresh/memory-search-snippet-sufficient/trial-0"
         },
         {
           "trial": 1,
@@ -62,10 +328,12 @@
           "judge": null,
           "input_tokens": 0,
           "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
           "cost_usd": 0.0,
-          "wall_secs": 3.466607375,
+          "wall_secs": 3.807519602,
           "tool_call_count": 1,
-          "run_dir": "results/main/memory-search-snippet-sufficient/trial-1"
+          "run_dir": "results/main-refresh/memory-search-snippet-sufficient/trial-1"
         },
         {
           "trial": 2,
@@ -91,16 +359,19 @@
           "judge": null,
           "input_tokens": 0,
           "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
           "cost_usd": 0.0,
-          "wall_secs": 8.146209042,
+          "wall_secs": 4.814274422,
           "tool_call_count": 1,
-          "run_dir": "results/main/memory-search-snippet-sufficient/trial-2"
+          "run_dir": "results/main-refresh/memory-search-snippet-sufficient/trial-2"
         }
       ],
       "pass_at_k": 1.0,
       "pass_hat_k": 1.0,
       "indeterminate": 0,
-      "total_tool_calls": 3
+      "total_tool_calls": 3,
+      "content_hash": "72b138c10790077a"
     },
     {
       "id": "memory-search-then-read-when-needed",
@@ -134,10 +405,12 @@
           "judge": "yes",
           "input_tokens": 0,
           "output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 7.149085708,
+          "judge_input_tokens": 289,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0009269999999999999,
+          "wall_secs": 13.247999134,
           "tool_call_count": 2,
-          "run_dir": "results/main/memory-search-then-read-when-needed/trial-0"
+          "run_dir": "results/main-refresh/memory-search-then-read-when-needed/trial-0"
         },
         {
           "trial": 1,
@@ -168,10 +441,12 @@
           "judge": "yes",
           "input_tokens": 0,
           "output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 9.37874625,
+          "judge_input_tokens": 292,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.000936,
+          "wall_secs": 7.417924897,
           "tool_call_count": 2,
-          "run_dir": "results/main/memory-search-then-read-when-needed/trial-1"
+          "run_dir": "results/main-refresh/memory-search-then-read-when-needed/trial-1"
         },
         {
           "trial": 2,
@@ -202,16 +477,195 @@
           "judge": "yes",
           "input_tokens": 0,
           "output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 12.019431291,
+          "judge_input_tokens": 257,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0008309999999999999,
+          "wall_secs": 8.817544966,
           "tool_call_count": 2,
-          "run_dir": "results/main/memory-search-then-read-when-needed/trial-2"
+          "run_dir": "results/main-refresh/memory-search-then-read-when-needed/trial-2"
         }
       ],
       "pass_at_k": 1.0,
       "pass_hat_k": 1.0,
       "indeterminate": 0,
-      "total_tool_calls": 6
+      "total_tool_calls": 6,
+      "content_hash": "7c973dd41da4c99f"
+    },
+    {
+      "id": "memory-update-not-duplicate",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/projects/*/notes/rate-limit.md\", needle: \"900\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/projects/*/notes/rate-limit.md' contains '900': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 8.217135957,
+          "tool_call_count": 3,
+          "run_dir": "results/main-refresh/memory-update-not-duplicate/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/projects/*/notes/rate-limit.md\", needle: \"900\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/projects/*/notes/rate-limit.md' contains '900': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 7.615795319,
+          "tool_call_count": 3,
+          "run_dir": "results/main-refresh/memory-update-not-duplicate/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/projects/*/notes/rate-limit.md\", needle: \"900\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/projects/*/notes/rate-limit.md' contains '900': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 9.027656525,
+          "tool_call_count": 3,
+          "run_dir": "results/main-refresh/memory-update-not-duplicate/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 9,
+      "content_hash": "1aea388dbf07a819"
+    },
+    {
+      "id": "memory-write-remember-fact",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/MEMORY.md\", needle: \"450\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/MEMORY.md' contains '450': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 6.612024674,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/memory-write-remember-fact/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/MEMORY.md\", needle: \"450\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/MEMORY.md' contains '450': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 3.205777485,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/memory-write-remember-fact/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/MEMORY.md\", needle: \"450\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/MEMORY.md' contains '450': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 4.808760399,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/memory-write-remember-fact/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "caf14bf416712755"
     },
     {
       "id": "prompt-ask-answers-question",
@@ -242,20 +696,24 @@
           "judge": null,
           "input_tokens": 0,
           "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
           "cost_usd": 0.0,
-          "wall_secs": 5.488375208,
+          "wall_secs": 6.607652019,
           "tool_call_count": 2,
-          "run_dir": "results/main/prompt-ask-answers-question/trial-0"
+          "run_dir": "results/main-refresh/prompt-ask-answers-question/trial-0"
         },
         {
           "trial": 1,
-          "outcome": "pass",
-          "reasons": [],
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called read (tool 'read' called: false)"
+          ],
           "asserts": [
             {
               "spec": "ToolCalled(\"read\")",
-              "pass": true,
-              "detail": "tool 'read' called: true"
+              "pass": false,
+              "detail": "tool 'read' called: false"
             },
             {
               "spec": "FinalContains(\"greet\")",
@@ -271,10 +729,12 @@
           "judge": null,
           "input_tokens": 0,
           "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
           "cost_usd": 0.0,
-          "wall_secs": 6.735374667,
+          "wall_secs": 5.206631631,
           "tool_call_count": 2,
-          "run_dir": "results/main/prompt-ask-answers-question/trial-1"
+          "run_dir": "results/main-refresh/prompt-ask-answers-question/trial-1"
         },
         {
           "trial": 2,
@@ -302,16 +762,19 @@
           "judge": null,
           "input_tokens": 0,
           "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
           "cost_usd": 0.0,
-          "wall_secs": 6.536425166,
+          "wall_secs": 8.410265044,
           "tool_call_count": 2,
-          "run_dir": "results/main/prompt-ask-answers-question/trial-2"
+          "run_dir": "results/main-refresh/prompt-ask-answers-question/trial-2"
         }
       ],
-      "pass_at_k": 1.0,
+      "pass_at_k": 0.0,
       "pass_hat_k": 0.0,
       "indeterminate": 0,
-      "total_tool_calls": 6
+      "total_tool_calls": 6,
+      "content_hash": "af7847759f138b17"
     },
     {
       "id": "prompt-ask-readonly-refuses-edit",
@@ -340,10 +803,12 @@
           "judge": "yes",
           "input_tokens": 0,
           "output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 2.4443307499999998,
+          "judge_input_tokens": 181,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.000603,
+          "wall_secs": 3.006179074,
           "tool_call_count": 0,
-          "run_dir": "results/main/prompt-ask-readonly-refuses-edit/trial-0"
+          "run_dir": "results/main-refresh/prompt-ask-readonly-refuses-edit/trial-0"
         },
         {
           "trial": 1,
@@ -369,10 +834,12 @@
           "judge": "yes",
           "input_tokens": 0,
           "output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 2.658239125,
+          "judge_input_tokens": 154,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.000522,
+          "wall_secs": 2.606317574,
           "tool_call_count": 0,
-          "run_dir": "results/main/prompt-ask-readonly-refuses-edit/trial-1"
+          "run_dir": "results/main-refresh/prompt-ask-readonly-refuses-edit/trial-1"
         },
         {
           "trial": 2,
@@ -398,16 +865,354 @@
           "judge": "yes",
           "input_tokens": 0,
           "output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 2.642053916,
+          "judge_input_tokens": 205,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.000675,
+          "wall_secs": 3.005694931,
           "tool_call_count": 0,
-          "run_dir": "results/main/prompt-ask-readonly-refuses-edit/trial-2"
+          "run_dir": "results/main-refresh/prompt-ask-readonly-refuses-edit/trial-2"
         }
       ],
       "pass_at_k": 1.0,
       "pass_hat_k": 1.0,
       "indeterminate": 0,
-      "total_tool_calls": 0
+      "total_tool_calls": 0,
+      "content_hash": "4f2fb372422abc88"
+    },
+    {
+      "id": "prompt-autoconfig-edits-config",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains config:config.toml max_tokens (some 'config:config.toml' contains 'max_tokens': false)",
+            "assert failed: file_contains config:config.toml 8000 (some 'config:config.toml' contains '8000': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"max_tokens\" }",
+              "pass": false,
+              "detail": "some 'config:config.toml' contains 'max_tokens': false"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"8000\" }",
+              "pass": false,
+              "detail": "some 'config:config.toml' contains '8000': false"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"provider\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains 'provider': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 21.63104106,
+          "tool_call_count": 8,
+          "run_dir": "results/main-refresh/prompt-autoconfig-edits-config/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains config:config.toml max_tokens (some 'config:config.toml' contains 'max_tokens': false)",
+            "assert failed: file_contains config:config.toml 8000 (some 'config:config.toml' contains '8000': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"max_tokens\" }",
+              "pass": false,
+              "detail": "some 'config:config.toml' contains 'max_tokens': false"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"8000\" }",
+              "pass": false,
+              "detail": "some 'config:config.toml' contains '8000': false"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"provider\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains 'provider': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 19.840230463,
+          "tool_call_count": 7,
+          "run_dir": "results/main-refresh/prompt-autoconfig-edits-config/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains config:config.toml max_tokens (some 'config:config.toml' contains 'max_tokens': false)",
+            "assert failed: file_contains config:config.toml 8000 (some 'config:config.toml' contains '8000': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"max_tokens\" }",
+              "pass": false,
+              "detail": "some 'config:config.toml' contains 'max_tokens': false"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"8000\" }",
+              "pass": false,
+              "detail": "some 'config:config.toml' contains '8000': false"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"provider\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains 'provider': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 27.687952233,
+          "tool_call_count": 7,
+          "run_dir": "results/main-refresh/prompt-autoconfig-edits-config/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 22,
+      "content_hash": "dc7cf77385787765"
+    },
+    {
+      "id": "prompt-brainstorm-explores-ideas",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalNotContains(\"```python\")",
+              "pass": true,
+              "detail": "final contains '```python': false"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 370,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0011699999999999998,
+          "wall_secs": 6.616207761,
+          "tool_call_count": 0,
+          "run_dir": "results/main-refresh/prompt-brainstorm-explores-ideas/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalNotContains(\"```python\")",
+              "pass": true,
+              "detail": "final contains '```python': false"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 347,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0011009999999999998,
+          "wall_secs": 7.816653557,
+          "tool_call_count": 0,
+          "run_dir": "results/main-refresh/prompt-brainstorm-explores-ideas/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalNotContains(\"```python\")",
+              "pass": true,
+              "detail": "final contains '```python': false"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 359,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.001137,
+          "wall_secs": 6.8172541760000005,
+          "tool_call_count": 0,
+          "run_dir": "results/main-refresh/prompt-brainstorm-explores-ideas/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "b82aa01501a467f3"
+    },
+    {
+      "id": "prompt-brainstorm-refuses-implementation",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": true,
+              "detail": "tool 'bash' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 241,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0007830000000000001,
+          "wall_secs": 7.613622281,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-brainstorm-refuses-implementation/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": true,
+              "detail": "tool 'bash' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 189,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.000627,
+          "wall_secs": 8.011302629,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-brainstorm-refuses-implementation/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": true,
+              "detail": "tool 'bash' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 520,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0016199999999999997,
+          "wall_secs": 13.832095723,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-brainstorm-refuses-implementation/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "9b10caeb0a37116a"
     },
     {
       "id": "prompt-code-concise-answer",
@@ -436,10 +1241,12 @@
           "judge": null,
           "input_tokens": 0,
           "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
           "cost_usd": 0.0,
-          "wall_secs": 2.654349291,
+          "wall_secs": 2.407867718,
           "tool_call_count": 0,
-          "run_dir": "results/main/prompt-code-concise-answer/trial-0"
+          "run_dir": "results/main-refresh/prompt-code-concise-answer/trial-0"
         },
         {
           "trial": 1,
@@ -465,10 +1272,12 @@
           "judge": null,
           "input_tokens": 0,
           "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
           "cost_usd": 0.0,
-          "wall_secs": 2.4482,
+          "wall_secs": 3.206209755,
           "tool_call_count": 0,
-          "run_dir": "results/main/prompt-code-concise-answer/trial-1"
+          "run_dir": "results/main-refresh/prompt-code-concise-answer/trial-1"
         },
         {
           "trial": 2,
@@ -494,16 +1303,651 @@
           "judge": null,
           "input_tokens": 0,
           "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
           "cost_usd": 0.0,
-          "wall_secs": 2.650538708,
+          "wall_secs": 3.208339432,
           "tool_call_count": 0,
-          "run_dir": "results/main/prompt-code-concise-answer/trial-2"
+          "run_dir": "results/main-refresh/prompt-code-concise-answer/trial-2"
         }
       ],
       "pass_at_k": 1.0,
       "pass_hat_k": 1.0,
       "indeterminate": 0,
-      "total_tool_calls": 0
+      "total_tool_calls": 0,
+      "content_hash": "74e22405fcd3f5ee"
+    },
+    {
+      "id": "prompt-debug-no-overinvestigation",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            },
+            {
+              "spec": "ToolCount { tool: \"read\", op: Le, n: 2 }",
+              "pass": true,
+              "detail": "count('read')=1, want <= 2"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 8.010675424,
+          "tool_call_count": 3,
+          "run_dir": "results/main-refresh/prompt-debug-no-overinvestigation/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            },
+            {
+              "spec": "ToolCount { tool: \"read\", op: Le, n: 2 }",
+              "pass": true,
+              "detail": "count('read')=1, want <= 2"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 8.417557142,
+          "tool_call_count": 3,
+          "run_dir": "results/main-refresh/prompt-debug-no-overinvestigation/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            },
+            {
+              "spec": "ToolCount { tool: \"read\", op: Le, n: 2 }",
+              "pass": true,
+              "detail": "count('read')=1, want <= 2"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 7.208684407,
+          "tool_call_count": 3,
+          "run_dir": "results/main-refresh/prompt-debug-no-overinvestigation/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 9,
+      "content_hash": "73e11479a448a88e"
+    },
+    {
+      "id": "prompt-debug-root-cause-first",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 328,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.001044,
+          "wall_secs": 13.225396953,
+          "tool_call_count": 4,
+          "run_dir": "results/main-refresh/prompt-debug-root-cause-first/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 381,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0012029999999999999,
+          "wall_secs": 13.43341039,
+          "tool_call_count": 4,
+          "run_dir": "results/main-refresh/prompt-debug-root-cause-first/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 376,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0011879999999999998,
+          "wall_secs": 12.627330381,
+          "tool_call_count": 4,
+          "run_dir": "results/main-refresh/prompt-debug-root-cause-first/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 12,
+      "content_hash": "c95731cb7f11c98d"
+    },
+    {
+      "id": "prompt-default-redirects-to-specialized",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 918,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.002814,
+          "wall_secs": 20.027903464,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-default-redirects-to-specialized/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 754,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0023220000000000003,
+          "wall_secs": 22.826652555,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-default-redirects-to-specialized/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 787,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0024210000000000004,
+          "wall_secs": 20.029987929,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-default-redirects-to-specialized/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "a90661f80ebac29b"
+    },
+    {
+      "id": "prompt-frontend-design-commits-to-direction",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hero.html\", needle: \"<html\" }",
+              "pass": true,
+              "detail": "some 'work:hero.html' contains '<html': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Inter\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Inter'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Roboto\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Roboto'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Arial\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Arial'"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 243,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.000789,
+          "wall_secs": 71.108847448,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/prompt-frontend-design-commits-to-direction/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_not_contains work:hero.html Inter ('/home/echiyen/playground/zerostack-evals/results/main-refresh/prompt-frontend-design-commits-to-direction/trial-1/work/hero.html' contains 'Inter')"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hero.html\", needle: \"<html\" }",
+              "pass": true,
+              "detail": "some 'work:hero.html' contains '<html': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Inter\" }",
+              "pass": false,
+              "detail": "'/home/echiyen/playground/zerostack-evals/results/main-refresh/prompt-frontend-design-commits-to-direction/trial-1/work/hero.html' contains 'Inter'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Roboto\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Roboto'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Arial\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Arial'"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 74.907700375,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/prompt-frontend-design-commits-to-direction/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hero.html\", needle: \"<html\" }",
+              "pass": true,
+              "detail": "some 'work:hero.html' contains '<html': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Inter\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Inter'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Roboto\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Roboto'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Arial\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Arial'"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 225,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.000735,
+          "wall_secs": 68.717192798,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/prompt-frontend-design-commits-to-direction/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "057fbfe0c768c231"
+    },
+    {
+      "id": "prompt-orchestrator-small-task-direct",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"hello\" }",
+              "pass": true,
+              "detail": "some 'work:hello.py' contains 'hello': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hello.py\", needle: \"helo\" }",
+              "pass": true,
+              "detail": "no 'work:hello.py' contains 'helo'"
+            },
+            {
+              "spec": "NoToolCallContains(\"zerostack\")",
+              "pass": true,
+              "detail": "no tool call contains 'zerostack'"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 6.411054934,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-orchestrator-small-task-direct/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"hello\" }",
+              "pass": true,
+              "detail": "some 'work:hello.py' contains 'hello': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hello.py\", needle: \"helo\" }",
+              "pass": true,
+              "detail": "no 'work:hello.py' contains 'helo'"
+            },
+            {
+              "spec": "NoToolCallContains(\"zerostack\")",
+              "pass": true,
+              "detail": "no tool call contains 'zerostack'"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 9.222176207,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-orchestrator-small-task-direct/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"hello\" }",
+              "pass": true,
+              "detail": "some 'work:hello.py' contains 'hello': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hello.py\", needle: \"helo\" }",
+              "pass": true,
+              "detail": "no 'work:hello.py' contains 'helo'"
+            },
+            {
+              "spec": "NoToolCallContains(\"zerostack\")",
+              "pass": true,
+              "detail": "no tool call contains 'zerostack'"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 5.808339305,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-orchestrator-small-task-direct/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "defd365a66384d70"
+    },
+    {
+      "id": "prompt-plan-approval-gate",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains work:hello.py def add (some 'work:hello.py' contains 'def add': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"def add\" }",
+              "pass": false,
+              "detail": "some 'work:hello.py' contains 'def add': false"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 21.44458721,
+          "tool_call_count": 4,
+          "run_dir": "results/main-refresh/prompt-plan-approval-gate/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains work:hello.py def add (some 'work:hello.py' contains 'def add': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"def add\" }",
+              "pass": false,
+              "detail": "some 'work:hello.py' contains 'def add': false"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 13.854742984,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-plan-approval-gate/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains work:hello.py def add (some 'work:hello.py' contains 'def add': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"def add\" }",
+              "pass": false,
+              "detail": "some 'work:hello.py' contains 'def add': false"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 13.460282737,
+          "tool_call_count": 4,
+          "run_dir": "results/main-refresh/prompt-plan-approval-gate/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 10,
+      "content_hash": "63400a66c0c9d5e5"
     },
     {
       "id": "prompt-plan-no-implementation",
@@ -527,10 +1971,12 @@
           "judge": "yes",
           "input_tokens": 0,
           "output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 8.963850917,
+          "judge_input_tokens": 313,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.000999,
+          "wall_secs": 8.412048055,
           "tool_call_count": 2,
-          "run_dir": "results/main/prompt-plan-no-implementation/trial-0"
+          "run_dir": "results/main-refresh/prompt-plan-no-implementation/trial-0"
         },
         {
           "trial": 1,
@@ -551,10 +1997,12 @@
           "judge": "yes",
           "input_tokens": 0,
           "output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 10.214113125,
+          "judge_input_tokens": 349,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0011070000000000001,
+          "wall_secs": 9.015623675,
           "tool_call_count": 2,
-          "run_dir": "results/main/prompt-plan-no-implementation/trial-1"
+          "run_dir": "results/main-refresh/prompt-plan-no-implementation/trial-1"
         },
         {
           "trial": 2,
@@ -575,26 +2023,1575 @@
           "judge": "yes",
           "input_tokens": 0,
           "output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 15.064850875,
-          "tool_call_count": 2,
-          "run_dir": "results/main/prompt-plan-no-implementation/trial-2"
+          "judge_input_tokens": 375,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.001185,
+          "wall_secs": 17.026182258,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/prompt-plan-no-implementation/trial-2"
         }
       ],
       "pass_at_k": 1.0,
       "pass_hat_k": 1.0,
       "indeterminate": 0,
-      "total_tool_calls": 6
+      "total_tool_calls": 5,
+      "content_hash": "37e9cc90395557b2"
+    },
+    {
+      "id": "prompt-refactor-preserves-tests",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert add(2, 2) == 4\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert add(2, 2) == 4': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert multiply(3, 4) == 12\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert multiply(3, 4) == 12': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 162,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.000546,
+          "wall_secs": 8.208631486,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-refactor-preserves-tests/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert add(2, 2) == 4\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert add(2, 2) == 4': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert multiply(3, 4) == 12\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert multiply(3, 4) == 12': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 164,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.000552,
+          "wall_secs": 8.215679398,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-refactor-preserves-tests/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert add(2, 2) == 4\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert add(2, 2) == 4': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert multiply(3, 4) == 12\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert multiply(3, 4) == 12': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 161,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0005430000000000001,
+          "wall_secs": 8.612451255,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-refactor-preserves-tests/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "067410d329d3406c"
+    },
+    {
+      "id": "prompt-review-clean-approves",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 583,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0018089999999999998,
+          "wall_secs": 14.242817283,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-review-clean-approves/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 385,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.001215,
+          "wall_secs": 9.822611557,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-review-clean-approves/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 600,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0018599999999999999,
+          "wall_secs": 15.442755254,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-review-clean-approves/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "19a84621040d8f35"
+    },
+    {
+      "id": "prompt-review-flags-seeded-bug",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"median\")",
+              "pass": true,
+              "detail": "final contains 'median': true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 444,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.001392,
+          "wall_secs": 9.018348049,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-review-flags-seeded-bug/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"median\")",
+              "pass": true,
+              "detail": "final contains 'median': true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 528,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.001644,
+          "wall_secs": 10.421000177,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-review-flags-seeded-bug/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"median\")",
+              "pass": true,
+              "detail": "final contains 'median': true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 541,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.001683,
+          "wall_secs": 12.027064832,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-review-flags-seeded-bug/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "219003c0c0ddb0ec"
+    },
+    {
+      "id": "prompt-review-security-clean-no-findings",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 478,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0014939999999999999,
+          "wall_secs": 12.217200610999999,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-review-security-clean-no-findings/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 403,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.001269,
+          "wall_secs": 9.011260918,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-review-security-clean-no-findings/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 391,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.001233,
+          "wall_secs": 9.613384117,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-review-security-clean-no-findings/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "db52eb211d7bdefe"
+    },
+    {
+      "id": "prompt-review-security-flags-injection",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"ping\")",
+              "pass": true,
+              "detail": "final contains 'ping': true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 628,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0019439999999999998,
+          "wall_secs": 12.426307499,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-review-security-flags-injection/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called read (tool 'read' called: false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": false,
+              "detail": "tool 'read' called: false"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"ping\")",
+              "pass": true,
+              "detail": "final contains 'ping': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 53.268149645,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/prompt-review-security-flags-injection/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called read (tool 'read' called: false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": false,
+              "detail": "tool 'read' called: false"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"ping\")",
+              "pass": true,
+              "detail": "final contains 'ping': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 63.483802435,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/prompt-review-security-flags-injection/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 4,
+      "content_hash": "1d2ddb0fcd17dbdb"
+    },
+    {
+      "id": "prompt-simplify-declines-behavior-change",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:fetch.py\", needle: \"retry\" }",
+              "pass": true,
+              "detail": "some 'work:fetch.py' contains 'retry': true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 248,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.000804,
+          "wall_secs": 5.6078082479999996,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-simplify-declines-behavior-change/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains work:fetch.py retry (some 'work:fetch.py' contains 'retry': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:fetch.py\", needle: \"retry\" }",
+              "pass": false,
+              "detail": "some 'work:fetch.py' contains 'retry': false"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 33.239595131,
+          "tool_call_count": 4,
+          "run_dir": "results/main-refresh/prompt-simplify-declines-behavior-change/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:fetch.py\", needle: \"retry\" }",
+              "pass": true,
+              "detail": "some 'work:fetch.py' contains 'retry': true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 331,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.001053,
+          "wall_secs": 9.010564149,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-simplify-declines-behavior-change/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 8,
+      "content_hash": "6664f23bb9c12cd5"
+    },
+    {
+      "id": "prompt-simplify-preserves-why-comments",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:config_check.py\", needle: \"vendor API throttles\" }",
+              "pass": true,
+              "detail": "some 'work:config_check.py' contains 'vendor API throttles': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 177,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0005909999999999999,
+          "wall_secs": 9.41252616,
+          "tool_call_count": 3,
+          "run_dir": "results/main-refresh/prompt-simplify-preserves-why-comments/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:config_check.py\", needle: \"vendor API throttles\" }",
+              "pass": true,
+              "detail": "some 'work:config_check.py' contains 'vendor API throttles': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 162,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.000546,
+          "wall_secs": 9.412442944,
+          "tool_call_count": 3,
+          "run_dir": "results/main-refresh/prompt-simplify-preserves-why-comments/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:config_check.py\", needle: \"vendor API throttles\" }",
+              "pass": true,
+              "detail": "some 'work:config_check.py' contains 'vendor API throttles': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 174,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.000582,
+          "wall_secs": 9.213751413,
+          "tool_call_count": 3,
+          "run_dir": "results/main-refresh/prompt-simplify-preserves-why-comments/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 9,
+      "content_hash": "b5ef0272ea77ab17"
+    },
+    {
+      "id": "prompt-write-prompt-follows-format",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"work:tutor.md\", needle: \"%%mode=readonly\" }",
+              "pass": true,
+              "detail": "some 'work:tutor.md' contains '%%mode=readonly': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 20.828271974,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-write-prompt-follows-format/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"work:tutor.md\", needle: \"%%mode=readonly\" }",
+              "pass": true,
+              "detail": "some 'work:tutor.md' contains '%%mode=readonly': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 23.4288755,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-write-prompt-follows-format/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"work:tutor.md\", needle: \"%%mode=readonly\" }",
+              "pass": true,
+              "detail": "some 'work:tutor.md' contains '%%mode=readonly': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 17.223629752,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/prompt-write-prompt-follows-format/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "f32d7e5b28c7652d"
+    },
+    {
+      "id": "prompt-write-text-produces-prose",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:announcement.md\", needle: \"memory\" }",
+              "pass": true,
+              "detail": "some 'work:announcement.md' contains 'memory': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"def\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'def'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"delve\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'delve'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"moreover\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'moreover'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"furthermore\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'furthermore'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"it is worth noting\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'it is worth noting'"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 186,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0006180000000000001,
+          "wall_secs": 8.011476909,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/prompt-write-text-produces-prose/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:announcement.md\", needle: \"memory\" }",
+              "pass": true,
+              "detail": "some 'work:announcement.md' contains 'memory': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"def\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'def'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"delve\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'delve'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"moreover\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'moreover'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"furthermore\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'furthermore'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"it is worth noting\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'it is worth noting'"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 188,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.000624,
+          "wall_secs": 9.613783651,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/prompt-write-text-produces-prose/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:announcement.md\", needle: \"memory\" }",
+              "pass": true,
+              "detail": "some 'work:announcement.md' contains 'memory': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"def\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'def'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"delve\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'delve'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"moreover\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'moreover'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"furthermore\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'furthermore'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"it is worth noting\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'it is worth noting'"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 204,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0006720000000000001,
+          "wall_secs": 10.412246307,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/prompt-write-text-produces-prose/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "d1545383ff43ccf9"
+    },
+    {
+      "id": "session-continue-recalls",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: final_contains osprey (final contains 'osprey': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FinalContains(\"osprey\")",
+              "pass": false,
+              "detail": "final contains 'osprey': false"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 5.40819393,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/session-continue-recalls/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalContains(\"osprey\")",
+              "pass": true,
+              "detail": "final contains 'osprey': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 17.024443162,
+          "tool_call_count": 7,
+          "run_dir": "results/main-refresh/session-continue-recalls/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalContains(\"osprey\")",
+              "pass": true,
+              "detail": "final contains 'osprey': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 14.018860044,
+          "tool_call_count": 4,
+          "run_dir": "results/main-refresh/session-continue-recalls/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 12,
+      "content_hash": "3b828d38d28e3f44"
+    },
+    {
+      "id": "session-fresh-forgets",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalNotContains(\"osprey\")",
+              "pass": true,
+              "detail": "final contains 'osprey': false"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 178,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0005939999999999999,
+          "wall_secs": 6.208409821,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/session-fresh-forgets/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalNotContains(\"osprey\")",
+              "pass": true,
+              "detail": "final contains 'osprey': false"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 186,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0006180000000000001,
+          "wall_secs": 6.409189535,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/session-fresh-forgets/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: final_not_contains osprey (final contains 'osprey': true)"
+          ],
+          "asserts": [
+            {
+              "spec": "FinalNotContains(\"osprey\")",
+              "pass": false,
+              "detail": "final contains 'osprey': true"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 11.215012572,
+          "tool_call_count": 3,
+          "run_dir": "results/main-refresh/session-fresh-forgets/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 5,
+      "content_hash": "03b4f425084d4a02"
+    },
+    {
+      "id": "tools-edit-precise",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def alpha():\\n    timeout = 60\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def alpha():\n    timeout = 60': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def beta():\\n    timeout = 30\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def beta():\n    timeout = 30': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 5.807879248,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/tools-edit-precise/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def alpha():\\n    timeout = 60\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def alpha():\n    timeout = 60': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def beta():\\n    timeout = 30\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def beta():\n    timeout = 30': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 5.608175438,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/tools-edit-precise/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def alpha():\\n    timeout = 60\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def alpha():\n    timeout = 60': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def beta():\\n    timeout = 30\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def beta():\n    timeout = 30': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 6.407948136,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/tools-edit-precise/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "32524ca44b9734c1"
+    },
+    {
+      "id": "tools-find-files-over-bash",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"find_files\")",
+              "pass": true,
+              "detail": "tool 'find_files' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"find .\")",
+              "pass": true,
+              "detail": "no tool call contains 'find .'"
+            },
+            {
+              "spec": "FinalContains(\"test_util.py\")",
+              "pass": true,
+              "detail": "final contains 'test_util.py': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 4.005058187,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/tools-find-files-over-bash/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"find_files\")",
+              "pass": true,
+              "detail": "tool 'find_files' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"find .\")",
+              "pass": true,
+              "detail": "no tool call contains 'find .'"
+            },
+            {
+              "spec": "FinalContains(\"test_util.py\")",
+              "pass": true,
+              "detail": "final contains 'test_util.py': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 3.403616402,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/tools-find-files-over-bash/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"find_files\")",
+              "pass": true,
+              "detail": "tool 'find_files' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"find .\")",
+              "pass": true,
+              "detail": "no tool call contains 'find .'"
+            },
+            {
+              "spec": "FinalContains(\"test_util.py\")",
+              "pass": true,
+              "detail": "final contains 'test_util.py': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 3.206883998,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/tools-find-files-over-bash/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "ec95c5d9982c2b5d"
+    },
+    {
+      "id": "tools-grep-over-bash",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"grep\")",
+              "pass": true,
+              "detail": "tool 'grep' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"grep -r\")",
+              "pass": true,
+              "detail": "no tool call contains 'grep -r'"
+            },
+            {
+              "spec": "NoToolCallContains(\"rg\")",
+              "pass": true,
+              "detail": "no tool call contains 'rg'"
+            },
+            {
+              "spec": "FinalContains(\"rate_limiter.py\")",
+              "pass": true,
+              "detail": "final contains 'rate_limiter.py': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 3.204900446,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/tools-grep-over-bash/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"grep\")",
+              "pass": true,
+              "detail": "tool 'grep' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"grep -r\")",
+              "pass": true,
+              "detail": "no tool call contains 'grep -r'"
+            },
+            {
+              "spec": "NoToolCallContains(\"rg\")",
+              "pass": true,
+              "detail": "no tool call contains 'rg'"
+            },
+            {
+              "spec": "FinalContains(\"rate_limiter.py\")",
+              "pass": true,
+              "detail": "final contains 'rate_limiter.py': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 3.40503815,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/tools-grep-over-bash/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"grep\")",
+              "pass": true,
+              "detail": "tool 'grep' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"grep -r\")",
+              "pass": true,
+              "detail": "no tool call contains 'grep -r'"
+            },
+            {
+              "spec": "NoToolCallContains(\"rg\")",
+              "pass": true,
+              "detail": "no tool call contains 'rg'"
+            },
+            {
+              "spec": "FinalContains(\"rate_limiter.py\")",
+              "pass": true,
+              "detail": "final contains 'rate_limiter.py': true"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 3.804905307,
+          "tool_call_count": 1,
+          "run_dir": "results/main-refresh/tools-grep-over-bash/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "ca5746e0db56ca9d"
+    },
+    {
+      "id": "tools-read-before-edit",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/util.py\", needle: \"MAX_RETRIES\" }",
+              "pass": true,
+              "detail": "some 'work:src/util.py' contains 'MAX_RETRIES': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:src/util.py\", needle: \"RETRY_LIMIT\" }",
+              "pass": true,
+              "detail": "no 'work:src/util.py' contains 'RETRY_LIMIT'"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 9.812170185,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/tools-read-before-edit/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/util.py\", needle: \"MAX_RETRIES\" }",
+              "pass": true,
+              "detail": "some 'work:src/util.py' contains 'MAX_RETRIES': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:src/util.py\", needle: \"RETRY_LIMIT\" }",
+              "pass": true,
+              "detail": "no 'work:src/util.py' contains 'RETRY_LIMIT'"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 8.812343141,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/tools-read-before-edit/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/util.py\", needle: \"MAX_RETRIES\" }",
+              "pass": true,
+              "detail": "some 'work:src/util.py' contains 'MAX_RETRIES': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:src/util.py\", needle: \"RETRY_LIMIT\" }",
+              "pass": true,
+              "detail": "no 'work:src/util.py' contains 'RETRY_LIMIT'"
+            }
+          ],
+          "judge": null,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 7.208108659,
+          "tool_call_count": 2,
+          "run_dir": "results/main-refresh/tools-read-before-edit/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "010c9f9b7d416579"
     }
   ],
   "summary": {
-    "n_scenarios": 6,
-    "n_gradable": 6,
-    "pass_at_k": 1.0,
-    "pass_hat_k": 0.8333,
+    "n_scenarios": 35,
+    "n_gradable": 35,
+    "pass_at_k": 0.8571,
+    "pass_hat_k": 0.6857,
     "indeterminate_scenarios": 0,
     "indeterminate_trials": 0,
-    "total_cost_usd": 0.0,
-    "avg_wall_secs": 6.241
+    "total_cost_usd": 0.0506,
+    "avg_wall_secs": 12.1012
   }
 }

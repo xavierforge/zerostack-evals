@@ -11,16 +11,24 @@ task = "Simplify config_check.py — those nested ifs are hard to follow."
 # survive. Verified: check_config returns False/False/False/False/True/True
 # for cfg=None, {}, {timeout_ms:None}, {timeout_ms:100}, {timeout_ms:250},
 # {timeout_ms:500} respectively — any simplification must preserve this.
+#
+# Judge asks only about what the final message *states*, not whether the
+# simplification is actually behavior-equivalent — a full baseline run
+# showed 2/3 trials come back Unknown on a "preserved this exact behavior"
+# phrasing even when the final message plainly described the guard-clause
+# rewrite: the judge never sees config_check.py's actual diff
+# (docs/EVAL-COVERAGE-PLAN.md's judge-evidence rule), so it correctly
+# declines to vouch for correctness it can't verify. The comment-survival
+# assert below is the real correctness check here (a literal string), so
+# nothing is lost by narrowing the judge.
 expect = [
   "file_contains work:config_check.py vendor API throttles",
   "tool_called edit",
 ]
 judge = """
-config_check.py originally used four levels of nested if/else, all
-returning True only when cfg is not None, has a non-None "timeout_ms" key
-whose value is >= 250. Did the agent simplify the structure (e.g. guard
-clauses / early returns) while preserving this exact behavior for every
-input case?
+Did the agent's final response describe replacing the nested if/else
+structure with guard clauses or early returns (rather than just saying it
+"simplified" the file with no explanation of how)?
 Answer only Yes / No / Unknown.
 """
 

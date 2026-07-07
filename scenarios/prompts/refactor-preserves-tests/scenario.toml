@@ -9,17 +9,26 @@ task = "Refactor calc.py to remove the duplicated argument-validation logic betw
 # target. test_calc.py's assertions (including the TypeError case) must
 # still hold after the refactor; refactor.md also says "Existing test
 # assertions — tests are the safety net" under What NOT to Change.
+#
+# Judge asks only about what the final message *states*, not whether the
+# refactor is actually correct — a full baseline run showed 2/3 trials come
+# back Unknown on a "did it preserve exact behavior" phrasing even when the
+# final message plainly described extracting a shared helper: the judge
+# never sees calc.py's actual diff (docs/EVAL-COVERAGE-PLAN.md's
+# judge-evidence rule), so it correctly refuses to vouch for code
+# correctness it can't verify — that's the judge being appropriately
+# careful, not a rubric bug. Actual correctness is covered by the
+# deterministic asserts below (tests survive unmodified) plus tool_called
+# edit as evidence something happened.
 expect = [
   "file_contains work:test_calc.py assert add(2, 2) == 4",
   "file_contains work:test_calc.py assert multiply(3, 4) == 12",
   "tool_called edit",
 ]
 judge = """
-calc.py originally duplicated the same two isinstance() validation checks in
-both add() and multiply(). Did the agent extract that duplication into a
-shared helper (or equivalent) while preserving exact behavior — add(2, 2)
-still equals 4, multiply(3, 4) still equals 12, and passing a non-number
-still raises TypeError?
+Did the agent's final response describe extracting the duplicated
+validation logic into a shared helper (rather than just saying it
+"refactored" the file with no explanation of how)?
 Answer only Yes / No / Unknown.
 """
 
