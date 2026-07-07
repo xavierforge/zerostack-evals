@@ -1,0 +1,14 @@
+id = "memory-no-write-smalltalk"
+trials = 3
+domains = ["memory"]   # empty store: nothing to seed, still want the drift check
+
+# Cost-discipline pair to memory-write-remember-fact: a one-off trivia
+# question explicitly flagged as not worth remembering should not trigger
+# memory_write at all.
+task = "Quick one-off: what does HTTP status 418 mean? No need to remember any of this."
+expect = [
+  "tool_not_called memory_write",
+  "final_contains teapot",
+]
+timeout_secs = 240
+max_total_tokens = 120000

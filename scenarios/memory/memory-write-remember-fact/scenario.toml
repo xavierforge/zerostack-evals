@@ -1,0 +1,17 @@
+id = "memory-write-remember-fact"
+trials = 3
+domains = ["memory"]   # empty store: nothing to seed, still want the drift check
+
+# memory_write's own tool description (src/extras/memory/mod.rs): "target=
+# long_term writes curated facts/preferences/decisions to MEMORY.md (always
+# loaded next session) ... Prefer long_term for things that should always
+# be remembered." A durable fact stated with "remember this for all future
+# sessions" is exactly that case, and lands at
+# <config>/agent/memory/MEMORY.md (domains/memory.rs's layout_root).
+task = "Remember this for all future sessions: our API rate limit is 450 requests per minute."
+expect = [
+  "tool_called memory_write",
+  "file_contains config:agent/memory/MEMORY.md 450",
+]
+max_total_tokens = 120000
+timeout_secs = 240

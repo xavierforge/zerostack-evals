@@ -1,0 +1,21 @@
+id = "memory-update-not-duplicate"
+trials = 3
+task = "Our API rate limit changed to 900 requests per minute — update your memory note about it."
+
+# Seeds an existing note at the exact path domains/memory.rs::expand
+# computes (<config>/agent/memory/projects/<slug>/notes/rate-limit.md).
+# Checking that path *specifically* now contains "900" is the load-bearing
+# assert for "updated the existing note, not a duplicate": if the agent
+# instead wrote a new/differently-named note, this exact file would still
+# read the stale "450" and the assert would fail — no judge needed, this is
+# a literal-string check per docs/EVAL-COVERAGE-PLAN.md's judge-evidence
+# rule (the judge can't see file content anyway).
+expect = [
+  "tool_called memory_write",
+  "file_contains config:agent/memory/projects/*/notes/rate-limit.md 900",
+]
+timeout_secs = 240
+max_total_tokens = 120000
+
+[seed.memory]
+notes = [ { name = "rate-limit", file = "_fixtures/rate-limit.md" } ]
