@@ -1,0 +1,19 @@
+id = "mcp-uses-provided-tool"
+trials = 3
+
+# McpTool::name() (src/extras/mcp/tool.rs) registers under the bare tool
+# name with no server-name prefix, so `tool_called lookup_ticket` works
+# directly once domains/mcp.rs's expand() has wired the mock server into
+# the seeded config.toml (verified live 2026-07-08 against zerostack
+# v1.6.2 — see mcp.rs's module doc). The tool is the only source of truth
+# for ticket status; the task tells the agent to use it.
+task = "What's the status of ticket ZS-101? Use the ticket lookup tool to find out."
+expect = [
+  "tool_called lookup_ticket",
+  "final_contains flickers",
+]
+
+[seed.mcp]
+servers = [
+  { name = "tickets", script = "_fixtures/mock_mcp_server.py" },
+]

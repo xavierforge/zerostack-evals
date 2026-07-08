@@ -31,6 +31,7 @@ use crate::backend::RunRoots;
 use crate::scenario::Scenario;
 use crate::seed::Placement;
 
+pub mod mcp;
 pub mod memory;
 pub mod subagents;
 
@@ -39,7 +40,7 @@ pub mod subagents;
 /// domains apply to this scenario," kept as one list so both routes stay in
 /// sync and a typo'd name is a load-time error, not a silently-skipped
 /// drift check.
-const KNOWN_DOMAINS: &[&str] = &["memory", "subagents"];
+const KNOWN_DOMAINS: &[&str] = &["memory", "subagents", "mcp"];
 
 fn wants(sc: &Scenario, name: &str) -> bool {
     sc.domains.iter().any(|d| d == name)
@@ -60,6 +61,9 @@ pub fn validate(sc: &Scenario) -> Result<()> {
     if let Some(mem) = &sc.seed.memory {
         memory::validate(mem, sc)?;
     }
+    if let Some(mcp) = &sc.seed.mcp {
+        mcp::validate(mcp, sc)?;
+    }
     Ok(())
 }
 
@@ -69,6 +73,9 @@ pub fn expand(sc: &Scenario, ctx: &RunRoots) -> Result<Vec<Placement>> {
     let mut out = Vec::new();
     if let Some(mem) = &sc.seed.memory {
         out.extend(memory::expand(mem, sc, ctx)?);
+    }
+    if let Some(mcp) = &sc.seed.mcp {
+        out.extend(mcp::expand(mcp, sc, ctx)?);
     }
     Ok(out)
 }
@@ -89,6 +96,12 @@ pub fn verify(sc: &Scenario, roots: &RunRoots, zslogs: &[PathBuf]) -> Result<(),
     // is a deliberate no-op rather than a real drift check.
     if wants(sc, "subagents") {
         subagents::verify(roots, zslogs)?;
+    }
+    // mcp has no "empty store" case (a tool can't exist without a
+    // configured server), so every mcp scenario declares [seed.mcp] and
+    // that presence alone is the dispatch route — see mcp.rs's module doc.
+    if let Some(mcp) = &sc.seed.mcp {
+        mcp::verify(mcp, zslogs)?;
     }
     Ok(())
 }

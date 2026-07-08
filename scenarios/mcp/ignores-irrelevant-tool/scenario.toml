@@ -1,0 +1,18 @@
+id = "mcp-ignores-irrelevant-tool"
+trials = 3
+
+# Calibration pair with mcp-uses-provided-tool, same mock server seeded and
+# therefore available — the task has nothing to do with tickets, so a
+# well-behaved agent should never call the tool just because it exists.
+# `final_contains 144` is the vacuous-pass guard: without it, an agent that
+# hung or refused to answer would also satisfy tool_not_called.
+task = "What is 12*12? Just answer directly, no need for any tools."
+expect = [
+  "tool_not_called lookup_ticket",
+  "final_contains 144",
+]
+
+[seed.mcp]
+servers = [
+  { name = "tickets", script = "_fixtures/mock_mcp_server.py" },
+]

@@ -141,6 +141,8 @@ pub struct LoopCfg {
 pub struct SeedSugar {
     #[serde(default)]
     pub memory: Option<crate::domains::memory::MemorySeed>,
+    #[serde(default)]
+    pub mcp: Option<crate::domains::mcp::McpSeed>,
 }
 
 /// A task is one user message or a scripted sequence of them.

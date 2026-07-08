@@ -105,3 +105,12 @@ Subagent evals (`scenarios/subagents/`) are also live, backed by
 `crates/zseval/src/domains/subagents.rs` — a leaner variant of the same
 pattern, since the `task` tool has no seeding surface and (as of this
 writing) no reliable drift-check evidence in zerostack's own logs.
+MCP evals (`scenarios/mcp/`) are also live, backed by
+`crates/zseval/src/domains/mcp.rs`, unblocked once zerostack v1.6.2 started
+connecting configured MCP servers in headless mode (upstream R2). A
+dependency-free `python3` mock stdio server stands in for a real MCP
+server; seeding rewrites the run's `config.toml` in place (an
+`[mcp_servers.<name>]` table plus forcing off zerostack's
+default-enabled "Exa Web Search" server, which otherwise silently adds a
+second, real, network-backed tool to every scenario — see the module's
+own doc for the trace evidence).

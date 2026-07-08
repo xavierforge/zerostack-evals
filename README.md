@@ -9,8 +9,9 @@ built in.
 
 Coverage spans zerostack's named prompt modes (`ask`, `code`, `plan`, …),
 mostly checkable with deterministic asserts; its `memory` subsystem
-(`scenarios/memory/`); and its subagent delegation via the `task` tool
-(`scenarios/subagents/`) — each subsystem's layout knowledge lives in its
+(`scenarios/memory/`); its subagent delegation via the `task` tool
+(`scenarios/subagents/`); and its MCP tool integration via a mock stdio
+server (`scenarios/mcp/`) — each subsystem's layout knowledge lives in its
 own quarantined `domains::` module (see "Evaluating another subsystem"
 below) — the core (scenario/backend/seed/asserts/verdict) stays
 subsystem-agnostic.
@@ -227,6 +228,22 @@ deliberate no-op rather than a drift check; scenarios opt in with
 `domains = ["subagents"]` alone, and vacuous-pass protection comes entirely
 from pairing `tool_called`/`tool_not_called task` with a positive assert in
 the scenario itself. See the module's own doc for the full investigation.
+
+`domains::mcp` (`scenarios/mcp/`) evaluates whether the agent uses an
+MCP-provided tool when it should and leaves it alone when it shouldn't, via
+a dependency-free `python3` stdio server fixture
+(`scenarios/mcp/_fixtures/mock_mcp_server.py`, exposing one tool,
+`lookup_ticket`). `[seed.mcp]` sugar rewrites the run's already-seeded
+`config.toml` in place to add an `[mcp_servers.<name>]` table — the one
+domain so far whose seeding isn't a file copy, since MCP server config is a
+field inside `config.toml`, not a separate file. It also force-disables
+zerostack's default-enabled "Exa Web Search" MCP server
+(`enable-exa-mcp = false`), confirmed live to otherwise connect
+unconditionally and add a second, real, network-backed tool alongside the
+mock one — see the module's own doc for the exact trace evidence. `verify`
+greps turn zslogs for `Connected to MCP server '{name}'` per seeded server,
+the same drift-check shape as `memory::verify`. Requires zerostack's `mcp`
+feature (in `default` features as of this writing).
 
 ## Iterating on prompts
 
