@@ -33,6 +33,29 @@ fn scenarios_root() -> PathBuf {
 }
 
 #[test]
+fn run_rejects_the_removed_model_flag() {
+    // `--model` was a temporary override that lived in no file, so a report's
+    // recorded target couldn't reproduce the run. A target file is now the
+    // only way to say what is being evaluated: the flag must fail loudly
+    // (usage error) rather than be silently accepted or ignored.
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            scenarios_root().to_str().unwrap(),
+            "--model",
+            "claude-opus-4-8",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("unknown flag '--model'"),
+        "stderr: {stderr}"
+    );
+}
+
+#[test]
 fn transcript_parses_zerostack_session_schema() {
     let t = transcript::parse_file(&fixture("session-search-then-read.json")).unwrap();
     assert_eq!(t.tool_calls.len(), 2);
@@ -547,7 +570,6 @@ fn loop_scenario_loads_and_grades_from_iteration_records_via_mock() {
         fixture: fixture_dir.clone(),
     };
     let opts = RunOptions {
-        model: None,
         target: None,
         trials_override: Some(1),
         tag: "loop-mock".into(),
@@ -671,7 +693,6 @@ fn end_to_end_mock_run_produces_pass_and_report() {
         fixture: fixture("session-ask-readonly.json"),
     };
     let opts = RunOptions {
-        model: None,
         target: None,
         trials_override: Some(2),
         tag: "e2e".into(),
@@ -714,7 +735,6 @@ fn jobs_greater_than_one_grades_every_trial_and_keeps_them_in_order() {
         fixture: fixture("session-ask-readonly.json"),
     };
     let opts = RunOptions {
-        model: None,
         target: None,
         trials_override: Some(6),
         tag: "jobs".into(),
@@ -766,7 +786,6 @@ fn jobs_warm_up_runs_trial_zero_solo_before_the_parallel_fan_out() {
         fn run(
             &self,
             sc: &Scenario,
-            model: Option<&str>,
             run_dir: &Path,
         ) -> anyhow::Result<zseval::backend::RunArtifacts> {
             let trial: usize = run_dir
@@ -779,7 +798,7 @@ fn jobs_warm_up_runs_trial_zero_solo_before_the_parallel_fan_out() {
             // Give the other workers a real chance to start (and fail this
             // test) if the warm-up ordering ever regresses to a plain race.
             std::thread::sleep(std::time::Duration::from_millis(20));
-            let out = self.inner.run(sc, model, run_dir);
+            let out = self.inner.run(sc, run_dir);
             self.log.lock().unwrap().push(('e', trial));
             out
         }
@@ -795,7 +814,6 @@ fn jobs_warm_up_runs_trial_zero_solo_before_the_parallel_fan_out() {
         log: Mutex::new(Vec::new()),
     };
     let opts = RunOptions {
-        model: None,
         target: None,
         trials_override: Some(4),
         tag: "jobs-warmup".into(),
@@ -876,7 +894,6 @@ judge = "Did the agent answer the question?"
             fixture: fixture("session-ask-readonly.json"),
         };
         let opts = RunOptions {
-            model: None,
             target: None,
             trials_override: Some(1),
             tag: "j".into(),
@@ -942,12 +959,7 @@ impl zseval::backend::AgentBackend for PartialFailureBackend {
     fn name(&self) -> &str {
         "partial-failure"
     }
-    fn run(
-        &self,
-        _sc: &Scenario,
-        _model: Option<&str>,
-        run_dir: &Path,
-    ) -> anyhow::Result<zseval::backend::RunArtifacts> {
+    fn run(&self, _sc: &Scenario, run_dir: &Path) -> anyhow::Result<zseval::backend::RunArtifacts> {
         let sessions = run_dir.join("data").join("sessions");
         std::fs::create_dir_all(&sessions).unwrap();
         std::fs::write(
@@ -984,7 +996,6 @@ fn indeterminate_trial_recovers_cost_already_spent_before_the_failure() {
         partial_cost: 0.0275,
     };
     let opts = RunOptions {
-        model: None,
         target: None,
         trials_override: Some(1),
         tag: "t".into(),
@@ -1029,7 +1040,6 @@ fn regrade_regrades_existing_artifacts_without_driving_the_agent() {
         fixture: fixture("session-ask-readonly.json"),
     };
     let opts = RunOptions {
-        model: None,
         target: None,
         trials_override: Some(1),
         tag: "orig".into(),

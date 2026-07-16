@@ -19,9 +19,6 @@ Swap targets to evaluate a different provider/model, then `compare` the reports:
     zseval run scenarios/prompts --target targets/openrouter.toml --tag b --trials 3
     zseval compare results/a.json results/b.json
 
-`--model M` overrides a target's `model` for a quick one-off without editing the
-file.
-
 ## Built-in providers
 
 zerostack ships providers `openai`, `anthropic`, `gemini`, `ollama`,

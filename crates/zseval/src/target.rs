@@ -28,11 +28,9 @@ pub fn peek(path: &Path) -> (Option<String>, Option<String>) {
 
 /// Human-identifiable label for what a run evaluates against:
 /// `"<provider>/<model>"`, just one of the two, or `"provider-default"` when
-/// neither is known. `model_override` (an explicit `--model`) always wins
-/// over the target file's own model.
-pub fn describe(target: Option<&Path>, model_override: Option<&str>) -> String {
-    let (provider, target_model) = target.map(peek).unwrap_or((None, None));
-    let model = model_override.map(String::from).or(target_model);
+/// neither is known (no target: zerostack uses its own configured provider).
+pub fn describe(target: Option<&Path>) -> String {
+    let (provider, model) = target.map(peek).unwrap_or((None, None));
     match (provider, model) {
         (Some(p), Some(m)) => format!("{p}/{m}"),
         (Some(p), None) => p,
@@ -79,32 +77,12 @@ mod tests {
             &dir,
             "provider = \"anthropic\"\nmodel = \"claude-sonnet-4-6\"\n",
         );
-        assert_eq!(describe(Some(&p), None), "anthropic/claude-sonnet-4-6");
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    #[test]
-    fn describe_prefers_model_override_over_target_model() {
-        let dir = std::env::temp_dir().join(format!("zseval-target-test3-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let p = write_target(
-            &dir,
-            "provider = \"anthropic\"\nmodel = \"claude-sonnet-4-6\"\n",
-        );
-        assert_eq!(
-            describe(Some(&p), Some("claude-opus-4-8")),
-            "anthropic/claude-opus-4-8"
-        );
+        assert_eq!(describe(Some(&p)), "anthropic/claude-sonnet-4-6");
         std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
     fn describe_falls_back_to_provider_default_when_nothing_known() {
-        assert_eq!(describe(None, None), "provider-default");
-    }
-
-    #[test]
-    fn describe_uses_model_override_alone_when_no_target() {
-        assert_eq!(describe(None, Some("claude-opus-4-8")), "claude-opus-4-8");
+        assert_eq!(describe(None), "provider-default");
     }
 }
