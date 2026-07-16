@@ -111,7 +111,9 @@ fn rewrite_config(text: &str, servers: &[(String, PathBuf)]) -> Result<String> {
         .entry("mcp_servers".to_string())
         .or_insert_with(|| toml::Value::Table(Default::default()))
         .as_table_mut()
-        .ok_or_else(|| anyhow::anyhow!("existing 'mcp_servers' key in config.toml is not a table"))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!("existing 'mcp_servers' key in config.toml is not a table")
+        })?;
 
     for (name, script) in servers {
         let mut entry = toml::value::Table::new();
@@ -159,8 +161,8 @@ pub fn expand(mcp: &McpSeed, sc: &Scenario, ctx: &RunRoots) -> Result<Vec<Placem
         resolved.push((s.name.clone(), script));
     }
 
-    let rewritten =
-        rewrite_config(&text, &resolved).with_context(|| format!("{}: expand [seed.mcp]", sc.id))?;
+    let rewritten = rewrite_config(&text, &resolved)
+        .with_context(|| format!("{}: expand [seed.mcp]", sc.id))?;
     std::fs::write(&config_path, rewritten)
         .with_context(|| format!("{}: write updated {}", sc.id, config_path.display()))?;
 
@@ -178,6 +180,7 @@ pub fn expand(mcp: &McpSeed, sc: &Scenario, ctx: &RunRoots) -> Result<Vec<Placem
 ///     mock server itself failed to start (check `turn-*.stderr` for the
 ///     `MCP server '{name}' not connected: …` notice `connect_headless_mcp`
 ///     prints on failure).
+///
 /// Every failure mode returns `Err` with a message naming the fix, so the
 /// runner grades Indeterminate instead of blaming the agent.
 pub fn verify(mcp: &McpSeed, zslogs: &[PathBuf]) -> Result<(), String> {
@@ -214,7 +217,10 @@ mod tests {
         let text = "provider = \"anthropic\"\nmodel = \"claude-sonnet-4-6\"\n";
         let out = rewrite_config(
             text,
-            &[("tickets".to_string(), PathBuf::from("/abs/mock_mcp_server.py"))],
+            &[(
+                "tickets".to_string(),
+                PathBuf::from("/abs/mock_mcp_server.py"),
+            )],
         )
         .unwrap();
         assert!(out.contains("enable-exa-mcp = false"), "{out}");
@@ -226,9 +232,13 @@ mod tests {
 
     #[test]
     fn rewrite_config_preserves_existing_mcp_servers() {
-        let text = "provider = \"anthropic\"\n\n[mcp_servers.other]\ncommand = \"foo\"\nargs = []\n";
-        let out = rewrite_config(text, &[("tickets".to_string(), PathBuf::from("/abs/mock.py"))])
-            .unwrap();
+        let text =
+            "provider = \"anthropic\"\n\n[mcp_servers.other]\ncommand = \"foo\"\nargs = []\n";
+        let out = rewrite_config(
+            text,
+            &[("tickets".to_string(), PathBuf::from("/abs/mock.py"))],
+        )
+        .unwrap();
         assert!(out.contains("[mcp_servers.other]"), "{out}");
         assert!(out.contains("[mcp_servers.tickets]"), "{out}");
     }
@@ -292,7 +302,7 @@ mod tests {
                 script: PathBuf::from("mock.py"),
             }],
         };
-        assert!(verify(&mcp, &[log.clone()]).is_ok());
+        assert!(verify(&mcp, std::slice::from_ref(&log)).is_ok());
         std::fs::remove_dir_all(&dir).ok();
     }
 

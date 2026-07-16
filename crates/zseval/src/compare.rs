@@ -365,11 +365,19 @@ mod exit_code_tests {
         // regressed.
         let base = report(vec![ScenarioResult::from_trials(
             "s".into(),
-            vec![trial(Final::Pass, 0), trial(Final::Pass, 0), trial(Final::Pass, 0)],
+            vec![
+                trial(Final::Pass, 0),
+                trial(Final::Pass, 0),
+                trial(Final::Pass, 0),
+            ],
         )]);
         let cand = report(vec![ScenarioResult::from_trials(
             "s".into(),
-            vec![trial(Final::Pass, 0), trial(Final::Pass, 0), trial(Final::Pass, 0)],
+            vec![
+                trial(Final::Pass, 0),
+                trial(Final::Pass, 0),
+                trial(Final::Pass, 0),
+            ],
         )]);
         let c = compare(&base, &cand, 0.05);
         assert_eq!(c.low_resolution, vec!["s".to_string()]);
@@ -382,11 +390,19 @@ mod exit_code_tests {
         // already tighter than what one flipped trial could trigger.
         let base = report(vec![ScenarioResult::from_trials(
             "s".into(),
-            vec![trial(Final::Pass, 0), trial(Final::Pass, 0), trial(Final::Pass, 0)],
+            vec![
+                trial(Final::Pass, 0),
+                trial(Final::Pass, 0),
+                trial(Final::Pass, 0),
+            ],
         )]);
         let cand = report(vec![ScenarioResult::from_trials(
             "s".into(),
-            vec![trial(Final::Pass, 0), trial(Final::Pass, 0), trial(Final::Pass, 0)],
+            vec![
+                trial(Final::Pass, 0),
+                trial(Final::Pass, 0),
+                trial(Final::Pass, 0),
+            ],
         )]);
         let c = compare(&base, &cand, 0.4);
         assert!(c.low_resolution.is_empty());
