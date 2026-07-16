@@ -89,10 +89,10 @@ about the agent is re-run.
 
 ## How it drives zerostack
 
-Only public surfaces: `-p/--print` headless turns (`--continue` to resume, or a
-fresh session per turn), `--load-prompt <name>` to select the prompt under test,
-`--yolo`, and `--model` only when you pass one; per-run isolation via
-`ZS_DATA_DIR` / `ZS_CONFIG_DIR` / `HOME` / `TMPDIR`; transcripts read from
+Only public surfaces: `-p/--print` headless turns (`--continue` to resume, or
+a fresh session per turn), `--load-prompt <name>` to select the prompt under
+test, and `--yolo`; per-run isolation via `ZS_DATA_DIR` / `ZS_CONFIG_DIR` /
+`HOME` / `TMPDIR`; transcripts read from
 `$ZS_DATA_DIR/sessions/*.json`. If zerostack's session schema changes, adapt
 `src/transcript.rs`; an unreadable schema grades as *indeterminate*, never as an
 agent failure.
@@ -263,10 +263,9 @@ those are excluded from the pass rates and never counted as regressions.
 ## What a report identifies
 
 Every `report.json` records what it evaluated against (`"model"`:
-`"<provider>/<model>"`, resolved from `--target`'s config.toml plus any
-`--model` override — `"provider-default"` when neither is known) and, per
-scenario, a content hash of that scenario's `scenario.toml`. `zseval compare`
-uses both:
+`"<provider>/<model>"`, resolved from `--target`'s config.toml, or
+`"provider-default"` when no target was given) and, per scenario, a content
+hash of that scenario's `scenario.toml`. `zseval compare` uses both:
 
 - **Different targets** — comparing a baseline evaluated against one
   provider/model to a candidate evaluated against another prints a warning
@@ -296,7 +295,7 @@ causes: an invalid model string for your provider, or a missing API key.
 Reproduce outside the harness:
 
     ZS_DATA_DIR=$(mktemp -d) $ZS_BIN -p --yolo --no-color \
-      --model <model> --log-level debug "ping"
+      --log-level debug "ping"
 
 **During long turns** — a heartbeat prints every 15s; `--verbose` prefixes
 every agent output line with `[zs:<turn>:out|err]`.

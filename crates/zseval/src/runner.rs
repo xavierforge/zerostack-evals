@@ -12,8 +12,6 @@ use crate::transcript::Transcript;
 use crate::verdict::{Final, Report, ScenarioResult, TrialResult};
 
 pub struct RunOptions {
-    /// None = don't force a model; zerostack uses its configured default.
-    pub model: Option<String>,
     /// The target config.toml seeded into each run (see `backend::ZsCli`) —
     /// kept here too so the report can record what was actually evaluated
     /// (`target::describe`), independent of whichever backend is in use.
@@ -69,7 +67,7 @@ pub fn run_suite(
 
     let report = Report::build(
         opts.tag.clone(),
-        crate::target::describe(opts.target.as_deref(), opts.model.as_deref()),
+        crate::target::describe(opts.target.as_deref()),
         backend.name().to_string(),
         opts.trials_override.unwrap_or(0),
         results,
@@ -187,7 +185,7 @@ fn run_trial(
 ) -> TrialResult {
     // 1. Drive the agent. Backend errors = indeterminate (we never got a
     //    gradable transcript), not fail.
-    let artifacts = match backend.run(sc, opts.model.as_deref(), run_dir) {
+    let artifacts = match backend.run(sc, run_dir) {
         Ok(a) => a,
         Err(e) => {
             return indeterminate(trial, run_dir, format!("backend: {e:#}"));

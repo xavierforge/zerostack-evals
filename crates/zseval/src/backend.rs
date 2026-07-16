@@ -3,8 +3,7 @@
 //! `ZsCli` drives the real `zerostack` binary over its public surface
 //! (verified against zerostack source 2026-07-06):
 //!   - `-p/--print` headless single-shot, `-c/--continue` to resume,
-//!     `--model`, `--yolo` (skip permission prompts), `--no-color`,
-//!     positional message.
+//!     `--yolo` (skip permission prompts), `--no-color`, positional message.
 //!   - `--pure-stdout` ("With -p: also print tool calls/results to stdout")
 //!     is the only channel that reveals tool calls at all in headless mode:
 //!     zerostack's session persistence only records `tool_call`/`tool_result`
@@ -101,7 +100,6 @@ fn tee(
 fn spawn_and_wait(
     mut cmd: Command,
     bin: &Path,
-    model: Option<&str>,
     repro_flag: &str,
     overall_started: Instant,
     timeout: Duration,
@@ -146,7 +144,7 @@ fn spawn_and_wait(
                          --- tail of {} ---\n{}\n\
                          --- tail of {} ---\n{}\n\
                          hint: rerun with --verbose, or reproduce manually:\n  \
-                         ZS_DATA_DIR=$(mktemp -d) {} {repro_flag} --yolo --no-color{} \
+                         ZS_DATA_DIR=$(mktemp -d) {} {repro_flag} --yolo --no-color \
                          --log-level debug 'ping'",
                         timeout.as_secs(),
                         zs_log.display(),
@@ -156,7 +154,6 @@ fn spawn_and_wait(
                         stdout_log.display(),
                         tail_of(stdout_log, 10),
                         bin.display(),
-                        model.map(|m| format!(" --model {m}")).unwrap_or_default(),
                     );
                 }
                 if overall_started.elapsed() > next_heartbeat && !verbose() {
@@ -265,10 +262,9 @@ pub fn discover_turn_artifacts(run_dir: &Path) -> Vec<TurnArtifacts> {
 /// explicit at the trait object boundary.
 pub trait AgentBackend: Sync {
     fn name(&self) -> &str;
-    /// `model` is `None` unless the user explicitly passed `--model`; when None
-    /// the backend must not force a model, so zerostack uses its own configured
-    /// provider + default model.
-    fn run(&self, sc: &Scenario, model: Option<&str>, run_dir: &Path) -> Result<RunArtifacts>;
+    /// The backend must not force a model: what a run evaluates against comes
+    /// from the backend's own configuration, not from the caller.
+    fn run(&self, sc: &Scenario, run_dir: &Path) -> Result<RunArtifacts>;
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +286,7 @@ impl AgentBackend for ZsCli {
         "zs-cli"
     }
 
-    fn run(&self, sc: &Scenario, model: Option<&str>, run_dir: &Path) -> Result<RunArtifacts> {
+    fn run(&self, sc: &Scenario, run_dir: &Path) -> Result<RunArtifacts> {
         // Absolute paths: the child runs with cwd set to `work/`, so relative
         // ZS_DATA_DIR / --log-file paths would resolve against the wrong dir
         // (session files written where we don't look for them, logs unwritable).
@@ -331,8 +327,8 @@ impl AgentBackend for ZsCli {
         };
 
         match &sc.loop_cfg {
-            Some(loop_cfg) => self.run_loop(sc, loop_cfg, model, &roots),
-            None => self.run_print(sc, model, &roots),
+            Some(loop_cfg) => self.run_loop(sc, loop_cfg, &roots),
+            None => self.run_print(sc, &roots),
         }
     }
 }
@@ -353,7 +349,7 @@ impl ZsCli {
     /// `mode = "print"` (default): the per-turn `-p`/`--continue` loop —
     /// unchanged behavior from before `mode`/`loop` existed, just relocated
     /// out of `AgentBackend::run` now that it has a loop-mode sibling.
-    fn run_print(&self, sc: &Scenario, model: Option<&str>, d: &RunDirs) -> Result<RunArtifacts> {
+    fn run_print(&self, sc: &Scenario, d: &RunDirs) -> Result<RunArtifacts> {
         let started = Instant::now();
         let timeout = Duration::from_secs(sc.timeout_secs);
         let turns = sc.task.turns();
@@ -390,11 +386,6 @@ impl ZsCli {
                 .arg("--pure-stdout")
                 .arg("--log-file")
                 .arg(&zs_log);
-            // Only force a model when the user asked; otherwise zerostack picks
-            // its own configured provider + default model.
-            if let Some(m) = model {
-                cmd.arg("--model").arg(m);
-            }
             if let Some(name) = &sc.prompt {
                 cmd.arg("--load-prompt").arg(name);
             }
@@ -413,7 +404,6 @@ impl ZsCli {
             spawn_and_wait(
                 cmd,
                 &self.bin,
-                model,
                 "-p",
                 started,
                 timeout,
@@ -464,7 +454,6 @@ impl ZsCli {
         &self,
         sc: &Scenario,
         loop_cfg: &crate::scenario::LoopCfg,
-        model: Option<&str>,
         d: &RunDirs,
     ) -> Result<RunArtifacts> {
         let started = Instant::now();
@@ -486,9 +475,6 @@ impl ZsCli {
         if let Some(run_cmd) = &loop_cfg.run {
             cmd.arg("--loop-run").arg(run_cmd);
         }
-        if let Some(m) = model {
-            cmd.arg("--model").arg(m);
-        }
         if let Some(name) = &sc.prompt {
             cmd.arg("--load-prompt").arg(name);
         }
@@ -502,7 +488,6 @@ impl ZsCli {
         spawn_and_wait(
             cmd,
             &self.bin,
-            model,
             "--loop",
             started,
             timeout,
@@ -606,7 +591,7 @@ impl AgentBackend for Mock {
         "mock"
     }
 
-    fn run(&self, _sc: &Scenario, _model: Option<&str>, run_dir: &Path) -> Result<RunArtifacts> {
+    fn run(&self, _sc: &Scenario, run_dir: &Path) -> Result<RunArtifacts> {
         let data = run_dir.join("data");
         let config = run_dir.join("config");
         let work = run_dir.join("work");
@@ -723,7 +708,7 @@ mod mock_trial_dir_tests {
         .unwrap();
         let sc = crate::scenario::Scenario::load(&sc_dir).unwrap();
 
-        let artifacts = backend.run(&sc, None, &run_dir).unwrap();
+        let artifacts = backend.run(&sc, &run_dir).unwrap();
         assert_eq!(artifacts.turns.len(), 1);
         assert_eq!(artifacts.turns[0].stdout, fixture_dir.join("turn-0.stdout"));
 

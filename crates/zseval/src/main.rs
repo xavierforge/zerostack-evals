@@ -50,7 +50,7 @@ const USAGE: &str = "\
 zseval — eval harness for zerostack agents
 
 USAGE:
-  zseval run <scenario-path> [--target config.toml] [--model M] [--trials N]
+  zseval run <scenario-path> [--target config.toml] [--trials N]
              [--tag T] [--zs-bin PATH] [--backend zs|mock=<session.json>]
              [--no-judge] [--max-total-usd X] [--results DIR] [--jobs N]
              [--json] [--verbose]
@@ -62,7 +62,6 @@ USAGE:
   --target is a zerostack config.toml (provider + model) seeded into each run's
   isolated config dir — the reproducible way to pick what you evaluate against.
   Put the API key in an env var (not the file); it is passed through to zerostack.
-  --model overrides the target's model for a quick one-off.
 
   --backend mock=<path> replays canned artifacts instead of a live zerostack
   build: a single session JSON file, or a directory shaped like a captured
@@ -138,7 +137,6 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     let f = parse_flags(
         rest,
         &[
-            "model",
             "trials",
             "tag",
             "zs-bin",
@@ -182,9 +180,6 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     zseval::backend::set_verbose(f.has("verbose"));
 
     let opts = RunOptions {
-        // No default: when unset, zerostack uses its own configured provider +
-        // model. Forcing a model here would override the user's setup.
-        model: f.get("model").map(String::from),
         target: f.get("target").map(PathBuf::from),
         trials_override: match f.get("trials") {
             Some(t) => Some(t.parse()?),
@@ -193,7 +188,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         tag: f
             .get("tag")
             .map(String::from)
-            .unwrap_or_else(|| auto_tag(path, f.get("target"), f.get("model"))),
+            .unwrap_or_else(|| auto_tag(path, f.get("target"))),
         no_judge: f.has("no-judge"),
         results_root: f
             .get("results")
@@ -246,16 +241,15 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
 /// provider+model, and when — e.g.
 /// `prompts_anthropic-claude-sonnet-4-6_20260706-091936`. Semantic tags like
 /// `main` are left to an explicit `--tag`; the auto name is always descriptive.
-fn auto_tag(scenario_path: &str, target: Option<&str>, model_override: Option<&str>) -> String {
+fn auto_tag(scenario_path: &str, target: Option<&str>) -> String {
     let suite = Path::new(scenario_path)
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("scenarios");
-    // Read provider + model out of the target config (a --model flag overrides).
-    let (provider, target_model) = target
+    // Read provider + model out of the target config.
+    let (provider, model) = target
         .map(|p| zseval::target::peek(Path::new(p)))
         .unwrap_or((None, None));
-    let model = model_override.map(String::from).or(target_model);
     let target_group: Vec<String> = [provider, model]
         .into_iter()
         .flatten()
