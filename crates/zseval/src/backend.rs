@@ -611,8 +611,7 @@ impl AgentBackend for Mock {
                     let p = e.path();
                     if p.extension().map(|x| x == "json").unwrap_or(false) {
                         let dst = data.join("sessions").join(p.file_name().unwrap());
-                        std::fs::copy(&p, &dst)
-                            .with_context(|| format!("copy {}", p.display()))?;
+                        std::fs::copy(&p, &dst).with_context(|| format!("copy {}", p.display()))?;
                         session_files.push(dst);
                     }
                 }

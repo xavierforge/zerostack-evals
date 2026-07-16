@@ -241,8 +241,7 @@ pub fn read_loop_iterations(data_dir: &Path) -> Result<Vec<LoopIteration>> {
 
     let mut records = Vec::with_capacity(iter_files.len());
     for f in &iter_files {
-        let text =
-            std::fs::read_to_string(f).with_context(|| format!("read {}", f.display()))?;
+        let text = std::fs::read_to_string(f).with_context(|| format!("read {}", f.display()))?;
         let rec: RawLoopIteration =
             serde_json::from_str(&text).with_context(|| format!("parse {}", f.display()))?;
         records.push(LoopIteration {

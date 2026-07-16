@@ -131,6 +131,7 @@ pub fn project_slug(path: &Path) -> String {
 ///     from a *different* run's roots than the ones passed in here — see
 ///     `backend::Mock`'s doc on why `--backend mock=<dir> run` can't replay
 ///     a memory scenario, only `regrade`/a live build can).
+///
 /// Every failure mode returns `Err` with a message naming the fix, so the
 /// runner can grade Indeterminate instead of blaming the agent.
 pub fn verify(roots: &RunRoots, zslogs: &[PathBuf]) -> Result<(), String> {
