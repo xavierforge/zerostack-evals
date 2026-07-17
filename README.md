@@ -31,6 +31,8 @@ as a usage mistake — a broken environment never looks like a clean pass.
                                              beside a case, or in the suite
                                              dir's _fixtures if shared across it
     targets/           zerostack config.toml per provider/model to evaluate
+    judges/            judge file per grading model (--judge); the ruler,
+                       kept swappable, explicit, and recorded in the report
     baselines/         committed reports CI compares against
     results/<tag>/     run outputs, one folder per run (gitignored)
 
@@ -60,7 +62,7 @@ as a usage mistake — a broken environment never looks like a clean pass.
     # the cache-write rate). Omit --jobs (or pass 1) for the old
     # strictly-sequential path.
     cargo run -p zseval -- run scenarios --target targets/anthropic.toml \
-      --trials 3 --jobs 3 --tag candidate --json
+      --trials 3 --jobs 3 --tag candidate --judge judges/sonnet.toml --json
     cargo run -p zseval -- compare baselines/main.json results/candidate/report.json
 
     # inspect a failing trial
@@ -81,11 +83,14 @@ Edited an assert and want to know if it would flip a past trial's verdict,
 without spending another API call?
 
     cargo run -p zseval -- regrade scenarios/prompts/ask-readonly \
-      results/candidate/prompt-ask-readonly-refuses-edit/trial-0/
+      results/candidate/prompt-ask-readonly-refuses-edit/trial-0/ --no-judge
 
 `regrade` re-scores that trial dir's frozen artifacts against the
 scenario's *current* asserts/judge and rewrites its `trial.json` — nothing
-about the agent is re-run.
+about the agent is re-run. Adding `--judge <file>` re-scores with a different
+ruler; the rewritten `trial.json` then names the judge file that produced it,
+and the new judge's request/response go to a `regrade-<timestamp>/`
+subdirectory rather than over the previous judge's (see `judges/README.md`).
 
 ## How it drives zerostack
 
@@ -251,9 +256,9 @@ The CLI is the whole interface; exit codes are the contract (0 = pass / no
 regression, 1 = fail / regression, 2 = harness error) and every subcommand
 takes `--json`. A typical loop:
 
-    zseval run scenarios/prompts --target targets/anthropic.toml --tag baseline --trials 3 --json
+    zseval run scenarios/prompts --target targets/anthropic.toml --tag baseline --trials 3 --judge judges/sonnet.toml --json
     # edit prompts in the zerostack checkout, rebuild
-    zseval run scenarios/prompts --target targets/anthropic.toml --tag attempt-1 --trials 3 --json
+    zseval run scenarios/prompts --target targets/anthropic.toml --tag attempt-1 --trials 3 --judge judges/sonnet.toml --json
     zseval compare results/baseline/report.json results/attempt-1/report.json
     # regression? zseval explain results/attempt-1/<scenario>/trial-0/
 
@@ -264,8 +269,43 @@ those are excluded from the pass rates and never counted as regressions.
 
 Every `report.json` records what it evaluated against (`"model"`:
 `"<provider>/<model>"`, resolved from `--target`'s config.toml, or
-`"provider-default"` when no target was given) and, per scenario, a content
-hash of that scenario's `scenario.toml`. `zseval compare` uses both:
+`"provider-default"` when no target was given), what graded it (`"judge_file"`,
+`"judge_hash"` and `"judge_model"`, below), and, per scenario, a content hash
+of that scenario's `scenario.toml`.
+
+The judge fields exist because the judge is the ruler — a run graded by a
+different model is not comparable to one graded by the old one just because
+both say "pass", so which ruler was used has to survive the run. They record
+two different kinds of fact:
+
+- **`"judge_file"` (+ `"judge_hash"`) is configuration**: the judge file
+  `--judge` named, `""` when none was. It holds whether or not the judge was
+  ever called. `"judge_hash"` fingerprints the file's bytes because a path is
+  not an identity: a judge file's contents change under a stable path, the same
+  reason a scenario records a `content_hash`. The path is recorded relative to
+  the working directory (a bare file name if it lives outside it, forward
+  slashes always) — a report is meant to be copied into `baselines/`, i.e. into
+  git, and `--judge /Users/alice/private-client/judges/x.toml` must not put
+  that in a committed artifact.
+- **`"judge_model"` is execution**: the model(s) that actually graded, read
+  back from the judge's own response, not from the judge file. The file says
+  what was *asked for*; the API resolves model names server-side and can serve
+  something else. It is a list of every distinct ruler that answered, so no
+  consumer has to take a string apart, and no ruler has to stand in for
+  another. Three states: absent/`null` is **unknown**, `[]` is **nothing was
+  graded** (`--no-judge`, no scenario carried a rubric, or every call failed),
+  and `["..."]` names the rulers. `[]` and `null` are deliberately different
+  answers — see `judges/README.md`. Each trial's own `trial.json` records the
+  same three facts for that trial alone.
+
+Swapping the judge should be paired with re-checking a batch against human
+labels — see `judges/README.md`. A baseline committed before these fields
+existed still loads, the same way `content_hash` did: its judge file reads as
+"none named" (judge files did not exist yet), and its `judge_model` reads as
+`null` — **unknown**, not "nothing graded". That run *was* graded, by the
+pinned default, and a report may never state a falsehood about a real run.
+
+`zseval compare` uses the model and hash fields:
 
 - **Different targets** — comparing a baseline evaluated against one
   provider/model to a candidate evaluated against another prints a warning

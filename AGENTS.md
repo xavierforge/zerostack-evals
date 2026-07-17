@@ -27,7 +27,12 @@ Tightened or fixed an assert on a scenario you already have trial artifacts
 for? `zseval regrade <scenario-dir> <trial-dir> --no-judge` re-scores the
 existing artifacts against the new assert without spending another API
 call — useful for checking an assert edit is well-formed before the next
-full run.
+full run. `regrade` also takes `--judge <file>`: re-scoring frozen evidence
+with a different judge is the cheap way to see how far apart two rulers are
+on trials you have already human-labelled. A regraded `trial.json` names the
+judge file that produced it (its report still names the run's own judge), and
+the new judge's request/response land in a `regrade-<timestamp>/` subdirectory
+so the previous judge's response survives as evidence.
 
 ## Guardrails
 
@@ -36,10 +41,24 @@ that define or grade the test — that is measuring yourself with a ruler you
 moved:
 
 - scenarios (including their seed fixtures) and committed baselines,
-- `judge.rs` (the referee) and the assert implementations.
+- `judge.rs` (the referee), the judge files under `judges/`, and the assert
+  implementations.
 
 Change what the eval measures in a separate, human-reviewed change from the
 prompt edit whose score it moves.
+
+`--judge judges/<file>.toml` picks which model grades the subjective layer.
+That it now takes one flag makes moving the ruler *easier*, not cheaper: a
+judge swap must be paired with re-checking a batch against human labels, or a
+pass-rate diff across the swap is unreadable — you cannot tell the ruler moving
+from the agent's behavior changing. Never swap the judge in the same change as
+the prompt whose score it moves. `--judge` may be given at most once per run
+(unlike `--target`): the premise of a matrix is that everything but the target
+is fixed, so the ruler must not vary with the column. Every report records the
+judge file it was configured with (`judge_file`, plus `judge_hash` of its bytes
+— a path is not an identity) and the models that actually graded (`judge_model`,
+read back from the judge's own responses: `[]` when nothing was graded, absent
+when unknown, never the configured model echoed back) — see `judges/README.md`.
 
 ## Budget
 
@@ -56,6 +75,10 @@ prompt edit whose score it moves.
   guard, not a total-spend guard, until zerostack persists real usage into
   its session files (it already has the numbers in the TUI path's
   `AgentEvent`; they just never reach headless session JSON).
+- Because the cap effectively only sees judge spend, `--judge` moves it
+  directly: the judge file's `price_*_usd_per_mtok` are what a judge call is
+  costed at, so grading with `judges/opus.toml` instead of the default
+  roughly doubles the only cost the cap can actually see.
 - Most of that invisible spend is input tokens, dominated by the fixed
   request prefix (tool definitions + system prompt) re-sent on every agent
   turn. Prompt caching covers much of it (zerostack enables it —

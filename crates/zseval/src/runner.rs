@@ -9,7 +9,7 @@ use crate::backend::AgentBackend;
 use crate::judge::{Judge, JudgeVerdict};
 use crate::scenario::Scenario;
 use crate::transcript::Transcript;
-use crate::verdict::{Final, Report, ScenarioResult, TrialResult};
+use crate::verdict::{Final, JudgeFileRef, Report, ReportMeta, ScenarioResult, TrialResult};
 
 pub struct RunOptions {
     /// The target config.toml seeded into each run (see `backend::ZsCli`) —
@@ -33,6 +33,39 @@ pub struct RunOptions {
     /// trials-per-scenario, not scenario count. `1` (the default) reproduces
     /// the old strictly-sequential, live-printed behavior exactly.
     pub jobs: usize,
+    /// The judge file this run was told to grade with (`--judge`), recorded
+    /// in the report. `None` when none was named (`--no-judge`, or a suite
+    /// with no rubric) — there is no file to name, and there is no built-in
+    /// default to fall back to. Kept here (rather than read off the
+    /// `Judge`) for the same reason as `target`: the report must describe the
+    /// run regardless of which judge implementation is in use, including a
+    /// test double.
+    ///
+    /// There is deliberately no matching `judge_model` option: which model
+    /// graded is not something the caller gets to declare. It is read back
+    /// from the judge's own responses (see `Report::judge_model`).
+    ///
+    /// Named `judge_file`, not `judge`, so it stops colliding with the
+    /// `judge: &dyn Judge` argument at the same call site: this is the file
+    /// naming a ruler, that is the ruler.
+    pub judge_file: Option<PathBuf>,
+}
+
+/// Everything the grading half of a trial needs to know about the ruler: the
+/// referee to ask, which file configured it (recorded on the trial), whether
+/// to skip it, and where its request/response artifacts land.
+struct Grading<'a> {
+    judge: &'a dyn Judge,
+    /// The judge file as it will be recorded — resolved once per suite rather
+    /// than per trial, so every trial of a run records the same fingerprint.
+    judge_file: &'a JudgeFileRef,
+    no_judge: bool,
+    /// Where the judge call leaves `judge-request.json` /
+    /// `judge-response.json`. The trial's own run dir for a fresh run; a
+    /// regrade points this at a subdirectory instead, so re-scoring with a
+    /// second ruler never destroys the evidence of what graded the first time
+    /// (see `regrade`).
+    judge_artifacts_dir: &'a Path,
 }
 
 pub fn run_suite(
@@ -43,6 +76,13 @@ pub fn run_suite(
 ) -> Result<Report> {
     let mut results = Vec::new();
     let mut spent = 0.0_f64;
+    // Resolved once: the file is read here, so every trial and the report all
+    // record the same path and the same fingerprint of the same bytes.
+    let judge_file = opts
+        .judge_file
+        .as_deref()
+        .map(JudgeFileRef::of)
+        .unwrap_or_default();
 
     for sc in &scenarios {
         // Check the cost cap once per scenario, so a scenario always runs its
@@ -54,7 +94,7 @@ pub fn run_suite(
             }
         }
         let trials = opts.trials_override.unwrap_or(sc.trials).max(1);
-        let trial_results = run_trials_for_scenario(sc, backend, judge, opts, trials)?;
+        let trial_results = run_trials_for_scenario(sc, backend, judge, &judge_file, opts, trials)?;
         for tr in &trial_results {
             spent += tr.cost_usd;
         }
@@ -65,11 +105,38 @@ pub fn run_suite(
         ));
     }
 
+    // Two different facts, from two different places. The judge file is what
+    // the run was configured with; it holds whether or not the judge was ever
+    // called. `judge_model` is what actually graded, so it can only come from
+    // the trials themselves. Every distinct ruler is listed: on the rare
+    // disagreement, picking one to stand for the rest would be the silent lie
+    // this field exists to prevent.
+    let all_trials = || results.iter().flat_map(|s| s.trials.iter());
+    let judge_model = if all_trials().any(|t| t.judge_model.is_none()) {
+        // Some trial could not name the ruler that graded it, so this run's
+        // rulers cannot be listed: an unnamed one might be among them, and a
+        // list that silently omitted it would read as complete.
+        None
+    } else {
+        let mut served: Vec<String> = all_trials()
+            .filter_map(|t| t.judge_model.clone())
+            .filter(|m| !m.is_empty())
+            .collect();
+        served.sort();
+        served.dedup();
+        // Empty here is "nothing was graded", which every trial agreed on.
+        Some(served)
+    };
     let report = Report::build(
-        opts.tag.clone(),
-        crate::target::describe(opts.target.as_deref()),
-        backend.name().to_string(),
-        opts.trials_override.unwrap_or(0),
+        ReportMeta {
+            tag: opts.tag.clone(),
+            model: crate::target::describe(opts.target.as_deref()),
+            backend: backend.name().to_string(),
+            trials: opts.trials_override.unwrap_or(0),
+            judge_file: judge_file.path,
+            judge_hash: judge_file.hash,
+            judge_model,
+        },
         results,
     );
     // Everything for a run lives under results/<tag>/ — the report next to its
@@ -94,6 +161,7 @@ fn run_trials_for_scenario(
     sc: &Scenario,
     backend: &dyn AgentBackend,
     judge: &dyn Judge,
+    judge_file: &JudgeFileRef,
     opts: &RunOptions,
     trials: usize,
 ) -> Result<Vec<TrialResult>> {
@@ -104,7 +172,13 @@ fn run_trials_for_scenario(
             .join(&sc.id)
             .join(format!("trial-{trial}"));
         std::fs::create_dir_all(&run_dir)?;
-        let tr = run_trial(sc, backend, judge, opts, trial, &run_dir);
+        let grading = Grading {
+            judge,
+            judge_file,
+            no_judge: opts.no_judge,
+            judge_artifacts_dir: &run_dir,
+        };
+        let tr = run_trial(sc, backend, &grading, trial, &run_dir);
         // Persist per-trial for `explain`.
         std::fs::write(run_dir.join("trial.json"), serde_json::to_vec_pretty(&tr)?)?;
         Ok(tr)
@@ -178,8 +252,7 @@ fn run_trials_for_scenario(
 fn run_trial(
     sc: &Scenario,
     backend: &dyn AgentBackend,
-    judge: &dyn Judge,
-    opts: &RunOptions,
+    grading: &Grading,
     trial: usize,
     run_dir: &Path,
 ) -> TrialResult {
@@ -188,10 +261,10 @@ fn run_trial(
     let artifacts = match backend.run(sc, run_dir) {
         Ok(a) => a,
         Err(e) => {
-            return indeterminate(trial, run_dir, format!("backend: {e:#}"));
+            return indeterminate(grading, trial, run_dir, format!("backend: {e:#}"));
         }
     };
-    grade_trial(sc, judge, opts.no_judge, trial, run_dir, &artifacts)
+    grade_trial(sc, grading, trial, run_dir, &artifacts)
 }
 
 /// Re-grade an already-completed run_dir (produced by a prior `run` or a
@@ -200,9 +273,16 @@ fn run_trial(
 /// assert, re-score the same frozen evidence, see whether the new rule would
 /// have passed — no API call, no new session. Persists the updated
 /// `trial.json` next to the artifacts it graded, same as a normal run.
+///
+/// `judge_file` is the file naming the ruler `judge` was built from, recorded
+/// on the returned trial. Passing it matters most here: `regrade --judge` is
+/// the one command that swaps the ruler on an existing trial, so a regraded
+/// `trial.json` that did not name its own judge would sit under a `report.json`
+/// naming the previous one, with nothing on disk to tell them apart.
 pub fn regrade(
     sc: &Scenario,
     judge: &dyn Judge,
+    judge_file: Option<&Path>,
     no_judge: bool,
     trial: usize,
     run_dir: &Path,
@@ -229,7 +309,29 @@ pub fn regrade(
         work_dir: run_dir.join("work"),
         wall_secs: 0.0,
     };
-    let tr = grade_trial(sc, judge, no_judge, trial, run_dir, &artifacts);
+    // A regrade's judge call must not overwrite the previous judge's
+    // request/response: those artifacts are the only evidence of what graded
+    // this trial the first time, and destroying them is precisely the trace
+    // this command exists to leave. Each regrade gets its own subdirectory,
+    // stamped like a run folder (`util::compact_timestamp`) so successive
+    // regrades cannot clobber each other either. Created only when a judge
+    // will actually be called, so a `--no-judge` regrade leaves no empty dirs.
+    let will_judge = sc.judge.is_some() && !no_judge;
+    let judge_artifacts_dir = if will_judge {
+        let dir = run_dir.join(format!("regrade-{}", crate::util::compact_timestamp()));
+        std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
+        dir
+    } else {
+        run_dir.to_path_buf()
+    };
+    let judge_file = judge_file.map(JudgeFileRef::of).unwrap_or_default();
+    let grading = Grading {
+        judge,
+        judge_file: &judge_file,
+        no_judge,
+        judge_artifacts_dir: &judge_artifacts_dir,
+    };
+    let tr = grade_trial(sc, &grading, trial, run_dir, &artifacts);
     std::fs::write(run_dir.join("trial.json"), serde_json::to_vec_pretty(&tr)?)
         .with_context(|| format!("write {}", run_dir.join("trial.json").display()))?;
     Ok(tr)
@@ -241,8 +343,7 @@ pub fn regrade(
 /// difference between the two is where `artifacts` comes from.
 fn grade_trial(
     sc: &Scenario,
-    judge: &dyn Judge,
-    no_judge: bool,
+    grading: &Grading,
     trial: usize,
     run_dir: &Path,
     artifacts: &crate::backend::RunArtifacts,
@@ -256,7 +357,7 @@ fn grade_trial(
     let transcript = match Transcript::from_run(artifacts) {
         Ok(t) => t,
         Err(e) => {
-            return indeterminate(trial, run_dir, format!("transcript: {e:#}"));
+            return indeterminate(grading, trial, run_dir, format!("transcript: {e:#}"));
         }
     };
 
@@ -269,7 +370,7 @@ fn grade_trial(
     // them, so there's one computation to keep in sync, not two.
     let zslogs: Vec<PathBuf> = artifacts.turns.iter().map(|t| t.zslog.clone()).collect();
     if let Err(reason) = crate::domains::verify(sc, &roots, &zslogs) {
-        return indeterminate(trial, run_dir, format!("domain drift: {reason}"));
+        return indeterminate(grading, trial, run_dir, format!("domain drift: {reason}"));
     }
 
     // 3. Deterministic floor.
@@ -307,27 +408,44 @@ fn grade_trial(
     // 5. Judge (only when the deterministic floor didn't already fail — a
     //    failed floor is a fail regardless of what the judge thinks).
     let mut judge_verdict: Option<JudgeVerdict> = None;
+    // "Nothing graded this trial" until a judge call actually comes back: the
+    // ruler that graded is a fact about what happened, not about what was
+    // configured (see `TrialResult::judge_model` for the third state).
+    let mut judge_model = Some(String::new());
     let mut judge_input_tokens = 0u64;
     let mut judge_output_tokens = 0u64;
     let mut judge_cost_usd = 0.0f64;
     let mut outcome = if all_pass { Final::Pass } else { Final::Fail };
     if outcome == Final::Pass {
         if let Some(rubric) = &sc.judge {
-            if no_judge {
+            if grading.no_judge {
                 reasons.push("judge skipped (--no-judge)".into());
-            } else if !judge.available() {
+            } else if !grading.judge.available() {
                 return TrialResult {
                     judge: None,
                     ..indeterminate(
+                        grading,
                         trial,
                         run_dir,
-                        "judge required but not available (is ANTHROPIC_API_KEY set?)".into(),
+                        format!(
+                            "judge required but not available ({})",
+                            grading.judge.unavailable_hint()
+                        ),
                     )
                 };
             } else {
-                match judge.judge(rubric, &transcript.render_for_judge(20_000), run_dir) {
+                match grading.judge.judge(
+                    rubric,
+                    &transcript.render_for_judge(20_000),
+                    grading.judge_artifacts_dir,
+                ) {
                     Ok(o) => {
                         judge_verdict = Some(o.verdict);
+                        // A judge that answered without naming its model leaves
+                        // the ruler unknown — it did grade, so calling that
+                        // "nothing graded" would be false, and naming the
+                        // configured model would report an intention as a fact.
+                        judge_model = o.model.clone();
                         judge_input_tokens = o.input_tokens;
                         judge_output_tokens = o.output_tokens;
                         judge_cost_usd = o.cost_usd;
@@ -360,6 +478,9 @@ fn grade_trial(
         reasons,
         asserts: assert_results,
         judge: judge_verdict,
+        judge_file: grading.judge_file.path.clone(),
+        judge_hash: grading.judge_file.hash.clone(),
+        judge_model,
         input_tokens: transcript.input_tokens,
         output_tokens: transcript.output_tokens,
         judge_input_tokens,
@@ -375,13 +496,20 @@ fn grade_trial(
     }
 }
 
-fn indeterminate(trial: usize, run_dir: &Path, reason: String) -> TrialResult {
+fn indeterminate(grading: &Grading, trial: usize, run_dir: &Path, reason: String) -> TrialResult {
     TrialResult {
         trial,
         outcome: Final::Indeterminate,
         reasons: vec![reason],
         asserts: Vec::new(),
         judge: None,
+        // The configured ruler is recorded even here: it is a fact about how
+        // this trial was set up, and it holds whether or not the judge was
+        // ever reached.
+        judge_file: grading.judge_file.path.clone(),
+        judge_hash: grading.judge_file.hash.clone(),
+        // Ungradable: no judge reached a verdict, so no ruler to name.
+        judge_model: Some(String::new()),
         input_tokens: 0,
         output_tokens: 0,
         judge_input_tokens: 0,

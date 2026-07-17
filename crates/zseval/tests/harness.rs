@@ -6,11 +6,25 @@ use std::path::{Path, PathBuf};
 
 use zseval::asserts::Assert;
 use zseval::backend::{Mock, RunRoots};
+use zseval::judge::{JudgeConfig, JudgeProvider, LlmJudge};
 use zseval::runner::{run_suite, RunOptions};
 use zseval::scenario::{discover, Scenario};
 use zseval::seed;
 use zseval::transcript;
 use zseval::verdict::Final;
+
+/// A valid ruler card for tests that need *some* `LlmJudge` in hand but never
+/// actually call out to a network (they either pass `no_judge: true`, or the
+/// scenario has no rubric to grade). `JudgeConfig` has no built-in default
+/// (see its doc: no committed card, no ruler), so tests build one explicitly.
+fn test_judge_cfg() -> JudgeConfig {
+    JudgeConfig {
+        provider: JudgeProvider::Anthropic,
+        model: "claude-sonnet-4-6".into(),
+        price_in_usd_per_mtok: 3.0,
+        price_out_usd_per_mtok: 15.0,
+    }
+}
 
 /// A `RunRoots` where all three roots are the same dir — for tests that don't
 /// care about root separation (only about the assert logic itself).
@@ -52,6 +66,350 @@ fn run_rejects_the_removed_model_flag() {
     assert!(
         stderr.contains("unknown flag '--model'"),
         "stderr: {stderr}"
+    );
+}
+
+/// A minimal single-scenario suite with a judge rubric (`expect` empty,
+/// `judge` set — `Scenario::load` requires at least one of the two).
+fn rubric_scenario_dir(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "zseval-test-rubric-suite-{name}-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("scenario.toml"),
+        "id = \"rubric-only\"\ntask = \"say hi\"\njudge = \"Did the agent say hi? Answer Yes/No/Unknown.\"\n",
+    )
+    .unwrap();
+    dir
+}
+
+/// A minimal single-scenario suite with only a deterministic assert, no
+/// rubric at all — a judge decision is never required for this one.
+fn no_rubric_scenario_dir(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "zseval-test-no-rubric-suite-{name}-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("scenario.toml"),
+        "id = \"no-rubric\"\ntask = \"say hi\"\nexpect = [\"tool_not_called write\"]\n",
+    )
+    .unwrap();
+    dir
+}
+
+/// judge-selection: a rubric suite with neither `--judge` nor `--no-judge`
+/// must fail fast (exit 2) before any trial, naming both flags — see
+/// `openspec/changes/judge-provider-card/specs/judge-selection/spec.md`.
+/// No `--backend`/`--zs-bin` is given: the gate must fire before backend
+/// setup, so this would fail for an unrelated reason if the gate came later.
+#[test]
+fn run_on_a_rubric_suite_with_neither_judge_flag_exits_2_naming_both_flags() {
+    let dir = rubric_scenario_dir("run-neither");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args(["run", dir.to_str().unwrap()])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("--judge"), "stderr: {stderr}");
+    assert!(stderr.contains("--no-judge"), "stderr: {stderr}");
+}
+
+/// judge-selection: a suite with no rubric scenarios needs no judge
+/// decision at all — `Unspecified` runs normally, same as if `--no-judge`
+/// had been passed.
+#[test]
+fn run_on_a_no_rubric_suite_with_neither_judge_flag_runs_normally() {
+    let dir = no_rubric_scenario_dir("run-neither");
+    let results = std::env::temp_dir().join(format!(
+        "zseval-test-no-rubric-results-{}",
+        std::process::id()
+    ));
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--backend",
+            &format!("mock={}", fixture("session-ask-readonly.json").display()),
+            "--results",
+            results.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    std::fs::remove_dir_all(&results).ok();
+    assert_ne!(out.status.code(), Some(2), "stderr: {stderr}");
+}
+
+/// judge-selection: explicit `--no-judge` on a rubric suite is honored — the
+/// run proceeds and the skip is recorded, no judge key required.
+#[test]
+fn run_on_a_rubric_suite_with_explicit_no_judge_runs_with_skip_recorded() {
+    let dir = rubric_scenario_dir("run-explicit-no-judge");
+    let results = std::env::temp_dir().join(format!(
+        "zseval-test-rubric-no-judge-results-{}",
+        std::process::id()
+    ));
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--backend",
+            &format!("mock={}", fixture("session-ask-readonly.json").display()),
+            "--results",
+            results.to_str().unwrap(),
+            "--no-judge",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    assert_ne!(out.status.code(), Some(2));
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    std::fs::remove_dir_all(&results).ok();
+    assert!(
+        stdout.contains("judge skipped (--no-judge)"),
+        "stdout: {stdout}"
+    );
+}
+
+/// judge-preflight / judge-selection: `regrade` mirrors the same mandatory
+/// choice gate for a rubric scenario. The trial dir need not exist: the
+/// gate must fire before `regrade` ever reads it.
+#[test]
+fn regrade_on_a_rubric_scenario_with_neither_judge_flag_exits_2_naming_both_flags() {
+    let dir = rubric_scenario_dir("regrade-neither");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args(["regrade", dir.to_str().unwrap(), "/no/such/trial-dir"])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("--judge"), "stderr: {stderr}");
+    assert!(stderr.contains("--no-judge"), "stderr: {stderr}");
+}
+
+/// A judge card naming a provider whose key we can deterministically ensure
+/// is unset in the child process (`.env_remove`), regardless of what the
+/// test-runner's own environment happens to carry.
+fn unreachable_judge_card(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "zseval-test-preflight-judge-{name}-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("judge.toml");
+    std::fs::write(
+        &path,
+        "provider = \"gemini\"\nmodel = \"gemini-x\"\n\
+         price_in_usd_per_mtok = 1.0\nprice_out_usd_per_mtok = 1.0\n",
+    )
+    .unwrap();
+    path
+}
+
+/// A local "proxy" that accepts each TCP connection and immediately drops
+/// it. Pointing the child's HTTP(S)_PROXY at this makes any outbound
+/// request — here the judge's preflight dry-run — fail deterministically
+/// offline, without giving the binary a routing override (the rig
+/// `base_url` seam is deliberately code-only; see judge-provider-card
+/// design.md). The counter proves the dry-run really died at this proxy
+/// and not at the real provider endpoint with a garbage key.
+fn refusing_proxy() -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let counter = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let thread_counter = counter.clone();
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            thread_counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            drop(stream);
+        }
+    });
+    (format!("http://{addr}"), counter)
+}
+
+/// judge-preflight: a rubric suite's judge whose key is unset must fail
+/// preflight (naming `GEMINI_API_KEY`, the card's provider) before any
+/// trial runs — checked concretely by asserting the results dir was never
+/// created, not merely that the process exited 2.
+#[test]
+fn run_with_a_judge_whose_key_is_unset_fails_preflight_before_any_trial() {
+    let dir = rubric_scenario_dir("preflight-run");
+    let judge_path = unreachable_judge_card("run");
+    let results = std::env::temp_dir().join(format!(
+        "zseval-test-preflight-run-results-{}",
+        std::process::id()
+    ));
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--judge",
+            judge_path.to_str().unwrap(),
+            "--backend",
+            &format!("mock={}", fixture("session-ask-readonly.json").display()),
+            "--results",
+            results.to_str().unwrap(),
+        ])
+        .env_remove("GEMINI_API_KEY")
+        .output()
+        .unwrap();
+
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::remove_dir_all(judge_path.parent().unwrap()).ok();
+    let existed = results.exists();
+    std::fs::remove_dir_all(&results).ok();
+
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("GEMINI_API_KEY"), "stderr: {stderr}");
+    assert!(
+        !existed,
+        "preflight must fail before any trial creates the results dir"
+    );
+}
+
+/// judge-preflight: `regrade` runs the same presence check before touching
+/// the trial dir. The trial dir doesn't exist at all — if `regrade` reached
+/// it before preflight, the error would be about the missing trial dir, not
+/// the missing key, so asserting the exact var name in stderr distinguishes
+/// "preflight fired first" from "regrade failed for an unrelated reason".
+#[test]
+fn regrade_with_a_judge_whose_key_is_unset_fails_preflight_before_touching_the_trial() {
+    let dir = rubric_scenario_dir("preflight-regrade");
+    let judge_path = unreachable_judge_card("regrade");
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "regrade",
+            dir.to_str().unwrap(),
+            "/no/such/trial-dir",
+            "--judge",
+            judge_path.to_str().unwrap(),
+        ])
+        .env_remove("GEMINI_API_KEY")
+        .output()
+        .unwrap();
+
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::remove_dir_all(judge_path.parent().unwrap()).ok();
+
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("GEMINI_API_KEY"), "stderr: {stderr}");
+}
+
+/// judge-preflight: the *dry-run* half of preflight, at the CLI boundary.
+/// The key is present (a dummy), so the presence check passes; the child's
+/// proxy env routes the dry-run into a proxy that drops every connection,
+/// so the probe itself fails — exit 2, before any trial creates the
+/// results dir. Asserting the proxy saw ≥1 connection proves the failure
+/// happened at our proxy, offline, not at the real endpoint.
+#[test]
+fn run_with_a_judge_whose_dry_run_fails_exits_2_before_any_trial() {
+    let dir = rubric_scenario_dir("preflight-dryrun-run");
+    let judge_path = unreachable_judge_card("dryrun-run");
+    let results = std::env::temp_dir().join(format!(
+        "zseval-test-preflight-dryrun-run-results-{}",
+        std::process::id()
+    ));
+    let (proxy_url, counter) = refusing_proxy();
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--judge",
+            judge_path.to_str().unwrap(),
+            "--backend",
+            &format!("mock={}", fixture("session-ask-readonly.json").display()),
+            "--results",
+            results.to_str().unwrap(),
+        ])
+        .env("GEMINI_API_KEY", "zseval-test-dummy-key")
+        .env("HTTPS_PROXY", &proxy_url)
+        .env("https_proxy", &proxy_url)
+        .env("HTTP_PROXY", &proxy_url)
+        .env("http_proxy", &proxy_url)
+        .env("ALL_PROXY", &proxy_url)
+        .env("all_proxy", &proxy_url)
+        .env_remove("NO_PROXY")
+        .env_remove("no_proxy")
+        .output()
+        .unwrap();
+
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::remove_dir_all(judge_path.parent().unwrap()).ok();
+    let existed = results.exists();
+    std::fs::remove_dir_all(&results).ok();
+
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("could not complete a dry-run"),
+        "stderr: {stderr}"
+    );
+    assert!(!stderr.contains("is not set"), "stderr: {stderr}");
+    assert!(
+        !existed,
+        "preflight must fail before any trial creates the results dir"
+    );
+    assert!(
+        counter.load(std::sync::atomic::Ordering::SeqCst) >= 1,
+        "the dry-run must have died at the local proxy, not reached a real endpoint"
+    );
+}
+
+/// judge-preflight: `regrade` runs the same dry-run probe before touching
+/// the trial dir. The trial dir doesn't exist at all, so a dry-run failure
+/// (not a missing-trial-dir error) proves preflight fired first.
+#[test]
+fn regrade_with_a_judge_whose_dry_run_fails_exits_2_before_touching_the_trial() {
+    let dir = rubric_scenario_dir("preflight-dryrun-regrade");
+    let judge_path = unreachable_judge_card("dryrun-regrade");
+    let (proxy_url, counter) = refusing_proxy();
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "regrade",
+            dir.to_str().unwrap(),
+            "/no/such/trial-dir",
+            "--judge",
+            judge_path.to_str().unwrap(),
+        ])
+        .env("GEMINI_API_KEY", "zseval-test-dummy-key")
+        .env("HTTPS_PROXY", &proxy_url)
+        .env("https_proxy", &proxy_url)
+        .env("HTTP_PROXY", &proxy_url)
+        .env("http_proxy", &proxy_url)
+        .env("ALL_PROXY", &proxy_url)
+        .env("all_proxy", &proxy_url)
+        .env_remove("NO_PROXY")
+        .env_remove("no_proxy")
+        .output()
+        .unwrap();
+
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::remove_dir_all(judge_path.parent().unwrap()).ok();
+
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("could not complete a dry-run"),
+        "stderr: {stderr}"
+    );
+    assert!(
+        counter.load(std::sync::atomic::Ordering::SeqCst) >= 1,
+        "the dry-run must have died at the local proxy, not reached a real endpoint"
     );
 }
 
@@ -381,8 +739,7 @@ fn explicit_domains_field_triggers_verify_without_any_seed_sugar() {
 
 #[test]
 fn unknown_domain_name_fails_at_load_not_mid_run() {
-    let sc_dir =
-        std::env::temp_dir().join(format!("zseval-test-baddomain-{}", std::process::id()));
+    let sc_dir = std::env::temp_dir().join(format!("zseval-test-baddomain-{}", std::process::id()));
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
@@ -391,7 +748,10 @@ fn unknown_domain_name_fails_at_load_not_mid_run() {
     )
     .unwrap();
     let err = Scenario::load(&sc_dir).unwrap_err();
-    assert!(format!("{err:#}").contains("unknown domain 'chains'"), "{err:#}");
+    assert!(
+        format!("{err:#}").contains("unknown domain 'chains'"),
+        "{err:#}"
+    );
     std::fs::remove_dir_all(&sc_dir).ok();
 }
 
@@ -577,8 +937,9 @@ fn loop_scenario_loads_and_grades_from_iteration_records_via_mock() {
         results_root: results_root.clone(),
         max_total_usd: None,
         jobs: 1,
+        judge_file: None,
     };
-    let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
+    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
     assert_eq!(tr.outcome, Final::Pass, "{tr:?}");
 
@@ -700,8 +1061,9 @@ fn end_to_end_mock_run_produces_pass_and_report() {
         results_root: results_root.clone(),
         max_total_usd: None,
         jobs: 1,
+        judge_file: None,
     };
-    let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
+    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
 
     assert_eq!(report.scenarios.len(), 1);
     let s = &report.scenarios[0];
@@ -742,8 +1104,9 @@ fn jobs_greater_than_one_grades_every_trial_and_keeps_them_in_order() {
         results_root: results_root.clone(),
         max_total_usd: None,
         jobs: 3,
+        judge_file: None,
     };
-    let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
+    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
 
     let s = &report.scenarios[0];
     assert_eq!(s.trials.len(), 6);
@@ -821,8 +1184,9 @@ fn jobs_warm_up_runs_trial_zero_solo_before_the_parallel_fan_out() {
         results_root: results_root.clone(),
         max_total_usd: None,
         jobs: 3,
+        judge_file: None,
     };
-    let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
+    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.scenarios[0].trials.len(), 4);
 
     let log = backend.log.lock().unwrap();
@@ -835,8 +1199,11 @@ fn jobs_warm_up_runs_trial_zero_solo_before_the_parallel_fan_out() {
 }
 
 /// A test double at the `Judge` seam: fixed verdict, error, or "no key".
+/// `Served` additionally reports which model graded, standing in for the
+/// model the real API echoes back in its response.
 enum TestJudge {
     Verdict(zseval::judge::JudgeVerdict),
+    Served(String),
     Error,
     Unavailable,
 }
@@ -845,19 +1212,38 @@ impl zseval::judge::Judge for TestJudge {
     fn available(&self) -> bool {
         !matches!(self, TestJudge::Unavailable)
     }
+    fn unavailable_hint(&self) -> String {
+        "test judge unavailable".to_string()
+    }
     fn judge(
         &self,
         _rubric: &str,
         _evidence: &str,
-        _run_dir: &Path,
+        run_dir: &Path,
     ) -> anyhow::Result<zseval::judge::JudgeOutcome> {
         match self {
             TestJudge::Verdict(v) => Ok(zseval::judge::JudgeOutcome {
                 verdict: *v,
+                model: None,
                 input_tokens: 0,
                 output_tokens: 0,
                 cost_usd: 0.0,
             }),
+            TestJudge::Served(model) => {
+                // Leave a response artifact where the real judge leaves one,
+                // so tests can see which ruler's evidence a run dir holds.
+                std::fs::write(
+                    run_dir.join("judge-response.json"),
+                    format!("{{\"model\":\"{model}\"}}"),
+                )?;
+                Ok(zseval::judge::JudgeOutcome {
+                    verdict: zseval::judge::JudgeVerdict::Yes,
+                    model: Some(model.clone()),
+                    input_tokens: 0,
+                    output_tokens: 0,
+                    cost_usd: 0.0,
+                })
+            }
             _ => anyhow::bail!("judge transport exploded"),
         }
     }
@@ -900,7 +1286,8 @@ judge = "Did the agent answer the question?"
             no_judge,
             results_root: results_root.clone(),
             max_total_usd: None,
-        jobs: 1,
+            jobs: 1,
+            judge_file: None,
         };
         let report = run_suite(vec![sc], &backend, judge, &opts).unwrap();
         std::fs::remove_dir_all(&results_root).ok();
@@ -1003,8 +1390,9 @@ fn indeterminate_trial_recovers_cost_already_spent_before_the_failure() {
         results_root: results_root.clone(),
         max_total_usd: None,
         jobs: 1,
+        judge_file: None,
     };
-    let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
+    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
     assert_eq!(tr.outcome, Final::Indeterminate);
     assert!(
@@ -1012,6 +1400,426 @@ fn indeterminate_trial_recovers_cost_already_spent_before_the_failure() {
         "expected recovered cost ~0.0275, got {}",
         tr.cost_usd
     );
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// `judge_file` records configuration: which judge file the run was told to
+/// use, plus a fingerprint of the bytes behind it, since a path is not an
+/// identity. It is a fact about the run's setup, and it holds whether or not
+/// the judge ever got called.
+#[test]
+fn the_report_records_the_judge_file_it_was_configured_with() {
+    let sc_dir = std::env::temp_dir().join(format!("zseval-judgerec-sc-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        "id = \"judge-record-test\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n",
+    )
+    .unwrap();
+    let sc = Scenario::load(&sc_dir).unwrap();
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-judgerec-results-{}", std::process::id()));
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    let base = |judge: Option<PathBuf>, no_judge: bool| RunOptions {
+        target: None,
+        trials_override: Some(1),
+        tag: "t".into(),
+        no_judge,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 1,
+        judge_file: judge,
+    };
+
+    let opts = base(Some(PathBuf::from("judges/opus.toml")), false);
+    let report = run_suite(
+        vec![sc.clone()],
+        &backend,
+        &LlmJudge::new(test_judge_cfg()),
+        &opts,
+    )
+    .unwrap();
+    assert_eq!(report.judge_file, "judges/opus.toml");
+
+    let opts = base(None, false);
+    let report = run_suite(
+        vec![sc.clone()],
+        &backend,
+        &LlmJudge::new(test_judge_cfg()),
+        &opts,
+    )
+    .unwrap();
+    assert_eq!(report.judge_file, "", "no ruler file was named");
+    assert_eq!(report.judge_hash, None);
+
+    // A judge file outside the working directory is recorded by name only,
+    // with its bytes fingerprinted: `--judge /Users/alice/private/x.toml` must
+    // not write someone's filesystem layout into a report that `baselines/`
+    // invites them to commit.
+    let outside = std::env::temp_dir().join(format!("zseval-judgepath-{}", std::process::id()));
+    std::fs::create_dir_all(&outside).unwrap();
+    let judge_file = outside.join("private-judge.toml");
+    let bytes = b"model = \"claude-opus-4-8\"\n";
+    std::fs::write(&judge_file, bytes).unwrap();
+
+    let opts = base(Some(judge_file.clone()), false);
+    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    assert_eq!(report.judge_file, "private-judge.toml");
+    assert_eq!(
+        report.judge_hash,
+        Some(zseval::util::fnv1a_hex(bytes)),
+        "a path is not an identity; the bytes are"
+    );
+    // Every trial carries the same configured ruler, next to its evidence.
+    assert_eq!(
+        report.scenarios[0].trials[0].judge_file,
+        "private-judge.toml"
+    );
+    assert_eq!(report.scenarios[0].trials[0].judge_hash, report.judge_hash);
+
+    std::fs::remove_dir_all(&outside).ok();
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// `judge_model` records execution: the ruler that actually graded, read back
+/// from the judge's own response. Not the model the judge file asked for —
+/// that is an intention, and an intention is what `report.model` already gets
+/// wrong (it describes the target file, not what the backend ran).
+#[test]
+fn the_report_records_the_model_that_actually_graded() {
+    let sc_dir = std::env::temp_dir().join(format!("zseval-served-sc-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        "id = \"served-model-test\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
+         judge = \"Did the agent stay read-only?\"\n",
+    )
+    .unwrap();
+    let sc = Scenario::load(&sc_dir).unwrap();
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-served-results-{}", std::process::id()));
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    let opts = RunOptions {
+        target: None,
+        trials_override: Some(1),
+        tag: "t".into(),
+        no_judge: false,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 1,
+        // Configured to ask for opus...
+        judge_file: Some(PathBuf::from("judges/opus.toml")),
+    };
+    // ...but this is what actually served the request.
+    let judge = TestJudge::Served("claude-sonnet-4-6-20260101".into());
+    let report = run_suite(vec![sc], &backend, &judge, &opts).unwrap();
+
+    assert_eq!(report.judge_file, "judges/opus.toml");
+    assert_eq!(
+        report.judge_model,
+        Some(vec!["claude-sonnet-4-6-20260101".to_string()]),
+        "a list, so a consumer never has to take a report's field apart to read it"
+    );
+    // The per-trial record carries the same fact, next to the evidence it graded.
+    assert_eq!(
+        report.scenarios[0].trials[0].judge_model.as_deref(),
+        Some("claude-sonnet-4-6-20260101")
+    );
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// A judge that answers without naming the model that served the call did
+/// grade — so the run cannot claim nothing graded — but its ruler has no name.
+/// That is "unknown", the one state an empty list must never be confused with.
+#[test]
+fn a_judge_that_grades_without_naming_its_model_leaves_the_ruler_unknown() {
+    let sc_dir = std::env::temp_dir().join(format!("zseval-unnamed-sc-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        "id = \"unnamed-ruler-test\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
+         judge = \"Did the agent stay read-only?\"\n",
+    )
+    .unwrap();
+    let sc = Scenario::load(&sc_dir).unwrap();
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-unnamed-results-{}", std::process::id()));
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    let opts = RunOptions {
+        target: None,
+        trials_override: Some(1),
+        tag: "t".into(),
+        no_judge: false,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 1,
+        judge_file: None,
+    };
+    // Answers Yes, but its response names no model.
+    let judge = TestJudge::Verdict(zseval::judge::JudgeVerdict::Yes);
+    let report = run_suite(vec![sc], &backend, &judge, &opts).unwrap();
+
+    assert_eq!(report.scenarios[0].trials[0].outcome, Final::Pass);
+    assert_eq!(report.scenarios[0].trials[0].judge_model, None);
+    assert_eq!(
+        report.judge_model, None,
+        "a ruler graded but could not be named: unknown, not 'nothing graded'"
+    );
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// A judge configured but never called (no scenario has a rubric) graded
+/// nothing, so there is no ruler to name. An empty *list* here means "nothing
+/// graded", which is the honest answer — echoing the configured model back
+/// would be reporting an intention as a fact, and `None` would claim we don't
+/// know when in fact we do.
+#[test]
+fn a_judge_that_never_graded_records_no_model_but_keeps_the_file() {
+    let sc_dir = std::env::temp_dir().join(format!("zseval-uncalled-sc-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        "id = \"uncalled-judge-test\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n",
+    )
+    .unwrap();
+    let sc = Scenario::load(&sc_dir).unwrap();
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-uncalled-results-{}", std::process::id()));
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    let opts = RunOptions {
+        target: None,
+        trials_override: Some(1),
+        tag: "t".into(),
+        no_judge: false,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 1,
+        judge_file: Some(PathBuf::from("judges/opus.toml")),
+    };
+    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    assert_eq!(report.judge_file, "judges/opus.toml");
+    assert_eq!(
+        report.judge_model,
+        Some(vec![]),
+        "nothing graded, so no ruler to name — which is known, not unknown"
+    );
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// --no-judge means no ruler was applied at all, so naming one in the report
+/// would be a lie about how the score was reached.
+#[test]
+fn no_judge_leaves_both_judge_fields_empty() {
+    let sc_dir = std::env::temp_dir().join(format!("zseval-nojudgerec-sc-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        "id = \"no-judge-record-test\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
+         judge = \"Did the agent stay read-only?\"\n",
+    )
+    .unwrap();
+    let sc = Scenario::load(&sc_dir).unwrap();
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-nojudgerec-results-{}", std::process::id()));
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    let opts = RunOptions {
+        target: None,
+        trials_override: Some(1),
+        tag: "t".into(),
+        no_judge: true,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 1,
+        judge_file: None,
+    };
+    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    assert_eq!(report.judge_file, "");
+    assert_eq!(report.judge_hash, None);
+    assert_eq!(report.judge_model, Some(vec![]), "no ruler was applied");
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// `regrade --judge` is the one command that swaps the ruler on a trial that
+/// has already been graded. The thesis of judge files is that the ruler never
+/// moves without leaving a trace, so it must record which judge produced the
+/// new verdict *and* keep the previous judge's response — the only evidence of
+/// what graded the first time.
+#[test]
+fn regrading_with_a_second_judge_records_it_and_keeps_the_first_ones_evidence() {
+    let sc_dir =
+        std::env::temp_dir().join(format!("zseval-regradetrace-sc-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        "id = \"regrade-trace-test\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
+         judge = \"Did the agent stay read-only?\"\n",
+    )
+    .unwrap();
+    let sc = Scenario::load(&sc_dir).unwrap();
+    let results_root = std::env::temp_dir().join(format!(
+        "zseval-regradetrace-results-{}",
+        std::process::id()
+    ));
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    let opts = RunOptions {
+        target: None,
+        trials_override: Some(1),
+        tag: "orig".into(),
+        no_judge: false,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 1,
+        judge_file: None,
+    };
+    let report = run_suite(
+        vec![sc.clone()],
+        &backend,
+        &TestJudge::Served("first-ruler".into()),
+        &opts,
+    )
+    .unwrap();
+    assert_eq!(
+        report.judge_model,
+        Some(vec!["first-ruler".to_string()]),
+        "{:?}",
+        report.scenarios[0].trials[0].reasons
+    );
+    let run_dir = results_root
+        .join("orig")
+        .join("regrade-trace-test")
+        .join("trial-0");
+
+    // Re-score the frozen evidence with a different ruler, named by a file.
+    let judge_dir =
+        std::env::temp_dir().join(format!("zseval-regradetrace-j-{}", std::process::id()));
+    std::fs::create_dir_all(&judge_dir).unwrap();
+    let judge_file = judge_dir.join("second.toml");
+    std::fs::write(&judge_file, b"model = \"second-ruler\"\n").unwrap();
+
+    let tr = zseval::runner::regrade(
+        &sc,
+        &TestJudge::Served("second-ruler".into()),
+        Some(&judge_file),
+        false,
+        0,
+        &run_dir,
+    )
+    .unwrap();
+
+    // The regraded trial names the ruler that produced it, so it can never be
+    // read as having been graded by the one report.json still names.
+    assert_eq!(tr.judge_model.as_deref(), Some("second-ruler"));
+    assert_eq!(tr.judge_file, "second.toml");
+    assert_eq!(
+        tr.judge_hash,
+        Some(zseval::util::fnv1a_hex(b"model = \"second-ruler\"\n"))
+    );
+    let persisted: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(run_dir.join("trial.json")).unwrap())
+            .unwrap();
+    assert_eq!(persisted["judge_file"], "second.toml");
+    assert_eq!(persisted["judge_model"], "second-ruler");
+
+    // The first judge's response survives, and the second's sits beside it
+    // rather than on top of it.
+    let first = std::fs::read_to_string(run_dir.join("judge-response.json")).unwrap();
+    assert!(
+        first.contains("first-ruler"),
+        "the original judge's response was destroyed: {first}"
+    );
+    let regrade_responses: Vec<String> = std::fs::read_dir(&run_dir)
+        .unwrap()
+        .flatten()
+        .filter(|e| e.file_name().to_string_lossy().starts_with("regrade-"))
+        .filter_map(|e| std::fs::read_to_string(e.path().join("judge-response.json")).ok())
+        .collect();
+    assert_eq!(regrade_responses.len(), 1, "{regrade_responses:?}");
+    assert!(regrade_responses[0].contains("second-ruler"));
+
+    std::fs::remove_dir_all(&judge_dir).ok();
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// A regrade that never calls a judge has no artifacts to protect, so it must
+/// not litter the trial dir with an empty regrade folder.
+#[test]
+fn a_no_judge_regrade_leaves_no_regrade_artifacts_dir() {
+    let sc_dir = std::env::temp_dir().join(format!("zseval-regradebare-sc-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        "id = \"regrade-bare-test\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
+         judge = \"Did the agent stay read-only?\"\n",
+    )
+    .unwrap();
+    let sc = Scenario::load(&sc_dir).unwrap();
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-regradebare-results-{}", std::process::id()));
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    let opts = RunOptions {
+        target: None,
+        trials_override: Some(1),
+        tag: "orig".into(),
+        no_judge: true,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 1,
+        judge_file: None,
+    };
+    run_suite(
+        vec![sc.clone()],
+        &backend,
+        &LlmJudge::new(test_judge_cfg()),
+        &opts,
+    )
+    .unwrap();
+    let run_dir = results_root
+        .join("orig")
+        .join("regrade-bare-test")
+        .join("trial-0");
+
+    zseval::runner::regrade(
+        &sc,
+        &LlmJudge::new(test_judge_cfg()),
+        None,
+        true,
+        0,
+        &run_dir,
+    )
+    .unwrap();
+
+    let stray: Vec<_> = std::fs::read_dir(&run_dir)
+        .unwrap()
+        .flatten()
+        .filter(|e| e.file_name().to_string_lossy().starts_with("regrade-"))
+        .collect();
+    assert!(stray.is_empty(), "{stray:?}");
 
     std::fs::remove_dir_all(&sc_dir).ok();
     std::fs::remove_dir_all(&results_root).ok();
@@ -1047,8 +1855,9 @@ fn regrade_regrades_existing_artifacts_without_driving_the_agent() {
         results_root: results_root.clone(),
         max_total_usd: None,
         jobs: 1,
+        judge_file: None,
     };
-    let report = run_suite(vec![sc], &backend, &zseval::judge::LlmJudge, &opts).unwrap();
+    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.scenarios[0].trials[0].outcome, Final::Pass);
     let run_dir = results_root
         .join("orig")
@@ -1061,8 +1870,15 @@ fn regrade_regrades_existing_artifacts_without_driving_the_agent() {
     write_scenario("tool_called write");
     let tightened = Scenario::load(&sc_dir).unwrap();
 
-    let tr =
-        zseval::runner::regrade(&tightened, &zseval::judge::LlmJudge, true, 0, &run_dir).unwrap();
+    let tr = zseval::runner::regrade(
+        &tightened,
+        &LlmJudge::new(test_judge_cfg()),
+        None,
+        true,
+        0,
+        &run_dir,
+    )
+    .unwrap();
     assert_eq!(tr.outcome, Final::Fail, "{:?}", tr.reasons);
 
     // trial.json on disk reflects the regrade, so `explain` sees the update.
@@ -1112,7 +1928,8 @@ fn regrade_canonicalizes_run_dir_so_memory_drift_check_does_not_false_positive()
     )
     .unwrap();
 
-    let sc_dir = std::env::temp_dir().join(format!("zseval-regrade-canon-sc-{}", std::process::id()));
+    let sc_dir =
+        std::env::temp_dir().join(format!("zseval-regrade-canon-sc-{}", std::process::id()));
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
@@ -1124,7 +1941,15 @@ fn regrade_canonicalizes_run_dir_so_memory_drift_check_does_not_false_positive()
     // Passed as-is (not pre-canonicalized by the caller) — regrade must do
     // it internally, the same way `zseval regrade <scenario> <trial-dir>`
     // would be invoked from a shell with a relative or symlinked path.
-    let tr = zseval::runner::regrade(&sc, &zseval::judge::LlmJudge, true, 0, &run_dir).unwrap();
+    let tr = zseval::runner::regrade(
+        &sc,
+        &LlmJudge::new(test_judge_cfg()),
+        None,
+        true,
+        0,
+        &run_dir,
+    )
+    .unwrap();
     assert_eq!(
         tr.outcome,
         Final::Pass,
@@ -1146,6 +1971,9 @@ fn pass_hat_k_is_the_stability_floor() {
         reasons: vec![],
         asserts: vec![],
         judge: None,
+        judge_file: String::new(),
+        judge_hash: None,
+        judge_model: None,
         input_tokens: 0,
         output_tokens: 0,
         judge_input_tokens: 0,
@@ -1180,7 +2008,15 @@ fn compare_warns_when_tool_call_evidence_drops_to_zero() {
     // vacuously for months: a scenario whose pass rate looks unchanged, but
     // whose evidence channel (tool_call_count) silently went to zero.
     use zseval::compare::compare;
-    use zseval::verdict::{Report, ScenarioResult, TrialResult};
+    use zseval::verdict::{Report, ReportMeta, ScenarioResult, TrialResult};
+
+    let meta = |tag: &str| ReportMeta {
+        tag: tag.into(),
+        model: "m".into(),
+        backend: "b".into(),
+        trials: 1,
+        ..Default::default()
+    };
 
     let mk = |tool_call_count| TrialResult {
         trial: 0,
@@ -1188,6 +2024,9 @@ fn compare_warns_when_tool_call_evidence_drops_to_zero() {
         reasons: vec![],
         asserts: vec![],
         judge: None,
+        judge_file: String::new(),
+        judge_hash: None,
+        judge_model: None,
         input_tokens: 0,
         output_tokens: 0,
         judge_input_tokens: 0,
@@ -1199,20 +2038,14 @@ fn compare_warns_when_tool_call_evidence_drops_to_zero() {
     };
 
     let base = Report::build(
-        "base".into(),
-        "m".into(),
-        "b".into(),
-        1,
+        meta("base"),
         vec![ScenarioResult::from_trials(
             "memory-search-then-read-when-needed".into(),
             vec![mk(2)],
         )],
     );
     let cand = Report::build(
-        "cand".into(),
-        "m".into(),
-        "b".into(),
-        1,
+        meta("cand"),
         vec![ScenarioResult::from_trials(
             "memory-search-then-read-when-needed".into(),
             vec![mk(0)],
@@ -1231,20 +2064,14 @@ fn compare_warns_when_tool_call_evidence_drops_to_zero() {
     // A scenario with zero tool calls on both sides (e.g. a pure text-answer
     // scenario) must never false-positive.
     let base2 = Report::build(
-        "base".into(),
-        "m".into(),
-        "b".into(),
-        1,
+        meta("base"),
         vec![ScenarioResult::from_trials(
             "prompt-code-concise-answer".into(),
             vec![mk(0)],
         )],
     );
     let cand2 = Report::build(
-        "cand".into(),
-        "m".into(),
-        "b".into(),
-        1,
+        meta("cand"),
         vec![ScenarioResult::from_trials(
             "prompt-code-concise-answer".into(),
             vec![mk(0)],

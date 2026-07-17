@@ -11,12 +11,14 @@
 //! pass@k = 1 if any trial passed (capability ceiling).
 //! pass^k = 1 if all graded trials passed (stability floor).
 
+use std::path::{Path, PathBuf};
+
 use serde::{Deserialize, Serialize};
 
 use crate::asserts::AssertResult;
 use crate::judge::JudgeVerdict;
 
-pub const REPORT_SCHEMA_VERSION: u32 = 2;
+pub const REPORT_SCHEMA_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -36,6 +38,35 @@ pub struct TrialResult {
     #[serde(default)]
     pub asserts: Vec<AssertResult>,
     pub judge: Option<JudgeVerdict>,
+    /// Configuration: the judge file this trial was graded with (`--judge`),
+    /// `""` when none was named (there is no built-in default). Recorded per
+    /// trial and not only per report because `regrade --judge` re-scores a
+    /// single trial dir in place: without this, a trial regraded by a second
+    /// ruler would sit under a `report.json` naming the first, and nothing on
+    /// disk would say which of the two produced the verdict. Recorded the same
+    /// way as `Report::judge_file` — see `JudgeFileRef`.
+    #[serde(default)]
+    pub judge_file: String,
+    /// Fingerprint of the judge file's bytes, `None` when no judge file was
+    /// named (or its bytes could not be read). Same reason
+    /// `ScenarioResult::content_hash` exists: a path is not an identity, and a
+    /// judge file's contents change under a stable path.
+    #[serde(default)]
+    pub judge_hash: Option<String>,
+    /// Execution: the model that actually graded this trial, as the judge's
+    /// own response reported it. Recorded per trial because that is where the
+    /// evidence it graded lives; the report aggregates these (see
+    /// `Report::judge_model`). Three distinct states:
+    ///
+    /// - `None` — unknown: this record predates the field, or the judge
+    ///   answered without naming the model that served the call. Naming the
+    ///   configured model instead would report an intention as a fact.
+    /// - `Some("")` — nothing graded this trial (no rubric, `--no-judge`, no
+    ///   key, or the call failed). No ruler to name, which is not the same as
+    ///   not knowing which ruler it was.
+    /// - `Some(model)` — `model` graded it.
+    #[serde(default)]
+    pub judge_model: Option<String>,
     pub input_tokens: u64,
     pub output_tokens: u64,
     /// Judge-call token usage, tracked separately from the agent's own
@@ -151,6 +182,40 @@ pub struct Report {
     pub backend: String,
     pub timestamp: String,
     pub trials: usize,
+    /// Configuration: the judge file this run was told to grade with
+    /// (`--judge`), `""` when none was named. Recorded because the judge is
+    /// the ruler: two runs are only comparable if the same one measured them,
+    /// and that fact has to survive the run. Always a working-directory-
+    /// relative, forward-slashed path, never an absolute one — see
+    /// `JudgeFileRef`.
+    /// `#[serde(default)]` so a baseline committed before this field existed
+    /// still loads, same precedent as `ScenarioResult::content_hash`.
+    #[serde(default)]
+    pub judge_file: String,
+    /// Fingerprint of `judge_file`'s bytes, `None` when no judge file was
+    /// named (or its bytes could not be read). The path alone cannot pin the
+    /// ruler down: a judge file's contents change under a stable path, which
+    /// is the same reason `ScenarioResult::content_hash` exists.
+    #[serde(default)]
+    pub judge_hash: Option<String>,
+    /// Execution: the model(s) that actually graded, read back from the
+    /// judge's own responses rather than from the config. `judge_file` and
+    /// `judge_hash` say what was *asked for*; the API resolves model names
+    /// server-side, so what answered is a separate fact. Three distinct
+    /// states, none of which may be confused for another:
+    ///
+    /// - `None` — unknown. Either the report predates this field (a baseline
+    ///   written before it was still graded by *something*, so claiming
+    ///   "nothing" would state a falsehood about a real run), or some trial's
+    ///   own ruler was unknown, which leaves the run's rulers unlistable.
+    /// - `Some([])` — nothing was graded: `--no-judge`, no scenario carried a
+    ///   rubric, or every call failed. The honest answer, where echoing the
+    ///   configured model back would report an intention as a fact.
+    /// - `Some([m, ...])` — these rulers graded, sorted and deduped. On the
+    ///   rare disagreement (trials served by different models) every distinct
+    ///   model is listed rather than one being picked to stand for the rest.
+    #[serde(default)]
+    pub judge_model: Option<Vec<String>>,
     pub scenarios: Vec<ScenarioResult>,
     pub summary: Summary,
 }
@@ -169,14 +234,100 @@ pub struct Summary {
     pub avg_wall_secs: f64,
 }
 
+/// How an artifact records the judge file it was graded with: where the file
+/// was, and what it said. Both halves are needed — a path is not an identity,
+/// since a judge file's contents change under a stable path (the precedent is
+/// `ScenarioResult::content_hash`, which exists for exactly that reason about
+/// scenarios).
+///
+/// `Default` is "no judge file was named".
+#[derive(Debug, Clone, Default)]
+pub struct JudgeFileRef {
+    /// Relative to the working directory when the file lives under it, its
+    /// bare file name otherwise; never an absolute path. A report is meant to
+    /// be copied into `baselines/`, i.e. into git, so `--judge
+    /// /Users/alice/private-client/judges/x.toml` must not turn a committed
+    /// artifact into a map of someone's filesystem (the same leak `/results`
+    /// is gitignored over). Forward slashes always, so the recorded value does
+    /// not vary with the platform that wrote it.
+    pub path: String,
+    /// `util::fnv1a_hex` of the file's bytes — the same fingerprint a scenario
+    /// uses for its own source, so there is one hashing approach here, not
+    /// two. `None` when the bytes could not be read: an unknown fingerprint,
+    /// never a guessed one.
+    pub hash: Option<String>,
+}
+
+impl JudgeFileRef {
+    pub fn of(path: &Path) -> Self {
+        JudgeFileRef {
+            path: record_path(path),
+            hash: std::fs::read(path).ok().map(|b| crate::util::fnv1a_hex(&b)),
+        }
+    }
+}
+
+/// See `JudgeFileRef::path` for the rules this enforces.
+fn record_path(path: &Path) -> String {
+    let rel = match std::fs::canonicalize(path) {
+        Ok(abs) => relative_to_cwd(&abs).unwrap_or_else(|| file_name_of(path)),
+        // The path did not resolve (it may name a file that no longer exists).
+        // One that was given relative is relative to the working directory by
+        // construction and leaks nothing, so it stands as given; an absolute
+        // one is reduced to its file name like any other.
+        Err(_) if path.is_relative() => path.to_path_buf(),
+        Err(_) => file_name_of(path),
+    };
+    rel.components()
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn relative_to_cwd(abs: &Path) -> Option<PathBuf> {
+    let cwd = std::env::current_dir().ok()?;
+    if let Ok(rel) = abs.strip_prefix(&cwd) {
+        return Some(rel.to_path_buf());
+    }
+    // A working directory reached through a symlink (macOS: /tmp ->
+    // /private/tmp) still contains the file; compare resolved forms before
+    // concluding the file lives somewhere else.
+    let cwd = std::fs::canonicalize(&cwd).ok()?;
+    abs.strip_prefix(&cwd).ok().map(|r| r.to_path_buf())
+}
+
+fn file_name_of(path: &Path) -> PathBuf {
+    PathBuf::from(path.file_name().unwrap_or_default())
+}
+
+/// The run-level facts a report records that its scenarios cannot supply:
+/// what was evaluated, and by which ruler.
+///
+/// Named fields rather than positional arguments because the values are
+/// swappable neighbours of the same type: `tag`/`model`/`backend` are three
+/// adjacent `String`s, and `judge_file`/`judge_model` are two more whose whole
+/// design point is that they mean *different* things (configuration vs
+/// execution). At a call site, only the names keep them apart.
+///
+/// `Default` records a run whose judge is unknown rather than one that claims
+/// no judge ran: a caller that says nothing about the ruler has not thereby
+/// established that there wasn't one.
+#[derive(Debug, Clone, Default)]
+pub struct ReportMeta {
+    pub tag: String,
+    pub model: String,
+    pub backend: String,
+    pub trials: usize,
+    /// See `Report::judge_file`.
+    pub judge_file: String,
+    /// See `Report::judge_hash`.
+    pub judge_hash: Option<String>,
+    /// See `Report::judge_model` for the three states.
+    pub judge_model: Option<Vec<String>>,
+}
+
 impl Report {
-    pub fn build(
-        tag: String,
-        model: String,
-        backend: String,
-        trials: usize,
-        scenarios: Vec<ScenarioResult>,
-    ) -> Report {
+    pub fn build(meta: ReportMeta, scenarios: Vec<ScenarioResult>) -> Report {
         // Rates are averaged over gradable scenarios only; a fully-ungradable
         // scenario is a broken eval, not a 0.
         let gradable: Vec<&ScenarioResult> = scenarios.iter().filter(|s| s.is_gradable()).collect();
@@ -195,11 +346,14 @@ impl Report {
         };
         Report {
             schema_version: REPORT_SCHEMA_VERSION,
-            tag,
-            model,
-            backend,
+            tag: meta.tag,
+            model: meta.model,
+            backend: meta.backend,
             timestamp: now_iso(),
-            trials,
+            trials: meta.trials,
+            judge_file: meta.judge_file,
+            judge_hash: meta.judge_hash,
+            judge_model: meta.judge_model,
             summary: Summary {
                 n_scenarios: scenarios.len(),
                 n_gradable: gradable.len(),
@@ -261,6 +415,16 @@ pub fn now_iso() -> String {
 mod exit_code_tests {
     use super::*;
 
+    fn meta() -> ReportMeta {
+        ReportMeta {
+            tag: "t".into(),
+            model: "m".into(),
+            backend: "b".into(),
+            trials: 1,
+            ..Default::default()
+        }
+    }
+
     fn trial(outcome: Final) -> TrialResult {
         TrialResult {
             trial: 0,
@@ -268,6 +432,9 @@ mod exit_code_tests {
             reasons: vec![],
             asserts: vec![],
             judge: None,
+            judge_file: String::new(),
+            judge_hash: None,
+            judge_model: None,
             input_tokens: 0,
             output_tokens: 0,
             judge_input_tokens: 0,
@@ -285,10 +452,7 @@ mod exit_code_tests {
         // never look like exit 0 — that's exactly how a broken environment
         // hides behind a green CI check.
         let report = Report::build(
-            "t".into(),
-            "m".into(),
-            "b".into(),
-            1,
+            meta(),
             vec![ScenarioResult::from_trials(
                 "s".into(),
                 vec![trial(Final::Indeterminate)],
@@ -302,17 +466,14 @@ mod exit_code_tests {
     fn no_scenarios_at_all_is_not_a_harness_error() {
         // An empty scenario set is a usage question (caught earlier by
         // `discover`), not this report's problem to flag.
-        let report = Report::build("t".into(), "m".into(), "b".into(), 1, vec![]);
+        let report = Report::build(meta(), vec![]);
         assert_eq!(report.exit_code(), 0);
     }
 
     #[test]
     fn any_fail_is_exit_1() {
         let report = Report::build(
-            "t".into(),
-            "m".into(),
-            "b".into(),
-            1,
+            meta(),
             vec![ScenarioResult::from_trials(
                 "s".into(),
                 vec![trial(Final::Fail)],
@@ -324,10 +485,7 @@ mod exit_code_tests {
     #[test]
     fn all_pass_is_exit_0() {
         let report = Report::build(
-            "t".into(),
-            "m".into(),
-            "b".into(),
-            1,
+            meta(),
             vec![ScenarioResult::from_trials(
                 "s".into(),
                 vec![trial(Final::Pass)],
@@ -337,19 +495,204 @@ mod exit_code_tests {
     }
 
     #[test]
+    fn build_records_the_judge_file_its_hash_and_the_models_that_graded() {
+        let report = Report::build(
+            ReportMeta {
+                judge_file: "judges/opus.toml".into(),
+                judge_hash: Some("0123456789abcdef".into()),
+                judge_model: Some(vec!["claude-opus-4-8".into()]),
+                ..meta()
+            },
+            vec![],
+        );
+        assert_eq!(report.judge_file, "judges/opus.toml");
+        assert_eq!(report.judge_hash.as_deref(), Some("0123456789abcdef"));
+        assert_eq!(report.judge_model, Some(vec!["claude-opus-4-8".into()]));
+    }
+
+    /// A caller that says nothing about the ruler has not established that
+    /// there wasn't one — the report must say "unknown", not "none".
+    #[test]
+    fn a_report_built_without_judge_meta_reads_as_unknown_not_as_ungraded() {
+        let report = Report::build(meta(), vec![]);
+        assert_eq!(report.judge_file, "");
+        assert_eq!(report.judge_hash, None);
+        assert_eq!(report.judge_model, None);
+    }
+
+    /// The three states of `judge_model` are the whole point of the field:
+    /// each must survive a round trip as itself.
+    #[test]
+    fn the_three_judge_model_states_round_trip_distinctly() {
+        let round_trip = |judge_model| {
+            let report = Report::build(
+                ReportMeta {
+                    judge_model,
+                    ..meta()
+                },
+                vec![],
+            );
+            let json = serde_json::to_string(&report).unwrap();
+            serde_json::from_str::<Report>(&json).unwrap().judge_model
+        };
+        assert_eq!(round_trip(None), None, "unknown");
+        assert_eq!(round_trip(Some(vec![])), Some(vec![]), "nothing graded");
+        assert_eq!(
+            round_trip(Some(vec!["m".to_string()])),
+            Some(vec!["m".to_string()]),
+            "m graded"
+        );
+    }
+
+    #[test]
+    fn a_fresh_report_carries_the_current_schema_version() {
+        let report = Report::build(meta(), vec![]);
+        assert_eq!(report.schema_version, 3);
+    }
+
+    /// Same precedent as `content_hash`: a baseline committed before these
+    /// fields existed must still load, as "unknown" rather than an error.
+    /// Specifically it must not read as "nothing graded" — that baseline *was*
+    /// graded (by the pinned default), so the one thing this report may not do
+    /// is assert a falsehood about a real past run. It keeps the schema
+    /// version it was written with; the serde defaults are what let it load.
+    #[test]
+    fn a_baseline_predating_the_judge_fields_loads_as_unknown_not_as_ungraded() {
+        let old = r#"{
+            "schema_version": 2,
+            "tag": "main",
+            "model": "anthropic/claude-sonnet-4-6",
+            "backend": "zs",
+            "timestamp": "2026-07-01T00:00:00Z",
+            "trials": 3,
+            "scenarios": [],
+            "summary": {
+                "n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0,
+                "indeterminate_scenarios": 0, "indeterminate_trials": 0,
+                "total_cost_usd": 0.0, "avg_wall_secs": 0.0
+            }
+        }"#;
+        let report: Report = serde_json::from_str(old).unwrap();
+        assert_eq!(
+            report.schema_version, 2,
+            "keeps the version it was written with"
+        );
+        assert_eq!(report.judge_file, "", "judge files did not exist yet");
+        assert_eq!(report.judge_hash, None);
+        assert_eq!(
+            report.judge_model, None,
+            "this run was graded — it must read as unknown, never as 'nothing graded'"
+        );
+    }
+
+    /// A trial.json written before these fields existed is the same problem
+    /// one level down: it was graded, so it may not claim it wasn't.
+    #[test]
+    fn a_trial_predating_the_judge_fields_loads_as_unknown_not_as_ungraded() {
+        let old = r#"{
+            "trial": 0,
+            "outcome": "pass",
+            "judge": "yes",
+            "input_tokens": 1, "output_tokens": 2,
+            "cost_usd": 0.1, "wall_secs": 1.0,
+            "run_dir": "results/main/s/trial-0"
+        }"#;
+        let tr: TrialResult = serde_json::from_str(old).unwrap();
+        assert_eq!(tr.judge, Some(JudgeVerdict::Yes));
+        assert_eq!(tr.judge_file, "");
+        assert_eq!(tr.judge_hash, None);
+        assert_eq!(tr.judge_model, None);
+    }
+
+    #[test]
     fn mixed_gradable_and_indeterminate_scenarios_is_not_a_harness_error() {
         // Only a *fully* ungradable report is a harness error; a report where
         // some scenarios graded fine must still surface Fail/Pass normally.
         let report = Report::build(
-            "t".into(),
-            "m".into(),
-            "b".into(),
-            1,
+            meta(),
             vec![
                 ScenarioResult::from_trials("gradable".into(), vec![trial(Final::Pass)]),
                 ScenarioResult::from_trials("broken".into(), vec![trial(Final::Indeterminate)]),
             ],
         );
         assert_eq!(report.exit_code(), 0);
+    }
+}
+
+#[cfg(test)]
+mod judge_file_ref_tests {
+    use super::*;
+
+    /// A judge file under the working directory records as the relative path
+    /// the caller would have typed — never the absolute one, which would write
+    /// the local filesystem layout into an artifact meant for `baselines/`.
+    #[test]
+    fn a_file_under_the_working_directory_records_relative_to_it() {
+        let cwd = std::env::current_dir().unwrap();
+        let dir = cwd.join(format!("zseval-jfr-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("opus.toml");
+        std::fs::write(&file, b"model = \"claude-opus-4-8\"\n").unwrap();
+
+        let by_abs = JudgeFileRef::of(&file);
+        let expected = format!("zseval-jfr-{}/opus.toml", std::process::id());
+        assert_eq!(by_abs.path, expected);
+        assert!(!by_abs.path.starts_with('/'), "{}", by_abs.path);
+        // The same file named relatively records identically: what is recorded
+        // is the file, not the spelling it arrived in.
+        assert_eq!(JudgeFileRef::of(Path::new(&expected)).path, expected);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// `--judge /Users/alice/private-client/judges/x.toml` must not leak that
+    /// path into a committed report; only the file name survives.
+    #[test]
+    fn a_file_outside_the_working_directory_records_as_its_bare_name() {
+        let dir = std::env::temp_dir().join(format!("zseval-jfr-out-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("private-judge.toml");
+        std::fs::write(&file, b"model = \"x\"\n").unwrap();
+
+        assert_eq!(JudgeFileRef::of(&file).path, "private-judge.toml");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A path is not an identity: the same path with different bytes behind it
+    /// is a different ruler, and only the hash can say so.
+    #[test]
+    fn the_hash_tracks_the_bytes_not_the_path() {
+        let dir = std::env::temp_dir().join(format!("zseval-jfr-hash-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("judge.toml");
+
+        std::fs::write(&file, b"model = \"sonnet\"\n").unwrap();
+        let first = JudgeFileRef::of(&file);
+        std::fs::write(&file, b"model = \"opus\"\n").unwrap();
+        let second = JudgeFileRef::of(&file);
+
+        assert_eq!(first.path, second.path);
+        assert_ne!(first.hash, second.hash);
+        assert_eq!(
+            first.hash,
+            Some(crate::util::fnv1a_hex(b"model = \"sonnet\"\n")),
+            "the same fingerprint a scenario uses for its own source"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// An unreadable judge file leaves the fingerprint unknown rather than
+    /// guessed, and the default is "no judge file was named" throughout.
+    #[test]
+    fn an_unreadable_file_has_no_hash_and_the_default_names_nothing() {
+        let missing = JudgeFileRef::of(Path::new("judges/does-not-exist.toml"));
+        assert_eq!(missing.path, "judges/does-not-exist.toml");
+        assert_eq!(missing.hash, None);
+
+        let none = JudgeFileRef::default();
+        assert_eq!(none.path, "");
+        assert_eq!(none.hash, None);
     }
 }
