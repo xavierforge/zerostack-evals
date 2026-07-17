@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use zseval::asserts::Assert;
 use zseval::backend::{Mock, RunRoots};
 use zseval::judge::{JudgeConfig, JudgeProvider, LlmJudge};
-use zseval::runner::{run_suite, RunOptions};
+use zseval::runner::{regrade, run_suite, RunOptions};
 use zseval::scenario::{discover, Scenario};
 use zseval::seed;
 use zseval::transcript;
@@ -1118,13 +1118,115 @@ fn jobs_greater_than_one_grades_every_trial_and_keeps_them_in_order() {
     assert!(s.trials.iter().all(|t| t.outcome == Final::Pass), "{s:?}");
     // Every trial got its own isolated run_dir with a persisted trial.json —
     // the concurrent path must not let two workers collide on one directory.
+    // `results_root` here is outside the working directory (a temp dir), so
+    // report-paths' basename fallback applies: the recorded `run_dir` is only
+    // `trial-N`, not enough on its own to find the file back on disk. The
+    // actual on-disk directory is reconstructed from what we know the run
+    // layout to be (see `run_trials_for_scenario`), independent of the
+    // recorded string.
     for trial in &s.trials {
+        let actual_dir = results_root
+            .join("jobs")
+            .join(&s.id)
+            .join(format!("trial-{}", trial.trial));
         assert!(
-            Path::new(&trial.run_dir).join("trial.json").is_file(),
+            actual_dir.join("trial.json").is_file(),
             "{}",
-            trial.run_dir
+            actual_dir.display()
         );
+        assert!(!trial.run_dir.starts_with('/'), "{}", trial.run_dir);
     }
+
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// report-paths: a run under the working directory must record `run_dir`
+/// relative to it, forward-slashed, never absolute — an artifact meant for
+/// `baselines/` (i.e. git) must not leak the local filesystem layout the way
+/// an absolute path would.
+#[test]
+fn success_path_run_dir_is_recorded_relative_to_the_working_directory() {
+    let sc = Scenario::load(&scenarios_root().join("prompts/ask-readonly")).unwrap();
+    // Absolute, but nested under cwd — this is the case that exercises the
+    // canonicalize-then-strip-cwd-prefix behavior: a caller may well hand a
+    // `--results` root as an absolute path, and it must still be recorded
+    // relative because it resolves under the working directory.
+    let results_root = std::env::current_dir()
+        .unwrap()
+        .join(format!("zseval-relrun-{}", std::process::id()));
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    let opts = RunOptions {
+        target: None,
+        trials_override: Some(1),
+        tag: "relrun".into(),
+        no_judge: true,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 1,
+        judge_file: None,
+    };
+    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let tr = &report.scenarios[0].trials[0];
+
+    assert!(!tr.run_dir.starts_with('/'), "{}", tr.run_dir);
+    assert!(!tr.run_dir.contains('\\'), "{}", tr.run_dir);
+    let expected = format!(
+        "zseval-relrun-{}/relrun/{}/trial-0",
+        std::process::id(),
+        report.scenarios[0].id
+    );
+    assert_eq!(
+        tr.run_dir, expected,
+        "recorded relative to cwd, forward-slashed"
+    );
+    // The recorded (relative) path must actually resolve back to the file
+    // from the same working directory the run used.
+    assert!(
+        Path::new(&tr.run_dir).join("trial.json").is_file(),
+        "{}",
+        tr.run_dir
+    );
+
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// report-paths: `regrade` must be able to take the exact (relative) string a
+/// prior run recorded in `run_dir` and locate the trial from the working
+/// directory, the same way a caller copying it out of a `report.json` would.
+#[test]
+fn regrade_locates_a_run_dir_from_a_relative_run_dir() {
+    let sc = Scenario::load(&scenarios_root().join("prompts/ask-readonly")).unwrap();
+    let results_root = std::env::current_dir()
+        .unwrap()
+        .join(format!("zseval-relrun-regrade-{}", std::process::id()));
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    let opts = RunOptions {
+        target: None,
+        trials_override: Some(1),
+        tag: "relrun-regrade".into(),
+        no_judge: true,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 1,
+        judge_file: None,
+    };
+    let report = run_suite(
+        vec![sc.clone()],
+        &backend,
+        &LlmJudge::new(test_judge_cfg()),
+        &opts,
+    )
+    .unwrap();
+    let tr = &report.scenarios[0].trials[0];
+    assert!(!tr.run_dir.starts_with('/'), "{}", tr.run_dir);
+
+    let judge = LlmJudge::new(test_judge_cfg());
+    let regraded = regrade(&sc, &judge, None, true, 0, Path::new(&tr.run_dir)).unwrap();
+    assert_eq!(regraded.outcome, Final::Pass, "{regraded:?}");
 
     std::fs::remove_dir_all(&results_root).ok();
 }
@@ -1399,6 +1501,50 @@ fn indeterminate_trial_recovers_cost_already_spent_before_the_failure() {
         (tr.cost_usd - 0.0275).abs() < 1e-9,
         "expected recovered cost ~0.0275, got {}",
         tr.cost_usd
+    );
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// report-paths applies to the indeterminate write site too (a backend error
+/// takes a different code path to build `TrialResult`, but the same rule
+/// governs what it records for `run_dir`).
+#[test]
+fn indeterminate_trial_run_dir_is_also_recorded_relative_to_the_working_directory() {
+    let sc_dir =
+        std::env::temp_dir().join(format!("zseval-relrun-indet-sc-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        "id = \"relrun-indet-test\"\ntask = \"hi\"\nexpect = [\"final_contains x\"]\n",
+    )
+    .unwrap();
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let results_root = std::env::current_dir()
+        .unwrap()
+        .join(format!("zseval-relrun-indet-{}", std::process::id()));
+    let backend = PartialFailureBackend { partial_cost: 0.0 };
+    let opts = RunOptions {
+        target: None,
+        trials_override: Some(1),
+        tag: "t".into(),
+        no_judge: true,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 1,
+        judge_file: None,
+    };
+    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let tr = &report.scenarios[0].trials[0];
+    assert_eq!(tr.outcome, Final::Indeterminate);
+    assert!(!tr.run_dir.starts_with('/'), "{}", tr.run_dir);
+    assert!(!tr.run_dir.contains('\\'), "{}", tr.run_dir);
+    assert!(
+        Path::new(&tr.run_dir).join("data").is_dir(),
+        "recorded path must resolve back to the actual run dir: {}",
+        tr.run_dir
     );
 
     std::fs::remove_dir_all(&sc_dir).ok();

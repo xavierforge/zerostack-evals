@@ -267,8 +267,11 @@ impl JudgeFileRef {
     }
 }
 
-/// See `JudgeFileRef::path` for the rules this enforces.
-fn record_path(path: &Path) -> String {
+/// See `JudgeFileRef::path` for the rules this enforces. `pub(crate)` so
+/// `runner.rs` can apply the same working-directory-relative, forward-slashed,
+/// basename-fallback treatment to `TrialResult.run_dir` (report-paths) instead
+/// of duplicating the logic.
+pub(crate) fn record_path(path: &Path) -> String {
     let rel = match std::fs::canonicalize(path) {
         Ok(abs) => relative_to_cwd(&abs).unwrap_or_else(|| file_name_of(path)),
         // The path did not resolve (it may name a file that no longer exists).
