@@ -492,7 +492,9 @@ fn grade_trial(
         cost_usd: transcript.cost_usd + judge_cost_usd,
         wall_secs: artifacts.wall_secs,
         tool_call_count: transcript.tool_calls.len(),
-        run_dir: run_dir.display().to_string(),
+        // report-paths: recorded working-directory-relative, forward-slashed,
+        // never absolute — see `verdict::record_path`.
+        run_dir: crate::verdict::record_path(run_dir),
     }
 }
 
@@ -521,7 +523,8 @@ fn indeterminate(grading: &Grading, trial: usize, run_dir: &Path, reason: String
         cost_usd: recover_cost_usd(run_dir),
         wall_secs: 0.0,
         tool_call_count: 0,
-        run_dir: run_dir.display().to_string(),
+        // report-paths: same treatment as the success path above.
+        run_dir: crate::verdict::record_path(run_dir),
     }
 }
 
