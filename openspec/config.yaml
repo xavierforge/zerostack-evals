@@ -1,0 +1,44 @@
+schema: spec-driven
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+rules:
+  tasks:
+    - |
+      **tasks.md contract**
+      When you write the `tasks.md` artifact, it MUST satisfy every condition below:
+      - [ ] Every section is a vertical slice: it contains its own failing tests AND the implementation that turns them green. Horizontal layers ("all tests", "all types", "all plumbing") are forbidden as sections.
+      - [ ] One section = one TDD cycle = one working session = exactly one commit. A section a reviewer cannot describe in a single Conventional Commit subject line without "and" is too big and MUST be split.
+      - [ ] Sections are independently verifiable and ordered so each depends only on earlier sections.
+      - [ ] Each section header carries an inline dispatch annotation in this exact format: `[dispatch: mech-executor|executor|main, parallel: yes|no, reason: <one-line grading rationale>]`. Grade the dispatch by the section's spec completeness, not by its size:
+        - If the section's spec is complete (explicit file paths, verification steps, and expected tests all present) and carries no design judgment, mark `mech-executor`.
+        - Only mark `executor` when the section carries design judgment (interface trade-offs, error-handling strategy, ambiguous requirements).
+        - Use `main` for work needing conversation context.
+        Every annotation ends with a one-line `reason:` grading rationale beside the dispatch tag, e.g. `[dispatch: mech-executor, parallel: no, reason: tests-only backfill, spec carries paths and assertions]`. (A later /section tool parses this line, so keep the format exact.)
+      - [ ] Target 3-7 tasks per section.
+    - |
+      **Plan lint (mandatory final step, before presenting the change to the user)**
+      Run this checklist before showing the change to the user:
+      - [ ] (a) Every requirement in `specs/` maps to at least one test task.
+      - [ ] (b) `proposal.md` states non-goals.
+      - [ ] (c) Every section satisfies the tasks.md contract above (vertical, one-commit-sized, dispatch-annotated).
+      - [ ] (d) No section exists whose only content is tests, or whose only content is verification.
+      - [ ] (e) Every dispatch annotation carries a `reason:` grading rationale; an `executor` annotation with no reason line is a lint failure.
+
+      If any check fails, fix `tasks.md` and re-lint. Present nothing to the user until all checks pass.
