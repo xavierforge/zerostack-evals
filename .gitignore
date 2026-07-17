@@ -22,3 +22,14 @@
 .mypy_cache/
 __pycache__/
 *.pyc
+
+# Local agent scaffolding (opsx commands and skills): machine-local, regenerable
+.claude/
+
+# Review artifacts the review/ship tooling drops next to a change: rendered
+# reports, the raw diff they were built from, translation glosses. The
+# versioned record of a change is its own markdown, not these.
+openspec/changes/**/diff-review.*
+openspec/changes/**/review.html
+openspec/changes/**/diff.patch
+openspec/changes/**/gloss.*.json
