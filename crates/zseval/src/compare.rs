@@ -267,7 +267,7 @@ pub fn print_human(c: &Comparison) {
 #[cfg(test)]
 mod exit_code_tests {
     use super::*;
-    use crate::verdict::{Final, Report, ScenarioResult, TrialResult};
+    use crate::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
 
     fn trial(outcome: Final, tool_call_count: usize) -> TrialResult {
         TrialResult {
@@ -276,6 +276,9 @@ mod exit_code_tests {
             reasons: vec![],
             asserts: vec![],
             judge: None,
+            judge_file: String::new(),
+            judge_hash: None,
+            judge_model: None,
             input_tokens: 0,
             output_tokens: 0,
             judge_input_tokens: 0,
@@ -288,7 +291,20 @@ mod exit_code_tests {
     }
 
     fn report(scenarios: Vec<ScenarioResult>) -> Report {
-        Report::build("t".into(), "m".into(), "b".into(), 1, scenarios)
+        report_for_model("m", scenarios)
+    }
+
+    fn report_for_model(model: &str, scenarios: Vec<ScenarioResult>) -> Report {
+        Report::build(
+            ReportMeta {
+                tag: "t".into(),
+                model: model.into(),
+                backend: "b".into(),
+                trials: 1,
+                ..Default::default()
+            },
+            scenarios,
+        )
     }
 
     #[test]
@@ -450,21 +466,15 @@ mod exit_code_tests {
         // Comparing an Anthropic baseline against an OpenRouter candidate
         // (or a different model on the same provider) must be visible, not
         // silently treated as an apples-to-apples regression check.
-        let base = Report::build(
-            "t".into(),
-            "anthropic/claude-sonnet-4-6".into(),
-            "b".into(),
-            1,
+        let base = report_for_model(
+            "anthropic/claude-sonnet-4-6",
             vec![ScenarioResult::from_trials(
                 "s".into(),
                 vec![trial(Final::Pass, 0)],
             )],
         );
-        let cand = Report::build(
-            "t".into(),
-            "openrouter/some-model".into(),
-            "b".into(),
-            1,
+        let cand = report_for_model(
+            "openrouter/some-model",
             vec![ScenarioResult::from_trials(
                 "s".into(),
                 vec![trial(Final::Pass, 0)],

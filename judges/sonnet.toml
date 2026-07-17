@@ -1,0 +1,7 @@
+# This card is inert data: provider, model, and prices only. It cannot name a
+# network destination or an env var — routing (endpoint + key) is derived
+# from `provider` alone, in code (see judges/README.md).
+provider = "anthropic"
+model = "claude-sonnet-4-6"
+price_in_usd_per_mtok = 3.0
+price_out_usd_per_mtok = 15.0
