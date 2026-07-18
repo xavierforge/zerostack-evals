@@ -1,3 +1,6 @@
+# Instantiated from: skills/openspec-rules/config.template.yaml
+# Template sha256: 373feb5975ffb3e3f80f5974bb7e22b76fb97a35dafa624bc928b853694dcbc3
+# Instantiated: 2026-07-18
 schema: spec-driven
 
 # Project context (optional)
@@ -11,6 +14,10 @@ schema: spec-driven
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
+# Rules are keyed by artifact ID (proposal, specs, design, tasks); openspec
+# warns on and ignores any other key, so keep the two shared rules below on
+# their artifact hosts (verification evidence on `tasks`, decision
+# reconciliation on `design`) rather than on a phase name.
 # Example:
 #   rules:
 #     proposal:
@@ -42,3 +49,11 @@ rules:
       - [ ] (e) Every dispatch annotation carries a `reason:` grading rationale; an `executor` annotation with no reason line is a lint failure.
 
       If any check fails, fix `tasks.md` and re-lint. Present nothing to the user until all checks pass.
+    # Background (2026-07-17): opsx:verify reported 0 CRITICAL and let a diff through; a later spec-comparison review caught task 4.4 whose verification was only half-done. This entry demands execution evidence, not checkmarks, so that gap closes at tasks-authoring time.
+    - |
+      **Verification evidence (per task)**
+      Every task's verification step MUST call for actual execution evidence (test output, command result, or observed behavior), not a bare checkbox. When you write `tasks.md`, phrase each task so its "done" can only be claimed by citing that evidence. A task whose completion rests on a ticked box with no execution evidence is NOT complete, and a later verify pass reading it MUST raise a WARNING rather than pass it silently.
+  design:
+    - |
+      **Decision reconciliation list (close of design)**
+      When you finish `design.md`, end it with a decision reconciliation list so the user can audit the checklist alone instead of re-reading the whole document: one line per decision locked in during discussion, each naming its landing spot in `design.md` (the section title where the decision is recorded). Any locked decision with no landing section MUST be flagged explicitly (for example, append `-> NOT IN DESIGN`).
