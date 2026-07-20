@@ -73,10 +73,10 @@ sections only, and none may overlap another.
 
 ## 9. Add the experiment record directory [dispatch: executor, parallel: no, reason: the README's content is an open question in design.md, so the section carries authoring judgment]
 
-- [ ] 9.1 Create the committed `experiments/` directory with `README.md`. Verify: `git check-ignore experiments/` prints nothing and `git status` shows both as new trackable files
-- [ ] 9.2 Write the README covering the redirect ritual, the provenance a snapshot embeds, and the never-regenerate rule. Verify: quote the never-regenerate sentence and confirm the other two points are present
-- [ ] 9.3 Produce one real snapshot through the documented ritual, as an end-to-end check that the ritual is accurate as written. Verify: run the README's command verbatim; paste the first 20 lines of the resulting markdown
-- [ ] 9.4 Confirm the snapshot embeds each target's `target.toml` from the run-directory copy and degrades honestly when a column's content is unavailable. Verify: grep the snapshot for the embedded toml and for the not-embedded note on a detached column
+- [x] 9.1 Create the committed `experiments/` directory with `README.md`. Verify: `git check-ignore experiments/` prints nothing and `git status` shows both as new trackable files
+- [x] 9.2 Write the README covering the redirect ritual, the provenance a snapshot embeds, and the never-regenerate rule. Verify: quote the never-regenerate sentence and confirm the other two points are present
+- [x] 9.3 Produce one real snapshot through the documented ritual, as an end-to-end check that the ritual is accurate as written. Verify: run the README's command verbatim; paste the first 20 lines of the resulting markdown
+- [x] 9.4 Confirm the snapshot embeds each target's `target.toml` from the run-directory copy and degrades honestly when a column's content is unavailable. Verify: grep the snapshot for the embedded toml and for the not-embedded note on a detached column
 
 ## 10. Retire the A/B framing for cross-target compare [dispatch: executor, parallel: no, reason: prose judgment across three files, and the README additions and the leftover sweep both need sections 2 and 4-8 already landed]
 
