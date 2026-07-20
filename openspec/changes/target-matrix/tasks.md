@@ -15,11 +15,11 @@ sections only, and none may overlap another.
 
 ## 2. Make --target mandatory for zs and rejected for mock [dispatch: mech-executor, parallel: no, reason: each rule and its exit code is fixed in the spec; only flag plumbing remains]
 
-- [ ] 2.1 Write failing tests: `run --backend zs` with no `--target` exits 2 before any trial; `run --backend mock=<fixture>` given `--target` exits 2; a completed mock run records `model == "mock"`. Verify: `cargo test -p zseval` shows the three failing
-- [ ] 2.2 Add `Flags::get_all(&self, k) -> Vec<&str>` returning every occurrence in order, beside the existing `get`/`count`. Verify: a unit test asserting `get_all("target")` returns both values for `--target a --target b` passes
-- [ ] 2.3 Enforce the zs rule: exit 2 with a usage error before the backend is constructed when no `--target` is given. Verify: the 2.1 test passes; run the binary and paste its exit code and message
-- [ ] 2.4 Enforce the mock rule and record `"mock"` as a mock run's model. Verify: the two mock tests from 2.1 pass; paste the `model` field from a produced mock report
-- [ ] 2.5 Delete the `"provider-default"` branch from `target::describe` and its test, now an unreachable state. Verify: `grep -rn "provider-default" crates/` returns nothing and `cargo test -p zseval` is green
+- [x] 2.1 Write failing tests: `run --backend zs` with no `--target` exits 2 before any trial; `run --backend mock=<fixture>` given `--target` exits 2; a completed mock run records `model == "mock"`. Verify: `cargo test -p zseval` shows the three failing
+- [x] 2.2 Add `Flags::get_all(&self, k) -> Vec<&str>` returning every occurrence in order, beside the existing `get`/`count`. Verify: a unit test asserting `get_all("target")` returns both values for `--target a --target b` passes
+- [x] 2.3 Enforce the zs rule: exit 2 with a usage error before the backend is constructed when no `--target` is given. Verify: the 2.1 test passes; run the binary and paste its exit code and message
+- [x] 2.4 Enforce the mock rule and record `"mock"` as a mock run's model. Verify: the two mock tests from 2.1 pass; paste the `model` field from a produced mock report
+- [x] 2.5 Delete the `"provider-default"` branch from `target::describe` and its test, now an unreachable state. Verify: `grep -rn "provider-default" crates/` returns nothing and `cargo test -p zseval` is green
 
 ## 3. Nest multi-target results under the target stem [dispatch: executor, parallel: no, reason: threads a new run_root through the runner call chain, an interface change design.md describes but does not fully pin down]
 

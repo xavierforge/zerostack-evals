@@ -27,15 +27,18 @@ pub fn peek(path: &Path) -> (Option<String>, Option<String>) {
 }
 
 /// Human-identifiable label for what a run evaluates against:
-/// `"<provider>/<model>"`, just one of the two, or `"provider-default"` when
-/// neither is known (no target: zerostack uses its own configured provider).
+/// `"<provider>/<model>"`, or just one of the two when only it is known.
+/// `target` is mandatory for the `zs` backend (target-matrix section 2), so
+/// this is only ever called with `Some` in production; the `None` arm
+/// (peek's own unreadable/unparseable-file fallback) still degrades to
+/// whichever half is known rather than panicking.
 pub fn describe(target: Option<&Path>) -> String {
     let (provider, model) = target.map(peek).unwrap_or((None, None));
     match (provider, model) {
         (Some(p), Some(m)) => format!("{p}/{m}"),
         (Some(p), None) => p,
         (None, Some(m)) => m,
-        (None, None) => "provider-default".to_string(),
+        (None, None) => String::new(),
     }
 }
 
@@ -79,10 +82,5 @@ mod tests {
         );
         assert_eq!(describe(Some(&p)), "anthropic/claude-sonnet-4-6");
         std::fs::remove_dir_all(&dir).ok();
-    }
-
-    #[test]
-    fn describe_falls_back_to_provider_default_when_nothing_known() {
-        assert_eq!(describe(None), "provider-default");
     }
 }

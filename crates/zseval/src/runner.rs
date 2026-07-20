@@ -130,7 +130,15 @@ pub fn run_suite(
     let report = Report::build(
         ReportMeta {
             tag: opts.tag.clone(),
-            model: crate::target::describe(opts.target.as_deref()),
+            // `--target` is mandatory for `zs` and rejected for `mock`
+            // (target-matrix section 2), so a mock run never has a target to
+            // describe: its model is the fixed `"mock"` label, set here
+            // rather than derived from an absent target.
+            model: if backend.name() == "mock" {
+                "mock".to_string()
+            } else {
+                crate::target::describe(opts.target.as_deref())
+            },
             backend: backend.name().to_string(),
             trials: opts.trials_override.unwrap_or(0),
             judge_file: judge_file.path,

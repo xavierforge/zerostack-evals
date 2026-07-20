@@ -162,6 +162,21 @@ impl Flags {
     fn count(&self, k: &str) -> usize {
         self.kv.iter().filter(|(n, _)| n == k).count()
     }
+    /// Every occurrence of `k`, in the order given on the command line —
+    /// unlike `get`, which only surfaces the last one. `--target` is
+    /// repeatable (design.md: "Repeatable `--target`"), so a caller that
+    /// needs all of them (not just the last-wins single value) reaches for
+    /// this instead. Not yet called from `cmd_run` — section 4 wires the
+    /// multi-target loop over it; kept here now, beside `get`/`count`, so
+    /// this section only adds the flag primitive, not the loop.
+    #[allow(dead_code)]
+    fn get_all(&self, k: &str) -> Vec<&str> {
+        self.kv
+            .iter()
+            .filter(|(n, _)| n == k)
+            .map(|(_, v)| v.as_str())
+            .collect()
+    }
 }
 
 /// The three ways `--judge` / `--no-judge` can resolve (design.md decision
@@ -325,10 +340,24 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     let (judge_path, no_judge, judge) = judge_for(choice, has_rubric)?;
 
     let backend: Box<dyn AgentBackend> = match f.get("backend") {
-        Some(b) if b.starts_with("mock=") => Box::new(Mock {
-            fixture: PathBuf::from(b.trim_start_matches("mock=")),
-        }),
+        Some(b) if b.starts_with("mock=") => {
+            if f.get("target").is_some() {
+                anyhow::bail!(
+                    "--target is rejected for --backend mock: mock replays canned artifacts \
+                     and never reads a target config.toml"
+                );
+            }
+            Box::new(Mock {
+                fixture: PathBuf::from(b.trim_start_matches("mock=")),
+            })
+        }
         Some("zs") | None => {
+            if f.get("target").is_none() {
+                anyhow::bail!(
+                    "--target is required for --backend zs: pass a zerostack config.toml \
+                     naming what to evaluate against"
+                );
+            }
             let bin = f
                 .get("zs-bin")
                 .map(PathBuf::from)
@@ -704,5 +733,21 @@ mod judge_flag_tests {
         let f = flags(&["--no-judge"]);
         let choice = resolve_judge(&f).unwrap();
         assert!(matches!(choice, JudgeChoice::NoJudge));
+    }
+
+    /// `--target` is repeatable (design.md); `get_all` must surface every
+    /// occurrence in order, unlike `get`'s last-wins lookup.
+    #[test]
+    fn get_all_returns_every_occurrence_in_order() {
+        let f = parse_flags(
+            ["--target", "a", "--target", "b"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+            &["target"],
+            &[],
+        )
+        .unwrap();
+        assert_eq!(f.get_all("target"), vec!["a", "b"]);
     }
 }

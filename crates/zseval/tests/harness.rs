@@ -2250,3 +2250,84 @@ fn generic_seed_resolves_roots_without_domain_knowledge() {
     assert!(resolve_dest("nope:x", &ctx).is_err());
     assert!(resolve_dest("no-prefix", &ctx).is_err());
 }
+
+/// target-matrix section 2: `--target` becomes mandatory for the `zs`
+/// backend — a missing target is a usage error (exit 2), fired before any
+/// trial runs (no `--zs-bin`/`ZS_BIN` is given, so a later failure would be
+/// for the wrong reason).
+#[test]
+fn run_with_zs_backend_and_no_target_exits_2_before_any_trial() {
+    let dir = no_rubric_scenario_dir("zs-no-target");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args(["run", dir.to_str().unwrap(), "--backend", "zs"])
+        .env_remove("ZS_BIN")
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("--target"), "stderr: {stderr}");
+}
+
+/// target-matrix section 2: `--target` is rejected for the `mock` backend —
+/// mock replays canned artifacts, so naming a target it would never read is
+/// a usage error.
+#[test]
+fn run_with_mock_backend_and_target_exits_2() {
+    let dir = no_rubric_scenario_dir("mock-with-target");
+    let target_dir =
+        std::env::temp_dir().join(format!("zseval-test-mock-target-{}", std::process::id()));
+    std::fs::create_dir_all(&target_dir).unwrap();
+    let target_path = target_dir.join("config.toml");
+    std::fs::write(
+        &target_path,
+        "provider = \"anthropic\"\nmodel = \"claude-sonnet-4-6\"\n",
+    )
+    .unwrap();
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--backend",
+            &format!("mock={}", fixture("session-ask-readonly.json").display()),
+            "--target",
+            target_path.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::remove_dir_all(&target_dir).ok();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("--target"), "stderr: {stderr}");
+}
+
+/// target-matrix section 2: `--target` is unreachable for `mock`, so a mock
+/// run's model is a fixed `"mock"` label, not derived from an absent target
+/// (the old empty-target fallback label is now unreachable and deleted).
+#[test]
+fn a_completed_mock_run_records_model_mock() {
+    let dir = no_rubric_scenario_dir("mock-model-label");
+    let results = std::env::temp_dir().join(format!(
+        "zseval-test-mock-model-results-{}",
+        std::process::id()
+    ));
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--backend",
+            &format!("mock={}", fixture("session-ask-readonly.json").display()),
+            "--results",
+            results.to_str().unwrap(),
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    std::fs::remove_dir_all(&results).ok();
+    assert_ne!(out.status.code(), Some(2), "stdout: {stdout}");
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(v["model"], "mock", "stdout: {stdout}");
+}
