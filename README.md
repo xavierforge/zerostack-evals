@@ -106,8 +106,16 @@ agent failure.
 <config.toml>` seeds a zerostack config into the isolated `ZS_CONFIG_DIR`, so a
 run declares exactly what it evaluates against instead of inheriting whatever
 your local zerostack happens to be configured with. Keys stay in env vars (the
-harness passes the environment through). See `targets/README.md`. Swap targets
-and `compare` the reports to A/B two providers or models.
+harness passes the environment through). See `targets/README.md`. `--target` is
+repeatable: `zseval run scenarios --target a.toml --target b.toml ...`
+evaluates the suite against every target sequentially, under one shared
+`--max-total-usd`, and prints a scenario x target table to stderr when it's
+done. `zseval matrix <report.json>...` renders that same table from
+already-produced reports — no API calls, nothing written to disk — the way to
+compose N targets, or a target against a committed baseline, without
+re-spending. `compare` stays pairwise and keeps its migration-gate role
+(deciding whether to switch from one target to another); reach for `matrix`
+for a side-by-side view of N targets.
 
 ## Writing a scenario
 
@@ -265,12 +273,35 @@ takes `--json`. A typical loop:
 When a run reports indeterminate scenarios, fix the environment/schema first —
 those are excluded from the pass rates and never counted as regressions.
 
+Deciding between N targets instead of gating a migration is a different
+question, so it gets a different command. Give `run` repeated `--target` to
+evaluate all of them in one invocation, under one shared `--max-total-usd`:
+
+    zseval run scenarios/prompts --target targets/anthropic.toml \
+      --target targets/openrouter.toml --tag matrix-1 --trials 3 \
+      --judge judges/sonnet.toml
+    # scenario x target table prints to stderr when the run finishes
+
+or reuse existing reports (including a committed baseline) as columns, without
+spending anything:
+
+    zseval matrix results/matrix-1/anthropic/report.json \
+      results/matrix-1/openrouter/report.json baselines/main.json --markdown
+
+`matrix` is a pure renderer: no API calls, nothing written to disk. It marks
+what it cannot vouch for — SPREAD when targets genuinely disagree on a
+scenario, DRIFT when the judge or a scenario definition changed between
+columns, and a column cut short by the budget cap as incomplete — rather than
+presenting a diff across changed conditions as a clean comparison.
+
 ## What a report identifies
 
 Every `report.json` records what it evaluated against (`"model"`:
-`"<provider>/<model>"`, resolved from `--target`'s config.toml, or
-`"provider-default"` when no target was given), what graded it (`"judge_file"`,
-`"judge_hash"` and `"judge_model"`, below), and, per scenario, a content hash
+`"<provider>/<model>"`, resolved from `--target`'s config.toml — mandatory for
+`--backend zs` — or `"mock"` for `--backend mock`, which rejects `--target`;
+also `"target"`, the target file's own path, so a report carries its column
+identity even once copied away from its run directory), what graded it
+(`"judge_file"`, `"judge_hash"` and `"judge_model"`, below), and, per scenario, a content hash
 of that scenario's `scenario.toml`.
 
 The judge fields exist because the judge is the ruler — a run graded by a
@@ -309,8 +340,10 @@ pinned default, and a report may never state a falsehood about a real run.
 
 - **Different targets** — comparing a baseline evaluated against one
   provider/model to a candidate evaluated against another prints a warning
-  (still runs the diff; that's the A/B use case) so a regression check never
-  silently becomes an apples-to-oranges comparison.
+  (still runs the diff; that's the migration-gate use case, deciding whether to
+  switch targets) so a regression check never silently becomes an
+  apples-to-oranges comparison. For a side-by-side view of more than two
+  targets, use `zseval matrix` instead.
 - **Changed scenario definition** — if a shared scenario's `scenario.toml`
   differs between baseline and candidate, `compare` warns instead of quietly
   diffing two different tests under the same id (see AGENTS.md's guardrail

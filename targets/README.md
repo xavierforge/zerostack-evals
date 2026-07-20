@@ -13,11 +13,21 @@ it holds no secrets.
     export ANTHROPIC_API_KEY=sk-ant-...
     zseval run scenarios/prompts --target targets/anthropic.toml --tag anthropic
 
-Swap targets to evaluate a different provider/model, then `compare` the reports:
+`--target` is repeatable: give it more than once to evaluate every target
+against the same suite in one invocation, under one shared `--max-total-usd`,
+and get a scenario x target table on stderr when it finishes:
 
-    zseval run scenarios/prompts --target targets/anthropic.toml --tag a --trials 3
-    zseval run scenarios/prompts --target targets/openrouter.toml --tag b --trials 3
-    zseval compare results/a.json results/b.json
+    zseval run scenarios/prompts --target targets/anthropic.toml \
+      --target targets/openrouter.toml --tag matrix-1 --trials 3
+
+Reuse the resulting reports (or a committed baseline) as columns later,
+without spending anything, via the pure renderer:
+
+    zseval matrix results/matrix-1/anthropic/report.json \
+      results/matrix-1/openrouter/report.json
+
+`compare` stays pairwise, for the narrower question of whether to migrate from
+one target to another (see `README.md`'s "What a report identifies").
 
 ## Built-in providers
 

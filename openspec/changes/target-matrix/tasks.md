@@ -80,11 +80,11 @@ sections only, and none may overlap another.
 
 ## 10. Retire the A/B framing for cross-target compare [dispatch: executor, parallel: no, reason: prose judgment across three files, and the README additions and the leftover sweep both need sections 2 and 4-8 already landed]
 
-- [ ] 10.1 Rewrite `compare.rs`'s `target_mismatch` warning string so the legitimate cross-target use reads as the migration gate, not A/B. Verify: paste the old and new strings; `cargo test -p zseval` green
-- [ ] 10.2 Update the matching comment in `compare.rs` and the "that's the A/B use case" line in `README.md`. Verify: `grep -rn "A/B" crates README.md` output pasted with a one-line judgement per remaining hit
-- [ ] 10.3 Re-read `targets/README.md` and rewrite its compare example as a matrix example if it still demonstrates "run two targets then compare"; otherwise record that it needs no change. Verify: quote the current example and state which branch was taken
-- [ ] 10.4 Document `matrix` and repeatable `--target` in `README.md`. Verify: paste the added section
-- [ ] 10.5 Sweep the tracked tree for leftovers with `git grep` (tracked files only, so untracked local notes are correctly out of scope): `provider-default`, `--matrix`, `--targets`, and "A/B use case". Verify: paste the `git grep` output with a one-line judgement per remaining hit
+- [x] 10.1 Rewrite `compare.rs`'s `target_mismatch` warning string so the legitimate cross-target use reads as the migration gate, not A/B. Verify: paste the old and new strings; `cargo test -p zseval` green
+- [x] 10.2 Update the matching comment in `compare.rs` and the "that's the A/B use case" line in `README.md`. Verify: `grep -rn "A/B" crates README.md` output pasted with a one-line judgement per remaining hit
+- [x] 10.3 Re-read `targets/README.md` and rewrite its compare example as a matrix example if it still demonstrates "run two targets then compare"; otherwise record that it needs no change. Verify: quote the current example and state which branch was taken
+- [x] 10.4 Document `matrix` and repeatable `--target` in `README.md`. Verify: paste the added section
+- [x] 10.5 Sweep the tracked tree for leftovers with `git grep` (tracked files only, so untracked local notes are correctly out of scope): `provider-default`, `--matrix`, `--targets`, and "A/B use case". Verify: paste the `git grep` output with a one-line judgement per remaining hit
 
 ## 11. Regenerate the baseline under the current schema [dispatch: main, parallel: no, reason: spends real API budget and needs the user's go-ahead, so it cannot run unattended]
 
