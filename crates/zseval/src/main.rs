@@ -1511,29 +1511,6 @@ mod matrix_cmd_tests {
         assert_eq!(code, ExitCode::from(0));
     }
 
-    // 7.3 — `--json` parses and round-trips through the matrix model.
-    #[test]
-    fn json_output_is_parseable() {
-        let fx = Fixtures::new("json-output");
-        let a = report(
-            "targets/opus.toml",
-            "run-a",
-            vec![ScenarioResult::from_trials(
-                "s".into(),
-                vec![trial(Final::Pass)],
-            )],
-        );
-        let path_a = fx.write("a", &a);
-
-        let f = parse_flags(
-            vec!["--json".to_string(), path_a],
-            &[],
-            &["json", "markdown"],
-        )
-        .unwrap();
-        assert!(f.has("json"));
-    }
-
     // 7.5 — a low-scoring but rendered table still exits 0.
     #[test]
     fn low_scoring_table_still_exits_0() {

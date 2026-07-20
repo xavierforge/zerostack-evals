@@ -2526,3 +2526,178 @@ fn run_json_with_exactly_one_target_does_not_trip_the_multi_target_gate() {
     );
     assert!(stderr.contains("--zs-bin"), "stderr: {stderr}");
 }
+
+/// target-matrix section 7: `matrix --json` is genuine end-to-end coverage
+/// for the CLI wiring at main.rs — it exits 0, its stdout parses as JSON,
+/// and the parsed value carries the matrix model itself (not just any
+/// JSON), by asserting on a real field (`columns`).
+#[test]
+fn matrix_json_flag_exits_0_and_stdout_parses_as_the_matrix_model() {
+    use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
+
+    let dir = std::env::temp_dir().join(format!("zseval-matrix-e2e-json-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let trial = TrialResult {
+        trial: 0,
+        outcome: Final::Pass,
+        reasons: vec![],
+        asserts: vec![],
+        judge: None,
+        judge_file: String::new(),
+        judge_hash: None,
+        judge_model: None,
+        input_tokens: 0,
+        output_tokens: 0,
+        judge_input_tokens: 0,
+        judge_output_tokens: 0,
+        cost_usd: 0.0,
+        wall_secs: 0.0,
+        tool_call_count: 0,
+        run_dir: String::new(),
+    };
+    let r = Report::build(
+        ReportMeta {
+            tag: "run-a".into(),
+            model: "anthropic/opus".into(),
+            backend: "zs".into(),
+            trials: 1,
+            target: "targets/opus.toml".into(),
+            ..Default::default()
+        },
+        vec![ScenarioResult::from_trials("s".into(), vec![trial])],
+    );
+    let report_path = dir.join("a.json");
+    std::fs::write(&report_path, serde_json::to_string_pretty(&r).unwrap()).unwrap();
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args(["matrix", report_path.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+
+    assert_eq!(out.status.code(), Some(0));
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout)
+        .unwrap_or_else(|e| panic!("stdout did not parse as JSON: {e}"));
+    let columns = v["columns"]
+        .as_array()
+        .unwrap_or_else(|| panic!("expected a `columns` array in the matrix model: {v}"));
+    assert_eq!(columns.len(), 1, "matrix json: {v}");
+}
+
+/// target-matrix section 7: `matrix --markdown` is genuine end-to-end
+/// coverage for the CLI wiring at main.rs:877-878 — `render_markdown` is
+/// unit-tested in matrix.rs, but the flag itself was never exercised
+/// through the binary until now.
+#[test]
+fn matrix_markdown_flag_exits_0_and_stdout_is_a_markdown_table() {
+    use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
+
+    let dir =
+        std::env::temp_dir().join(format!("zseval-matrix-e2e-markdown-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let trial = TrialResult {
+        trial: 0,
+        outcome: Final::Pass,
+        reasons: vec![],
+        asserts: vec![],
+        judge: None,
+        judge_file: String::new(),
+        judge_hash: None,
+        judge_model: None,
+        input_tokens: 0,
+        output_tokens: 0,
+        judge_input_tokens: 0,
+        judge_output_tokens: 0,
+        cost_usd: 0.0,
+        wall_secs: 0.0,
+        tool_call_count: 0,
+        run_dir: String::new(),
+    };
+    let r = Report::build(
+        ReportMeta {
+            tag: "run-a".into(),
+            model: "anthropic/opus".into(),
+            backend: "zs".into(),
+            trials: 1,
+            target: "targets/opus.toml".into(),
+            ..Default::default()
+        },
+        vec![ScenarioResult::from_trials(
+            "markdown-scenario".into(),
+            vec![trial],
+        )],
+    );
+    let report_path = dir.join("a.json");
+    std::fs::write(&report_path, serde_json::to_string_pretty(&r).unwrap()).unwrap();
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args(["matrix", report_path.to_str().unwrap(), "--markdown"])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+
+    assert_eq!(out.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("|---|"), "stdout: {stdout}");
+    assert!(stdout.contains("markdown-scenario"), "stdout: {stdout}");
+}
+
+/// target-matrix section 7: with no format flag, `matrix` renders the fixed
+/// -width form, not markdown — the absence of the markdown separator row
+/// distinguishes the two renderers through the actual CLI wiring.
+#[test]
+fn matrix_with_no_format_flag_renders_fixed_width_not_markdown() {
+    use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
+
+    let dir =
+        std::env::temp_dir().join(format!("zseval-matrix-e2e-default-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let trial = TrialResult {
+        trial: 0,
+        outcome: Final::Pass,
+        reasons: vec![],
+        asserts: vec![],
+        judge: None,
+        judge_file: String::new(),
+        judge_hash: None,
+        judge_model: None,
+        input_tokens: 0,
+        output_tokens: 0,
+        judge_input_tokens: 0,
+        judge_output_tokens: 0,
+        cost_usd: 0.0,
+        wall_secs: 0.0,
+        tool_call_count: 0,
+        run_dir: String::new(),
+    };
+    let r = Report::build(
+        ReportMeta {
+            tag: "run-a".into(),
+            model: "anthropic/opus".into(),
+            backend: "zs".into(),
+            trials: 1,
+            target: "targets/opus.toml".into(),
+            ..Default::default()
+        },
+        vec![ScenarioResult::from_trials(
+            "fixed-width-scenario".into(),
+            vec![trial],
+        )],
+    );
+    let report_path = dir.join("a.json");
+    std::fs::write(&report_path, serde_json::to_string_pretty(&r).unwrap()).unwrap();
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args(["matrix", report_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+
+    assert_eq!(out.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(!stdout.contains("|---|"), "stdout: {stdout}");
+    assert!(stdout.contains("fixed-width-scenario"), "stdout: {stdout}");
+}
