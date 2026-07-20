@@ -52,7 +52,7 @@ const USAGE: &str = "\
 zseval — eval harness for zerostack agents
 
 USAGE:
-  zseval run <scenario-path> [--target config.toml] [--trials N]
+  zseval run <scenario-path> [--target config.toml]... [--trials N]
              [--tag T] [--zs-bin PATH] [--backend zs|mock=<session.json>]
              [--judge judges/opus.toml] [--no-judge] [--max-total-usd X]
              [--results DIR] [--jobs N] [--json] [--verbose]
@@ -65,6 +65,14 @@ USAGE:
   --target is a zerostack config.toml (provider + model) seeded into each run's
   isolated config dir — the reproducible way to pick what you evaluate against.
   Put the API key in an env var (not the file); it is passed through to zerostack.
+  Required for --backend zs; rejected for --backend mock. Repeatable: give
+  --target more than once to evaluate N targets sequentially against the same
+  suite in one invocation, under one shared --max-total-usd (an earlier
+  target's spend shrinks what is left for the next one, not a fresh cap each);
+  at the end, a scenario x target table renders to stderr (the same renderer
+  `zseval matrix` uses). --json is a usage error when more than one --target is
+  given (N reports have no single JSON form) — use `zseval matrix --json`
+  over the resulting reports instead.
 
   --judge is a judge file naming which LLM grades the subjective layer — see
   judges/README.md. It is an inert ruler card with exactly four required
@@ -457,43 +465,70 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         // N>1 is rejected above, so exactly one report reaches here.
         println!("{}", serde_json::to_string_pretty(&reports[0])?);
     } else {
-        for (i, report) in reports.iter().enumerate() {
-            // Rates are undefined when nothing was gradable — show n/a rather than 0.
-            let rate = |v: f64| {
-                if report.summary.n_gradable == 0 {
-                    "  n/a".to_string()
-                } else {
-                    format!("{v:.3}")
-                }
-            };
-            eprintln!(
-                "\n{} scenarios ({} gradable) | pass@k {} | pass^k {} | \
-                 indeterminate {} scenario(s), {} trial(s) | ${:.4}",
-                report.summary.n_scenarios,
-                report.summary.n_gradable,
-                rate(report.summary.pass_at_k),
-                rate(report.summary.pass_hat_k),
-                report.summary.indeterminate_scenarios,
-                report.summary.indeterminate_trials,
-                report.summary.total_cost_usd,
-            );
-            // Mirrors `run_suite`'s own `run_root` (runner.rs): flat at N=1,
-            // nested under the target's stem at N>1 — see
-            // `RunOptions::multi_target`.
-            let run_root = match targets.get(i) {
-                Some(t) if multi => cfg
-                    .results_root
-                    .join(&cfg.tag)
-                    .join(zseval::target::stem(t)),
-                _ => cfg.results_root.join(&cfg.tag),
-            };
-            eprintln!("report: {}/report.json", run_root.display());
-        }
+        print_run_report_summaries(&reports, &targets, multi, &cfg, &mut std::io::stderr())?;
     }
 
     Ok(ExitCode::from(
         reports.iter().map(Report::exit_code).max().unwrap_or(0),
     ))
+}
+
+/// The non-`--json` end-of-run output: per-target summary lines, each
+/// report's path, and — at N>1 — the scenario x target table built by the
+/// same renderer `matrix` uses (target-matrix section 8). Everything here
+/// writes only to `err`; the caller passes `stderr()` in production and a
+/// `Vec<u8>` buffer in tests, which is how target-matrix 8.1 ("the table
+/// lands on stderr while stdout stays clean") is verified without a
+/// subprocess: this function has no way to reach stdout at all, by
+/// construction, since it only ever receives one writer.
+fn print_run_report_summaries(
+    reports: &[Report],
+    targets: &[PathBuf],
+    multi: bool,
+    cfg: &MultiTargetConfig,
+    err: &mut impl std::io::Write,
+) -> anyhow::Result<()> {
+    for (i, report) in reports.iter().enumerate() {
+        // Rates are undefined when nothing was gradable — show n/a rather than 0.
+        let rate = |v: f64| {
+            if report.summary.n_gradable == 0 {
+                "  n/a".to_string()
+            } else {
+                format!("{v:.3}")
+            }
+        };
+        writeln!(
+            err,
+            "\n{} scenarios ({} gradable) | pass@k {} | pass^k {} | \
+             indeterminate {} scenario(s), {} trial(s) | ${:.4}",
+            report.summary.n_scenarios,
+            report.summary.n_gradable,
+            rate(report.summary.pass_at_k),
+            rate(report.summary.pass_hat_k),
+            report.summary.indeterminate_scenarios,
+            report.summary.indeterminate_trials,
+            report.summary.total_cost_usd,
+        )?;
+        // Mirrors `run_suite`'s own `run_root` (runner.rs): flat at N=1,
+        // nested under the target's stem at N>1 — see
+        // `RunOptions::multi_target`.
+        let run_root = match targets.get(i) {
+            Some(t) if multi => cfg
+                .results_root
+                .join(&cfg.tag)
+                .join(zseval::target::stem(t)),
+            _ => cfg.results_root.join(&cfg.tag),
+        };
+        writeln!(err, "report: {}/report.json", run_root.display())?;
+    }
+
+    if multi {
+        let report_refs: Vec<&Report> = reports.iter().collect();
+        let m = zseval::matrix::build(&report_refs);
+        writeln!(err, "\n{}", zseval::matrix::render_fixed_width(&m))?;
+    }
+
+    Ok(())
 }
 
 /// The parts of a multi-target `run` invocation that stay fixed across every
@@ -1253,6 +1288,56 @@ mod multi_target_tests {
 
         std::fs::remove_dir_all(&sc_dir).ok();
         std::fs::remove_dir_all(passing_fixture.parent().unwrap()).ok();
+        std::fs::remove_dir_all(&cfg.results_root).ok();
+        for t in &targets {
+            std::fs::remove_dir_all(t.parent().unwrap()).ok();
+        }
+    }
+
+    /// target-matrix 8.1/8.2: an N>1 run's end-of-run table lands on the
+    /// `err` writer (stderr in production) built by the same renderer
+    /// `matrix` uses (`matrix::build` + `render_fixed_width`), never on
+    /// stdout — `print_run_report_summaries` only ever receives one writer,
+    /// so it has no way to reach a separate stdout buffer at all.
+    #[test]
+    fn multi_target_summary_renders_the_table_on_err_only() {
+        let sc_dir = scenario_dir("table");
+        let scenarios = zseval::scenario::discover(&sc_dir).unwrap();
+        let fixture = mock_fixture("table", 0.01);
+        let targets = vec![target_file("table-a"), target_file("table-b")];
+        let cfg = base_cfg("table", None);
+
+        let reports = run_over_targets(
+            &scenarios,
+            &targets,
+            |_t| {
+                Box::new(Mock {
+                    fixture: fixture.clone(),
+                }) as Box<dyn AgentBackend>
+            },
+            &NoJudgeConfigured,
+            &cfg,
+        )
+        .unwrap();
+
+        let mut err = Vec::new();
+        print_run_report_summaries(&reports, &targets, true, &cfg, &mut err).unwrap();
+        let err_text = String::from_utf8(err).unwrap();
+
+        // "legend:" and the SPREAD/DRIFT caveat are markers only
+        // `matrix::render_fixed_width` emits — proof the same renderer
+        // `matrix` uses ran here, not just the per-report summary lines
+        // (which also happen to mention the stems in their report: paths).
+        assert!(err_text.contains("legend:"), "err: {err_text}");
+        assert!(
+            err_text.contains("SPREAD and DRIFT are display heuristics"),
+            "err: {err_text}"
+        );
+        assert!(err_text.contains("table-a"), "err: {err_text}");
+        assert!(err_text.contains("table-b"), "err: {err_text}");
+
+        std::fs::remove_dir_all(&sc_dir).ok();
+        std::fs::remove_dir_all(fixture.parent().unwrap()).ok();
         std::fs::remove_dir_all(&cfg.results_root).ok();
         for t in &targets {
             std::fs::remove_dir_all(t.parent().unwrap()).ok();

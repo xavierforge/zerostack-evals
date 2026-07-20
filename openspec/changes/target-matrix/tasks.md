@@ -67,9 +67,9 @@ sections only, and none may overlap another.
 
 ## 8. Render the matrix table after a multi-target run [dispatch: mech-executor, parallel: no, reason: reuses the renderer built in section 5; stream choice and usage text are already decided]
 
-- [ ] 8.1 Write a failing test that an N>1 run's table lands on stderr while stdout stays clean. Verify: it fails first
-- [ ] 8.2 Print the table to stderr at the end of an N>1 run by calling the same renderer function `matrix` uses. Verify: the 8.1 test passes; run a two-target mock suite with stdout redirected to a file and show the file empty while the table reached the terminal
-- [ ] 8.3 Update `USAGE` for repeatable `--target`, the N>1 `--json` rule, and the shared budget. Verify: paste the rendered usage block and confirm all three points appear
+- [x] 8.1 Write a failing test that an N>1 run's table lands on stderr while stdout stays clean. Verify: it fails first
+- [x] 8.2 Print the table to stderr at the end of an N>1 run by calling the same renderer function `matrix` uses. Verify: the 8.1 test passes; run a two-target mock suite with stdout redirected to a file and show the file empty while the table reached the terminal
+- [x] 8.3 Update `USAGE` for repeatable `--target`, the N>1 `--json` rule, and the shared budget. Verify: paste the rendered usage block and confirm all three points appear
 
 ## 9. Add the experiment record directory [dispatch: executor, parallel: no, reason: the README's content is an open question in design.md, so the section carries authoring judgment]
 
