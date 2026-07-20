@@ -58,12 +58,12 @@ sections only, and none may overlap another.
 
 ## 7. Add the matrix subcommand [dispatch: mech-executor, parallel: no, reason: command wiring, rejection cases, and exit codes are all fixed by the spec]
 
-- [ ] 7.1 Write failing tests: `matrix` over report files renders and creates no files; a report with no target identity exits 2 naming it; a report sharing no scenario id exits 2 naming it; partial overlap renders holes without erroring. Verify: all four fail first
-- [ ] 7.2 Add `cmd_matrix` accepting one or more report paths, making no API calls and writing nothing to disk. Verify: the no-side-effects test passes; paste a before/after listing of the working directory
-- [ ] 7.3 Support `--json` and `--markdown` on stdout, defaulting to the fixed-width renderer. Verify: `matrix ... --json | python3 -m json.tool` succeeds; paste the opening lines of all three forms
-- [ ] 7.4 Reject a target-less report and a zero-overlap report with exit 2, each naming the offending file, without reading `schema_version`. Verify: those 7.1 tests pass and `grep -n schema_version` over the new code returns nothing
-- [ ] 7.5 Implement exit codes: 0 when a table rendered, 2 when unrenderable or any column fully ungradable, never 1. Verify: tests show a low-scoring table exiting 0 and a fully-ungradable column exiting 2; paste both codes
-- [ ] 7.6 Add `matrix` to `USAGE` and the command dispatch table. Verify: paste the `zseval --help` line for matrix
+- [x] 7.1 Write failing tests: `matrix` over report files renders and creates no files; a report with no target identity exits 2 naming it; a report sharing no scenario id exits 2 naming it; partial overlap renders holes without erroring. Verify: all four fail first
+- [x] 7.2 Add `cmd_matrix` accepting one or more report paths, making no API calls and writing nothing to disk. Verify: the no-side-effects test passes; paste a before/after listing of the working directory
+- [x] 7.3 Support `--json` and `--markdown` on stdout, defaulting to the fixed-width renderer. Verify: `matrix ... --json | python3 -m json.tool` succeeds; paste the opening lines of all three forms
+- [x] 7.4 Reject a target-less report and a zero-overlap report with exit 2, each naming the offending file, without reading `schema_version`. Verify: those 7.1 tests pass and `grep -n schema_version` over the new code returns nothing
+- [x] 7.5 Implement exit codes: 0 when a table rendered, 2 when unrenderable or any column fully ungradable, never 1. Verify: tests show a low-scoring table exiting 0 and a fully-ungradable column exiting 2; paste both codes
+- [x] 7.6 Add `matrix` to `USAGE` and the command dispatch table. Verify: paste the `zseval --help` line for matrix
 
 ## 8. Render the matrix table after a multi-target run [dispatch: mech-executor, parallel: no, reason: reuses the renderer built in section 5; stream choice and usage text are already decided]
 

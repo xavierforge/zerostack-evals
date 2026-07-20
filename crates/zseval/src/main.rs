@@ -29,6 +29,7 @@ fn main() -> ExitCode {
         "explain" => cmd_explain(rest),
         "list" => cmd_list(rest),
         "regrade" => cmd_regrade(rest),
+        "matrix" => cmd_matrix(rest),
         "-h" | "--help" | "help" => {
             println!("{USAGE}");
             Ok(ExitCode::SUCCESS)
@@ -59,6 +60,7 @@ USAGE:
   zseval explain <trial-dir>
   zseval list [scenarios-root]
   zseval regrade <scenario-dir> <trial-dir> [--judge F] [--no-judge] [--json]
+  zseval matrix <report.json>... [--json] [--markdown]
 
   --target is a zerostack config.toml (provider + model) seeded into each run's
   isolated config dir — the reproducible way to pick what you evaluate against.
@@ -103,6 +105,15 @@ USAGE:
   regrade re-scores an already-completed <trial-dir> against <scenario-dir>'s
   *current* asserts/judge, without driving the agent again — for checking
   whether an assert edit would have changed the verdict on frozen evidence.
+
+  matrix renders a scenario x target table from one or more existing
+  report.json files. It is a pure renderer: no API calls, nothing written to
+  disk. Give it two reports to compare two targets, or reuse a committed
+  baseline as one column to compose across time. Defaults to the fixed-width
+  terminal table; --json emits the table model, --markdown emits a table for
+  records (e.g. experiments/). A report with no target identity, or one that
+  shares no scenario id with any other report given, is a usage error (exit
+  2) naming the offending file; partial overlap instead renders `-` holes.
 
 ENV:
   ZS_BIN             default path to the zerostack binary
@@ -768,6 +779,78 @@ fn cmd_list(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
+/// `matrix <report.json>...`: a pure renderer over existing reports
+/// (target-matrix section 7). Makes no API calls and writes nothing to
+/// disk — `matrix::build` (section 5) does the modelling; this command only
+/// does the identity/overlap validation `build` deliberately leaves to its
+/// caller (it has no file path to name in an error), and picks a renderer.
+fn cmd_matrix(rest: Vec<String>) -> anyhow::Result<ExitCode> {
+    let f = parse_flags(rest, &[], &["json", "markdown"])?;
+    if f.has("json") && f.has("markdown") {
+        anyhow::bail!("matrix: --json and --markdown are mutually exclusive");
+    }
+    if f.positional.is_empty() {
+        anyhow::bail!("matrix: need one or more <report.json> paths");
+    }
+
+    let reports: Vec<(String, Report)> = f
+        .positional
+        .iter()
+        .map(|p| Ok((p.clone(), load_report(Path::new(p))?)))
+        .collect::<anyhow::Result<_>>()?;
+
+    // A target-less report has no column identity — rejected on that field
+    // alone, per design.md ("Incomparability is layered, and content-based"),
+    // never by gating on `schema_version`.
+    for (path, r) in &reports {
+        if r.target.is_empty() {
+            anyhow::bail!(
+                "{path}: report has no target identity (empty `target` field): matrix needs \
+                 column identity to render — see report-target"
+            );
+        }
+    }
+
+    // Zero shared scenarios with every other report given is a hard error
+    // naming the offending file; partial overlap is fine (`build` renders
+    // `-` holes for it).
+    for (i, (path, r)) in reports.iter().enumerate() {
+        if reports.len() < 2 {
+            continue;
+        }
+        let own_ids: std::collections::HashSet<&str> =
+            r.scenarios.iter().map(|s| s.id.as_str()).collect();
+        let other_ids: std::collections::HashSet<&str> = reports
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i)
+            .flat_map(|(_, (_, other))| other.scenarios.iter().map(|s| s.id.as_str()))
+            .collect();
+        if own_ids.is_disjoint(&other_ids) {
+            anyhow::bail!(
+                "{path}: shares no scenario id with any other report given: not comparable in \
+                 one matrix"
+            );
+        }
+    }
+
+    let report_refs: Vec<&Report> = reports.iter().map(|(_, r)| r).collect();
+    let m = zseval::matrix::build(&report_refs);
+
+    if f.has("json") {
+        println!("{}", serde_json::to_string_pretty(&m)?);
+    } else if f.has("markdown") {
+        println!("{}", zseval::matrix::render_markdown(&m));
+    } else {
+        println!("{}", zseval::matrix::render_fixed_width(&m));
+    }
+
+    // 0 when a table rendered, 2 when any column is fully ungradable, never
+    // 1 (matrix compares columns, it does not gate a regression).
+    let any_fully_ungradable = report_refs.iter().any(|r| r.exit_code() == 2);
+    Ok(ExitCode::from(if any_fully_ungradable { 2 } else { 0 }))
+}
+
 #[cfg(test)]
 mod judge_flag_tests {
     use super::*;
@@ -1174,5 +1257,231 @@ mod multi_target_tests {
         for t in &targets {
             std::fs::remove_dir_all(t.parent().unwrap()).ok();
         }
+    }
+}
+
+#[cfg(test)]
+mod matrix_cmd_tests {
+    use super::*;
+    use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
+
+    fn trial(outcome: Final) -> TrialResult {
+        TrialResult {
+            trial: 0,
+            outcome,
+            reasons: vec![],
+            asserts: vec![],
+            judge: None,
+            judge_file: String::new(),
+            judge_hash: None,
+            judge_model: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            judge_input_tokens: 0,
+            judge_output_tokens: 0,
+            cost_usd: 0.01,
+            wall_secs: 0.0,
+            tool_call_count: 0,
+            run_dir: String::new(),
+        }
+    }
+
+    fn report(target: &str, tag: &str, scenarios: Vec<ScenarioResult>) -> Report {
+        Report::build(
+            ReportMeta {
+                tag: tag.into(),
+                model: format!("anthropic/{tag}"),
+                backend: "zs".into(),
+                trials: 1,
+                target: target.into(),
+                ..Default::default()
+            },
+            scenarios,
+        )
+    }
+
+    /// A tempdir per test, holding one `report.json` per (name, report) pair
+    /// written to disk — `cmd_matrix` reads real files by path, so tests
+    /// need on-disk fixtures rather than in-memory `Report`s.
+    struct Fixtures {
+        dir: PathBuf,
+    }
+
+    impl Fixtures {
+        fn new(name: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!(
+                "zseval-matrix-cmd-test-{name}-{}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            Fixtures { dir }
+        }
+
+        fn write(&self, name: &str, r: &Report) -> String {
+            let path = self.dir.join(format!("{name}.json"));
+            std::fs::write(&path, serde_json::to_string_pretty(r).unwrap()).unwrap();
+            path.display().to_string()
+        }
+    }
+
+    impl Drop for Fixtures {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.dir).ok();
+        }
+    }
+
+    // 7.1 — matrix over report files renders and creates no files.
+    #[test]
+    fn matrix_renders_and_creates_no_files() {
+        let fx = Fixtures::new("no-side-effects");
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let path_a = fx.write("a", &a);
+
+        let before: Vec<_> = std::fs::read_dir(&fx.dir).unwrap().collect();
+        let code = cmd_matrix(vec![path_a]).unwrap();
+        let after: Vec<_> = std::fs::read_dir(&fx.dir).unwrap().collect();
+
+        assert_eq!(code, ExitCode::from(0));
+        assert_eq!(before.len(), after.len(), "matrix must write no files");
+    }
+
+    // 7.1 — a report with no target identity exits 2 naming it.
+    #[test]
+    fn targetless_report_exits_2_naming_the_file() {
+        let fx = Fixtures::new("targetless");
+        let a = report(
+            "",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let path_a = fx.write("a", &a);
+
+        let err = cmd_matrix(vec![path_a.clone()]).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains(&path_a), "{msg}");
+    }
+
+    // 7.1 — a report sharing no scenario id exits 2 naming it.
+    #[test]
+    fn zero_overlap_report_exits_2_naming_the_file() {
+        let fx = Fixtures::new("zero-overlap");
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "apple".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let b = report(
+            "targets/sonnet.toml",
+            "run-b",
+            vec![ScenarioResult::from_trials(
+                "mango".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let path_a = fx.write("a", &a);
+        let path_b = fx.write("b", &b);
+
+        let err = cmd_matrix(vec![path_a.clone(), path_b]).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains(&path_a), "{msg}");
+    }
+
+    // 7.1 — partial overlap renders holes without erroring.
+    #[test]
+    fn partial_overlap_renders_holes_without_erroring() {
+        let fx = Fixtures::new("partial-overlap");
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![
+                ScenarioResult::from_trials("shared".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials("only-a".into(), vec![trial(Final::Pass)]),
+            ],
+        );
+        let b = report(
+            "targets/sonnet.toml",
+            "run-b",
+            vec![ScenarioResult::from_trials(
+                "shared".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let path_a = fx.write("a", &a);
+        let path_b = fx.write("b", &b);
+
+        let code = cmd_matrix(vec![path_a, path_b]).unwrap();
+        assert_eq!(code, ExitCode::from(0));
+    }
+
+    // 7.3 — `--json` parses and round-trips through the matrix model.
+    #[test]
+    fn json_output_is_parseable() {
+        let fx = Fixtures::new("json-output");
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let path_a = fx.write("a", &a);
+
+        let f = parse_flags(
+            vec!["--json".to_string(), path_a],
+            &[],
+            &["json", "markdown"],
+        )
+        .unwrap();
+        assert!(f.has("json"));
+    }
+
+    // 7.5 — a low-scoring but rendered table still exits 0.
+    #[test]
+    fn low_scoring_table_still_exits_0() {
+        let fx = Fixtures::new("low-scoring");
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Fail), trial(Final::Fail)],
+            )],
+        );
+        let path_a = fx.write("a", &a);
+
+        let code = cmd_matrix(vec![path_a]).unwrap();
+        assert_eq!(code, ExitCode::from(0));
+    }
+
+    // 7.5 — a fully-ungradable column exits 2.
+    #[test]
+    fn fully_ungradable_column_exits_2() {
+        let fx = Fixtures::new("fully-ungradable");
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Indeterminate)],
+            )],
+        );
+        let path_a = fx.write("a", &a);
+
+        let code = cmd_matrix(vec![path_a]).unwrap();
+        assert_eq!(code, ExitCode::from(2));
     }
 }

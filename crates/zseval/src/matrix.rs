@@ -14,12 +14,14 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use serde::Serialize;
+
 use crate::verdict::{Report, ScenarioResult};
 
 /// One scenario's outcome in one column. Never a bare `f64` — see the module
 /// doc on why "ran, all failed" and "didn't run/couldn't grade" must stay
 /// distinguishable all the way to the rendered table.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub enum Cell {
     Rate(f64),
     Hole,
@@ -27,7 +29,7 @@ pub enum Cell {
 
 /// `Report::judge_model`'s three states, carried through to the column
 /// legend verbatim (see that field's doc for what each means).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum JudgeState {
     Unknown,
     NothingGraded,
@@ -37,7 +39,7 @@ pub enum JudgeState {
 /// Footer figures for one column, recomputed over the scenarios gradable in
 /// *every* column (not the column's own full scenario set) — see
 /// `Matrix::footer_excluded`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct ColumnFooter {
     pub pass_at_k: f64,
     pub pass_hat_k: f64,
@@ -47,7 +49,7 @@ pub struct ColumnFooter {
 /// One target's column: the header carries only [`Column::label`] (the stem,
 /// disambiguated when another column shares it); everything else here is
 /// legend-only, per the design's "48 + 12N" width budget.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Column {
     /// Target filename without extension, e.g. `"opus"`. Never disambiguated
     /// — use `label` for display.
@@ -78,7 +80,7 @@ pub struct Column {
 /// One `content_hash` grouping within a row's DRIFT mark: the columns (and
 /// their timestamps) that agreed on this hash. No group is "correct" — DRIFT
 /// marks, it never adjudicates.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DriftGroup {
     pub hash: String,
     /// Column labels sharing `hash`, aligned index-for-index with `timestamps`.
@@ -88,7 +90,7 @@ pub struct DriftGroup {
 
 /// One scenario's row: a cell per column, aligned by index with
 /// `Matrix::columns`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Row {
     pub id: String,
     pub cells: Vec<Cell>,
@@ -105,7 +107,7 @@ pub struct Row {
 
 /// The scenario x target table. Built once by [`build`] from a set of
 /// reports; both renderers below read it without touching a `Report` again.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Matrix {
     pub columns: Vec<Column>,
     /// Rows in scenario-id order (the union of every column's scenarios,
