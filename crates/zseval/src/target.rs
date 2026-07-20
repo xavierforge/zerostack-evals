@@ -2,6 +2,7 @@
 //! CLI's auto-tag naming and the run report's identity, so a run's folder
 //! name and its recorded `model` never disagree about what was evaluated.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use serde::Deserialize;
@@ -42,6 +43,42 @@ pub fn describe(target: Option<&Path>) -> String {
     }
 }
 
+/// The stem a multi-target run nests this target's results under
+/// (target-matrix section 3): the target file's name without its extension.
+/// Chosen over provider/model because a config's ~30 fields can differ
+/// (e.g. only temperature) while provider+model collide; a filename is
+/// unique by construction. A path with no filename (e.g. `/`) falls back to
+/// `"target"` rather than panicking — an unlikely input the caller's own
+/// file-not-found error will already have surfaced.
+pub fn stem(target: &Path) -> String {
+    target
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("target")
+        .to_string()
+}
+
+/// Reject two `--target` files that would collide on `stem` within one run:
+/// `a/opus.toml` and `b/opus.toml` would otherwise overwrite each other's
+/// report and trial dirs under `results/<tag>/opus/`. Checked before any
+/// trial runs, so the collision is a hard error rather than silently lost
+/// results.
+pub fn check_stem_collision(targets: &[&Path]) -> anyhow::Result<()> {
+    let mut seen = HashSet::new();
+    for t in targets {
+        let s = stem(t);
+        if !seen.insert(s.clone()) {
+            anyhow::bail!(
+                "--target files collide on stem '{s}' ({}): rename one of them so \
+                 results/<tag>/{s}/ isn't shared by two targets",
+                t.display()
+            );
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,6 +107,30 @@ mod tests {
             (Some("anthropic".into()), Some("claude-sonnet-4-6".into()))
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn stem_strips_the_extension() {
+        assert_eq!(stem(Path::new("targets/opus.toml")), "opus");
+        assert_eq!(stem(Path::new("/abs/path/a/sonnet.toml")), "sonnet");
+    }
+
+    #[test]
+    fn check_stem_collision_errors_on_two_targets_sharing_a_stem() {
+        // target-matrix 3.5: `a/opus.toml` and `b/opus.toml` differ in
+        // directory but collide on stem, which is what the results layout
+        // keys on — must be a hard error before any trial runs.
+        let a = Path::new("a/opus.toml");
+        let b = Path::new("b/opus.toml");
+        let err = check_stem_collision(&[a, b]).unwrap_err();
+        assert!(format!("{err:#}").contains("opus"), "{err:#}");
+    }
+
+    #[test]
+    fn check_stem_collision_allows_distinct_stems() {
+        let a = Path::new("a/opus.toml");
+        let b = Path::new("b/sonnet.toml");
+        assert!(check_stem_collision(&[a, b]).is_ok());
     }
 
     #[test]

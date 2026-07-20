@@ -49,6 +49,15 @@ pub struct RunOptions {
     /// `judge: &dyn Judge` argument at the same call site: this is the file
     /// naming a ruler, that is the ruler.
     pub judge_file: Option<PathBuf>,
+    /// Whether this `run_suite` call is one of several targets evaluated by
+    /// one `zseval run` invocation (target-matrix section 3/4). `false` (the
+    /// default single-target shape) keeps today's flat `results/<tag>/`
+    /// layout; `true` nests this target's report and trial dirs one level
+    /// deeper, under `results/<tag>/<stem>/` (`stem` = `target`'s filename
+    /// without extension — see `target::stem`), so N targets sharing one
+    /// `--tag` don't collide on `sc.id`. Requires `target` to be `Some`: the
+    /// stem has nothing to derive from otherwise.
+    pub multi_target: bool,
 }
 
 /// Everything the grading half of a trial needs to know about the ruler: the
@@ -84,6 +93,33 @@ pub fn run_suite(
         .map(JudgeFileRef::of)
         .unwrap_or_default();
 
+    // Everything for this target lives under one root: the report next to
+    // its per-trial artifacts, so results/ never fills with loose files.
+    // Derived once here and threaded down (rather than re-derived at the
+    // trial-dir site) so the report and its trial dirs can never split
+    // across two different roots — see design.md's "implementation trap".
+    let run_root = if opts.multi_target {
+        let target = opts.target.as_deref().ok_or_else(|| {
+            anyhow::anyhow!("multi-target run requires --target to derive the results stem")
+        })?;
+        opts.results_root
+            .join(&opts.tag)
+            .join(crate::target::stem(target))
+    } else {
+        opts.results_root.join(&opts.tag)
+    };
+    std::fs::create_dir_all(&run_root)?;
+
+    // A clean, run-level copy of the target config — identity, not the
+    // per-trial seed `ZsCli::run` writes into each trial's own config dir
+    // (backend.rs:307), which a scenario's `config:` seed may then override.
+    // This copy is what a detached `report.json` (e.g. one embedded in
+    // `experiments/`) can point back to for what was actually evaluated.
+    if let Some(target) = &opts.target {
+        std::fs::copy(target, run_root.join("target.toml"))
+            .with_context(|| format!("copy run-level target {}", target.display()))?;
+    }
+
     for sc in &scenarios {
         // Check the cost cap once per scenario, so a scenario always runs its
         // full trial count or not at all — never a partial, misleading pass^k.
@@ -94,7 +130,8 @@ pub fn run_suite(
             }
         }
         let trials = opts.trials_override.unwrap_or(sc.trials).max(1);
-        let trial_results = run_trials_for_scenario(sc, backend, judge, &judge_file, opts, trials)?;
+        let trial_results =
+            run_trials_for_scenario(sc, backend, judge, &judge_file, opts, trials, &run_root)?;
         for tr in &trial_results {
             spent += tr.cost_usd;
         }
@@ -152,10 +189,6 @@ pub fn run_suite(
         },
         results,
     );
-    // Everything for a run lives under results/<tag>/ — the report next to its
-    // per-trial artifacts, so the results root never fills with loose files.
-    let run_root = opts.results_root.join(&opts.tag);
-    std::fs::create_dir_all(&run_root)?;
     let report_path = run_root.join("report.json");
     std::fs::write(&report_path, serde_json::to_vec_pretty(&report)?)
         .with_context(|| format!("write {}", report_path.display()))?;
@@ -177,13 +210,10 @@ fn run_trials_for_scenario(
     judge_file: &JudgeFileRef,
     opts: &RunOptions,
     trials: usize,
+    run_root: &Path,
 ) -> Result<Vec<TrialResult>> {
     let run_one = |trial: usize| -> Result<TrialResult> {
-        let run_dir = opts
-            .results_root
-            .join(&opts.tag)
-            .join(&sc.id)
-            .join(format!("trial-{trial}"));
+        let run_dir = run_root.join(&sc.id).join(format!("trial-{trial}"));
         std::fs::create_dir_all(&run_dir)?;
         let grading = Grading {
             judge,

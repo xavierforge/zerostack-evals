@@ -384,7 +384,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         tag: f
             .get("tag")
             .map(String::from)
-            .unwrap_or_else(|| auto_tag(path, f.get("target"))),
+            .unwrap_or_else(|| auto_tag(path, f.get("target"), false)),
         no_judge,
         results_root: f
             .get("results")
@@ -399,6 +399,10 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
             None => 1,
         },
         judge_file: judge_path,
+        // Repeated `--target` (target-matrix section 4) is not yet wired into
+        // `cmd_run`'s single-target call here, so this invocation is always
+        // N=1 for now.
+        multi_target: false,
     };
 
     let report = run_suite(scenarios, backend.as_ref(), judge.as_ref(), &opts)?;
@@ -438,15 +442,25 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
 /// provider+model, and when — e.g.
 /// `prompts_anthropic-claude-sonnet-4-6_20260706-091936`. Semantic tags like
 /// `main` are left to an explicit `--tag`; the auto name is always descriptive.
-fn auto_tag(scenario_path: &str, target: Option<&str>) -> String {
+///
+/// `multi` is true when this invocation covers more than one `--target`: the
+/// tag is then shared by every target (the results layout tells them apart
+/// by stem instead — see `RunOptions::multi_target`), so the provider-model
+/// segment is dropped here rather than appearing once in the tag and once
+/// more as the stem.
+fn auto_tag(scenario_path: &str, target: Option<&str>, multi: bool) -> String {
     let suite = Path::new(scenario_path)
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("scenarios");
     // Read provider + model out of the target config.
-    let (provider, model) = target
-        .map(|p| zseval::target::peek(Path::new(p)))
-        .unwrap_or((None, None));
+    let (provider, model) = if multi {
+        (None, None)
+    } else {
+        target
+            .map(|p| zseval::target::peek(Path::new(p)))
+            .unwrap_or((None, None))
+    };
     let target_group: Vec<String> = [provider, model]
         .into_iter()
         .flatten()
@@ -749,5 +763,34 @@ mod judge_flag_tests {
         )
         .unwrap();
         assert_eq!(f.get_all("target"), vec!["a", "b"]);
+    }
+
+    /// target-matrix 3.6: an N>1 run shares one tag across targets (the
+    /// results layout tells them apart by stem), so the provider-model
+    /// segment must not appear in the tag at all — otherwise it would show
+    /// up once in the tag and once more as the nested stem.
+    #[test]
+    fn auto_tag_drops_the_provider_model_segment_when_multi() {
+        let dir =
+            std::env::temp_dir().join(format!("zseval-autotag-multi-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let target_path = dir.join("opus.toml");
+        std::fs::write(
+            &target_path,
+            "provider = \"anthropic\"\nmodel = \"claude-opus-4-8\"\n",
+        )
+        .unwrap();
+        let target_str = target_path.display().to_string();
+
+        let single = auto_tag("scenarios", Some(&target_str), false);
+        assert!(single.contains("anthropic"), "{single}");
+        assert!(single.contains("claude-opus-4-8"), "{single}");
+
+        let multi = auto_tag("scenarios", Some(&target_str), true);
+        assert!(!multi.contains("anthropic"), "{multi}");
+        assert!(!multi.contains("claude-opus-4-8"), "{multi}");
+        assert!(multi.starts_with("scenarios_"), "{multi}");
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

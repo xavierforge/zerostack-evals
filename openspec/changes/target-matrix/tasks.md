@@ -23,12 +23,12 @@ sections only, and none may overlap another.
 
 ## 3. Nest multi-target results under the target stem [dispatch: executor, parallel: no, reason: threads a new run_root through the runner call chain, an interface change design.md describes but does not fully pin down]
 
-- [ ] 3.1 Pure refactor first: derive the results prefix once in `run_suite` and thread that `run_root` into `run_trials_for_scenario`, replacing the separate computation at the trial-dir site (`runner.rs:169`). No behaviour change. Verify: `cargo test --workspace` green and a mock run's `results/<tag>/` tree diffed against one produced before the refactor shows empty output
-- [ ] 3.2 Write failing tests for the N>1 layout: two targets write report, run-level target copy, and trial dirs together under `results/<tag>/<stem>/`; one target stays flat at `results/<tag>/`. Verify: both fail before the layout change lands
-- [ ] 3.3 Add the stem level to `run_root` when more than one target runs, deriving `<stem>` as the target filename without extension. Verify: the 3.2 tests pass; paste the produced tree for a two-target mock run
-- [ ] 3.4 Write the run-level clean copy of `target.toml` under `run_root`, distinct from the per-trial config seed at `backend.rs:307`. Verify: a test shows the run-level copy holding the original bytes while a scenario `config:` seed overrides only the per-trial copy
-- [ ] 3.5 Error on a stem collision between two `--target` files in one run. Verify: a test passing `a/opus.toml` and `b/opus.toml` shows a non-zero exit before any trial; paste the message
-- [ ] 3.6 Drop the provider-model segment from `auto_tag` when N>1 so it does not appear twice in the path. Verify: a test asserts the N>1 path carries the stem once with no provider-model segment, and N=1 tags are unchanged
+- [x] 3.1 Pure refactor first: derive the results prefix once in `run_suite` and thread that `run_root` into `run_trials_for_scenario`, replacing the separate computation at the trial-dir site (`runner.rs:169`). No behaviour change. Verify: `cargo test --workspace` green and a mock run's `results/<tag>/` tree diffed against one produced before the refactor shows empty output
+- [x] 3.2 Write failing tests for the N>1 layout: two targets write report, run-level target copy, and trial dirs together under `results/<tag>/<stem>/`; one target stays flat at `results/<tag>/`. Verify: both fail before the layout change lands
+- [x] 3.3 Add the stem level to `run_root` when more than one target runs, deriving `<stem>` as the target filename without extension. Verify: the 3.2 tests pass; paste the produced tree for a two-target mock run
+- [x] 3.4 Write the run-level clean copy of `target.toml` under `run_root`, distinct from the per-trial config seed at `backend.rs:307`. Verify: a test shows the run-level copy holding the original bytes while a scenario `config:` seed overrides only the per-trial copy
+- [x] 3.5 Error on a stem collision between two `--target` files in one run. Verify: a test passing `a/opus.toml` and `b/opus.toml` shows a non-zero exit before any trial; paste the message
+- [x] 3.6 Drop the provider-model segment from `auto_tag` when N>1 so it does not appear twice in the path. Verify: a test asserts the N>1 path carries the stem once with no provider-model segment, and N=1 tags are unchanged
 
 ## 4. Run the suite against repeated --target [dispatch: executor, parallel: no, reason: the shared-budget threading is a behaviour decision the spec states but leaves the mechanism open]
 

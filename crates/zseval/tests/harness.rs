@@ -938,6 +938,7 @@ fn loop_scenario_loads_and_grades_from_iteration_records_via_mock() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
@@ -1062,6 +1063,7 @@ fn end_to_end_mock_run_produces_pass_and_report() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
 
@@ -1080,6 +1082,126 @@ fn end_to_end_mock_run_produces_pass_and_report() {
         zseval::compare::load_report(&results_root.join("e2e").join("report.json")).unwrap();
     assert_eq!(loaded.scenarios[0].id, "prompt-ask-readonly-refuses-edit");
     std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// target-matrix 3.2/3.3: `multi_target: false` (today's single-target
+/// shape) keeps the flat `results/<tag>/` layout — no stem level, even
+/// though a `target` is set.
+#[test]
+fn single_target_run_stays_flat_under_the_tag() {
+    let sc = Scenario::load(&scenarios_root().join("prompts/ask-readonly")).unwrap();
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-flat-layout-{}", std::process::id()));
+    let target_dir =
+        std::env::temp_dir().join(format!("zseval-flat-layout-target-{}", std::process::id()));
+    std::fs::create_dir_all(&target_dir).unwrap();
+    let target_path = target_dir.join("opus.toml");
+    std::fs::write(
+        &target_path,
+        "provider = \"anthropic\"\nmodel = \"claude-opus-4-8\"\n",
+    )
+    .unwrap();
+
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    let opts = RunOptions {
+        target: Some(target_path.clone()),
+        trials_override: Some(1),
+        tag: "flat".into(),
+        no_judge: true,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 1,
+        judge_file: None,
+        multi_target: false,
+    };
+    run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+
+    assert!(results_root.join("flat/report.json").is_file());
+    assert!(results_root.join("flat/target.toml").is_file());
+    assert!(results_root
+        .join("flat")
+        .join("prompt-ask-readonly-refuses-edit/trial-0/trial.json")
+        .is_file());
+    // No stem level inserted for a single target.
+    assert!(!results_root.join("flat/opus").exists());
+
+    std::fs::remove_dir_all(&results_root).ok();
+    std::fs::remove_dir_all(&target_dir).ok();
+}
+
+/// target-matrix 3.2/3.3: two targets sharing one tag (`multi_target: true`)
+/// each nest their report, run-level target copy, and trial dirs under
+/// `results/<tag>/<stem>/`, so they don't collide on `sc.id`.
+#[test]
+fn multi_target_run_nests_results_under_the_target_stem() {
+    let make_sc = || Scenario::load(&scenarios_root().join("prompts/ask-readonly")).unwrap();
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-nested-layout-{}", std::process::id()));
+    let target_dir = std::env::temp_dir().join(format!(
+        "zseval-nested-layout-target-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&target_dir).unwrap();
+    let opus = target_dir.join("opus.toml");
+    let sonnet = target_dir.join("sonnet.toml");
+    std::fs::write(
+        &opus,
+        "provider = \"anthropic\"\nmodel = \"claude-opus-4-8\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        &sonnet,
+        "provider = \"anthropic\"\nmodel = \"claude-sonnet-4-6\"\n",
+    )
+    .unwrap();
+
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    for (target, stem) in [(&opus, "opus"), (&sonnet, "sonnet")] {
+        let opts = RunOptions {
+            target: Some(target.clone()),
+            trials_override: Some(1),
+            tag: "nested".into(),
+            no_judge: true,
+            results_root: results_root.clone(),
+            max_total_usd: None,
+            jobs: 1,
+            judge_file: None,
+            multi_target: true,
+        };
+        run_suite(
+            vec![make_sc()],
+            &backend,
+            &LlmJudge::new(test_judge_cfg()),
+            &opts,
+        )
+        .unwrap();
+
+        let root = results_root.join("nested").join(stem);
+        assert!(root.join("report.json").is_file(), "{}", root.display());
+        assert!(root.join("target.toml").is_file(), "{}", root.display());
+        assert_eq!(
+            std::fs::read_to_string(root.join("target.toml")).unwrap(),
+            std::fs::read_to_string(target).unwrap(),
+            "run-level copy must hold the original target bytes"
+        );
+        assert!(root
+            .join("prompt-ask-readonly-refuses-edit/trial-0/trial.json")
+            .is_file());
+    }
+    // Both targets' trial dirs survive side by side, not overwritten.
+    assert!(results_root
+        .join("nested/opus/prompt-ask-readonly-refuses-edit/trial-0/trial.json")
+        .is_file());
+    assert!(results_root
+        .join("nested/sonnet/prompt-ask-readonly-refuses-edit/trial-0/trial.json")
+        .is_file());
+
+    std::fs::remove_dir_all(&results_root).ok();
+    std::fs::remove_dir_all(&target_dir).ok();
 }
 
 #[test]
@@ -1105,6 +1227,7 @@ fn jobs_greater_than_one_grades_every_trial_and_keeps_them_in_order() {
         max_total_usd: None,
         jobs: 3,
         judge_file: None,
+        multi_target: false,
     };
     let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
 
@@ -1166,6 +1289,7 @@ fn success_path_run_dir_is_recorded_relative_to_the_working_directory() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
@@ -1213,6 +1337,7 @@ fn regrade_locates_a_run_dir_from_a_relative_run_dir() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     let report = run_suite(
         vec![sc.clone()],
@@ -1287,6 +1412,7 @@ fn jobs_warm_up_runs_trial_zero_solo_before_the_parallel_fan_out() {
         max_total_usd: None,
         jobs: 3,
         judge_file: None,
+        multi_target: false,
     };
     let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.scenarios[0].trials.len(), 4);
@@ -1390,6 +1516,7 @@ judge = "Did the agent answer the question?"
             max_total_usd: None,
             jobs: 1,
             judge_file: None,
+            multi_target: false,
         };
         let report = run_suite(vec![sc], &backend, judge, &opts).unwrap();
         std::fs::remove_dir_all(&results_root).ok();
@@ -1493,6 +1620,7 @@ fn indeterminate_trial_recovers_cost_already_spent_before_the_failure() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
@@ -1535,6 +1663,7 @@ fn indeterminate_trial_run_dir_is_also_recorded_relative_to_the_working_director
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
@@ -1579,6 +1708,7 @@ fn the_report_records_the_judge_file_it_was_configured_with() {
         max_total_usd: None,
         jobs: 1,
         judge_file: judge,
+        multi_target: false,
     };
 
     let opts = base(Some(PathBuf::from("judges/opus.toml")), false);
@@ -1662,6 +1792,7 @@ fn the_report_records_the_model_that_actually_graded() {
         jobs: 1,
         // Configured to ask for opus...
         judge_file: Some(PathBuf::from("judges/opus.toml")),
+        multi_target: false,
     };
     // ...but this is what actually served the request.
     let judge = TestJudge::Served("claude-sonnet-4-6-20260101".into());
@@ -1711,6 +1842,7 @@ fn a_judge_that_grades_without_naming_its_model_leaves_the_ruler_unknown() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     // Answers Yes, but its response names no model.
     let judge = TestJudge::Verdict(zseval::judge::JudgeVerdict::Yes);
@@ -1756,6 +1888,7 @@ fn a_judge_that_never_graded_records_no_model_but_keeps_the_file() {
         max_total_usd: None,
         jobs: 1,
         judge_file: Some(PathBuf::from("judges/opus.toml")),
+        multi_target: false,
     };
     let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.judge_file, "judges/opus.toml");
@@ -1796,6 +1929,7 @@ fn no_judge_leaves_both_judge_fields_empty() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.judge_file, "");
@@ -1839,6 +1973,7 @@ fn regrading_with_a_second_judge_records_it_and_keeps_the_first_ones_evidence() 
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     let report = run_suite(
         vec![sc.clone()],
@@ -1937,6 +2072,7 @@ fn a_no_judge_regrade_leaves_no_regrade_artifacts_dir() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     run_suite(
         vec![sc.clone()],
@@ -2002,6 +2138,7 @@ fn regrade_regrades_existing_artifacts_without_driving_the_agent() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.scenarios[0].trials[0].outcome, Final::Pass);
