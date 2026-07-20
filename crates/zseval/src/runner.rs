@@ -136,6 +136,11 @@ pub fn run_suite(
             judge_file: judge_file.path,
             judge_hash: judge_file.hash,
             judge_model,
+            target: opts
+                .target
+                .as_deref()
+                .map(crate::verdict::record_path)
+                .unwrap_or_default(),
         },
         results,
     );

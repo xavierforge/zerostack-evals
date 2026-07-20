@@ -8,10 +8,10 @@ sections only, and none may overlap another.
 
 ## 1. Record the target a run evaluated [dispatch: mech-executor, parallel: no, reason: spec names the field, the record_path reuse, and every assertion; no design judgment]
 
-- [ ] 1.1 Write failing unit tests in `verdict.rs` for `Report.target`: a target under cwd records a relative forward-slashed path never starting with `/`; a target outside cwd records only its file name; a report copied away from its run dir still names its target; a report JSON lacking the field deserialises to an empty target. Verify: `cargo test -p zseval target` shows the four failing on the missing field, not on unrelated compile errors
-- [ ] 1.2 Add `Report.target: String` with `#[serde(default)]`, documented as column identity (versus `target.toml` as content), normalised through the existing `record_path`. Verify: the four tests from 1.1 pass; paste the passing output
-- [ ] 1.3 Add `target` to `ReportMeta` and populate it in `run_suite`'s `Report::build` call from `opts.target`. Verify: run a mock-backend suite and `cat` the produced `report.json`, showing a non-empty relative `target`
-- [ ] 1.4 Freeze `REPORT_SCHEMA_VERSION` at `1` and update the version assertion test. Verify: `grep -rn "schema_version" crates/zseval/src` shows no branch on the value, and `cargo test -p zseval schema_version` passes
+- [x] 1.1 Write failing unit tests in `verdict.rs` for `Report.target`: a target under cwd records a relative forward-slashed path never starting with `/`; a target outside cwd records only its file name; a report copied away from its run dir still names its target; a report JSON lacking the field deserialises to an empty target. Verify: `cargo test -p zseval target` shows the four failing on the missing field, not on unrelated compile errors
+- [x] 1.2 Add `Report.target: String` with `#[serde(default)]`, documented as column identity (versus `target.toml` as content), normalised through the existing `record_path`. Verify: the four tests from 1.1 pass; paste the passing output
+- [x] 1.3 Add `target` to `ReportMeta` and populate it in `run_suite`'s `Report::build` call from `opts.target`. Verify: run a mock-backend suite and `cat` the produced `report.json`, showing a non-empty relative `target`
+- [x] 1.4 Freeze `REPORT_SCHEMA_VERSION` at `1` and update the version assertion test. Verify: `grep -rn "schema_version" crates/zseval/src` shows no branch on the value, and `cargo test -p zseval schema_version` passes
 
 ## 2. Make --target mandatory for zs and rejected for mock [dispatch: mech-executor, parallel: no, reason: each rule and its exit code is fixed in the spec; only flag plumbing remains]
 
