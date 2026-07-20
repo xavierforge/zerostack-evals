@@ -32,11 +32,11 @@ sections only, and none may overlap another.
 
 ## 4. Run the suite against repeated --target [dispatch: executor, parallel: no, reason: the shared-budget threading is a behaviour decision the spec states but leaves the mechanism open]
 
-- [ ] 4.1 Write failing tests: two `--target` flags produce two reports; total spend across targets stays under one `--max-total-usd` instead of each target getting its own cap. Verify: both fail before the loop exists
-- [ ] 4.2 Loop targets sequentially in `cmd_run` over `get_all("target")`, building one backend per target. Verify: the two-report test passes; paste the two report paths
-- [ ] 4.3 Feed each `run_suite` a shrinking cap (`total - spent_so_far`) so `--max-total-usd` bounds the whole invocation. Verify: the budget test passes; paste the observed per-target caps
-- [ ] 4.4 Aggregate the exit code across targets as the most severe: 2 if any column is fully ungradable, else 1 if any trial failed, else 0. Verify: tests cover a failing column giving 1 and a fully-ungradable column giving 2; paste both codes
-- [ ] 4.5 Make `run --json` with more than one target exit 2 naming `zseval matrix --json`, keeping N=1 `--json` intact. Verify: a test shows exit 2 with the pointer, and an N=1 `--json` run still emits report JSON on stdout
+- [x] 4.1 Write failing tests: two `--target` flags produce two reports; total spend across targets stays under one `--max-total-usd` instead of each target getting its own cap. Verify: both fail before the loop exists
+- [x] 4.2 Loop targets sequentially in `cmd_run` over `get_all("target")`, building one backend per target. Verify: the two-report test passes; paste the two report paths
+- [x] 4.3 Feed each `run_suite` a shrinking cap (`total - spent_so_far`) so `--max-total-usd` bounds the whole invocation. Verify: the budget test passes; paste the observed per-target caps
+- [x] 4.4 Aggregate the exit code across targets as the most severe: 2 if any column is fully ungradable, else 1 if any trial failed, else 0. Verify: tests cover a failing column giving 1 and a fully-ungradable column giving 2; paste both codes
+- [x] 4.5 Make `run --json` with more than one target exit 2 naming `zseval matrix --json`, keeping N=1 `--json` intact. Verify: a test shows exit 2 with the pointer, and an N=1 `--json` run still emits report JSON on stdout
 
 ## 5. Build the scenario-by-target table [dispatch: executor, parallel: no, reason: introduces a renderer module whose data model and column-identity interface are open design choices]
 

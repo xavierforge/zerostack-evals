@@ -11,7 +11,8 @@ use std::process::ExitCode;
 use zseval::backend::{AgentBackend, Mock, ZsCli};
 use zseval::compare::{compare, load_report, print_human};
 use zseval::runner::{run_suite, RunOptions};
-use zseval::scenario::discover;
+use zseval::scenario::{discover, Scenario};
+use zseval::verdict::Report;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -164,12 +165,9 @@ impl Flags {
     }
     /// Every occurrence of `k`, in the order given on the command line —
     /// unlike `get`, which only surfaces the last one. `--target` is
-    /// repeatable (design.md: "Repeatable `--target`"), so a caller that
-    /// needs all of them (not just the last-wins single value) reaches for
-    /// this instead. Not yet called from `cmd_run` — section 4 wires the
-    /// multi-target loop over it; kept here now, beside `get`/`count`, so
-    /// this section only adds the flag primitive, not the loop.
-    #[allow(dead_code)]
+    /// repeatable (design.md: "Repeatable `--target`"), so `cmd_run` reaches
+    /// for this to build the N-target loop (`run_over_targets`) instead of
+    /// `get`'s last-wins single value.
     fn get_all(&self, k: &str) -> Vec<&str> {
         self.kv
             .iter()
@@ -339,52 +337,32 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     require_judge_decision(has_rubric, &choice)?;
     let (judge_path, no_judge, judge) = judge_for(choice, has_rubric)?;
 
-    let backend: Box<dyn AgentBackend> = match f.get("backend") {
-        Some(b) if b.starts_with("mock=") => {
-            if f.get("target").is_some() {
-                anyhow::bail!(
-                    "--target is rejected for --backend mock: mock replays canned artifacts \
-                     and never reads a target config.toml"
-                );
-            }
-            Box::new(Mock {
-                fixture: PathBuf::from(b.trim_start_matches("mock=")),
-            })
-        }
-        Some("zs") | None => {
-            if f.get("target").is_none() {
-                anyhow::bail!(
-                    "--target is required for --backend zs: pass a zerostack config.toml \
-                     naming what to evaluate against"
-                );
-            }
-            let bin = f
-                .get("zs-bin")
-                .map(PathBuf::from)
-                .or_else(|| std::env::var_os("ZS_BIN").map(PathBuf::from))
-                .ok_or_else(|| {
-                    anyhow::anyhow!("need --zs-bin or ZS_BIN env (or --backend mock=<file>)")
-                })?;
-            Box::new(ZsCli {
-                bin,
-                target: f.get("target").map(PathBuf::from),
-            })
-        }
-        Some(other) => anyhow::bail!("unknown backend '{other}'"),
-    };
+    let targets: Vec<PathBuf> = f.get_all("target").into_iter().map(PathBuf::from).collect();
+    let multi = targets.len() > 1;
+
+    // N reports have no single JSON form (design.md: "`run --json` at N>1 is
+    // a usage error"). Checked before backend/budget setup, so this is a
+    // pure usage error rather than a partial run.
+    if f.has("json") && multi {
+        anyhow::bail!(
+            "run --json accepts at most one --target ({} given): N reports have no single \
+             JSON form; drop --json (the end-of-run table covers N>1) or run `zseval matrix \
+             --json <report.json>...` over the resulting reports instead",
+            targets.len()
+        );
+    }
+    if multi {
+        let target_refs: Vec<&Path> = targets.iter().map(PathBuf::as_path).collect();
+        zseval::target::check_stem_collision(&target_refs)?;
+    }
 
     zseval::backend::set_verbose(f.has("verbose"));
 
-    let opts = RunOptions {
-        target: f.get("target").map(PathBuf::from),
-        trials_override: match f.get("trials") {
-            Some(t) => Some(t.parse()?),
-            None => None,
-        },
+    let cfg = MultiTargetConfig {
         tag: f
             .get("tag")
             .map(String::from)
-            .unwrap_or_else(|| auto_tag(path, f.get("target"), false)),
+            .unwrap_or_else(|| auto_tag(path, f.get("target"), multi)),
         no_judge,
         results_root: f
             .get("results")
@@ -399,43 +377,177 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
             None => 1,
         },
         judge_file: judge_path,
-        // Repeated `--target` (target-matrix section 4) is not yet wired into
-        // `cmd_run`'s single-target call here, so this invocation is always
-        // N=1 for now.
-        multi_target: false,
+        trials_override: match f.get("trials") {
+            Some(t) => Some(t.parse()?),
+            None => None,
+        },
     };
 
-    let report = run_suite(scenarios, backend.as_ref(), judge.as_ref(), &opts)?;
+    let reports: Vec<Report> = match f.get("backend") {
+        Some(b) if b.starts_with("mock=") => {
+            if !targets.is_empty() {
+                anyhow::bail!(
+                    "--target is rejected for --backend mock: mock replays canned artifacts \
+                     and never reads a target config.toml"
+                );
+            }
+            let backend: Box<dyn AgentBackend> = Box::new(Mock {
+                fixture: PathBuf::from(b.trim_start_matches("mock=")),
+            });
+            let opts = RunOptions {
+                target: None,
+                trials_override: cfg.trials_override,
+                tag: cfg.tag.clone(),
+                no_judge: cfg.no_judge,
+                results_root: cfg.results_root.clone(),
+                max_total_usd: cfg.max_total_usd,
+                jobs: cfg.jobs,
+                judge_file: cfg.judge_file.clone(),
+                multi_target: false,
+            };
+            vec![run_suite(
+                scenarios,
+                backend.as_ref(),
+                judge.as_ref(),
+                &opts,
+            )?]
+        }
+        Some("zs") | None => {
+            if targets.is_empty() {
+                anyhow::bail!(
+                    "--target is required for --backend zs: pass a zerostack config.toml \
+                     naming what to evaluate against"
+                );
+            }
+            let bin = f
+                .get("zs-bin")
+                .map(PathBuf::from)
+                .or_else(|| std::env::var_os("ZS_BIN").map(PathBuf::from))
+                .ok_or_else(|| {
+                    anyhow::anyhow!("need --zs-bin or ZS_BIN env (or --backend mock=<file>)")
+                })?;
+            run_over_targets(
+                &scenarios,
+                &targets,
+                |t| {
+                    Box::new(ZsCli {
+                        bin: bin.clone(),
+                        target: Some(t.to_path_buf()),
+                    })
+                },
+                judge.as_ref(),
+                &cfg,
+            )?
+        }
+        Some(other) => anyhow::bail!("unknown backend '{other}'"),
+    };
 
     if f.has("json") {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+        // N>1 is rejected above, so exactly one report reaches here.
+        println!("{}", serde_json::to_string_pretty(&reports[0])?);
     } else {
-        // Rates are undefined when nothing was gradable — show n/a rather than 0.
-        let rate = |v: f64| {
-            if report.summary.n_gradable == 0 {
-                "  n/a".to_string()
-            } else {
-                format!("{v:.3}")
-            }
-        };
-        eprintln!(
-            "\n{} scenarios ({} gradable) | pass@k {} | pass^k {} | \
-             indeterminate {} scenario(s), {} trial(s) | ${:.4}",
-            report.summary.n_scenarios,
-            report.summary.n_gradable,
-            rate(report.summary.pass_at_k),
-            rate(report.summary.pass_hat_k),
-            report.summary.indeterminate_scenarios,
-            report.summary.indeterminate_trials,
-            report.summary.total_cost_usd,
-        );
-        eprintln!(
-            "report: {}/report.json",
-            opts.results_root.join(&opts.tag).display()
-        );
+        for (i, report) in reports.iter().enumerate() {
+            // Rates are undefined when nothing was gradable — show n/a rather than 0.
+            let rate = |v: f64| {
+                if report.summary.n_gradable == 0 {
+                    "  n/a".to_string()
+                } else {
+                    format!("{v:.3}")
+                }
+            };
+            eprintln!(
+                "\n{} scenarios ({} gradable) | pass@k {} | pass^k {} | \
+                 indeterminate {} scenario(s), {} trial(s) | ${:.4}",
+                report.summary.n_scenarios,
+                report.summary.n_gradable,
+                rate(report.summary.pass_at_k),
+                rate(report.summary.pass_hat_k),
+                report.summary.indeterminate_scenarios,
+                report.summary.indeterminate_trials,
+                report.summary.total_cost_usd,
+            );
+            // Mirrors `run_suite`'s own `run_root` (runner.rs): flat at N=1,
+            // nested under the target's stem at N>1 — see
+            // `RunOptions::multi_target`.
+            let run_root = match targets.get(i) {
+                Some(t) if multi => cfg
+                    .results_root
+                    .join(&cfg.tag)
+                    .join(zseval::target::stem(t)),
+                _ => cfg.results_root.join(&cfg.tag),
+            };
+            eprintln!("report: {}/report.json", run_root.display());
+        }
     }
 
-    Ok(ExitCode::from(report.exit_code()))
+    Ok(ExitCode::from(
+        reports.iter().map(Report::exit_code).max().unwrap_or(0),
+    ))
+}
+
+/// The parts of a multi-target `run` invocation that stay fixed across every
+/// target in the loop — only `target` itself, the shrinking budget cap, and
+/// `multi_target` (both computed by `run_over_targets`) vary per iteration.
+struct MultiTargetConfig {
+    tag: String,
+    no_judge: bool,
+    results_root: PathBuf,
+    /// The whole invocation's budget (`--max-total-usd`), shared across every
+    /// target rather than given to each one independently — see
+    /// `run_over_targets`. `None` means unlimited.
+    max_total_usd: Option<f64>,
+    jobs: usize,
+    judge_file: Option<PathBuf>,
+    trials_override: Option<usize>,
+}
+
+/// Evaluate `scenarios` against every target in `targets`, sequentially, each
+/// against a fresh backend from `make_backend`, under one shared budget
+/// (target-matrix 4.3, design.md "Budget is one shared total; truncation is
+/// marked"): a target's own cap is `max_total_usd - spent_so_far`, so what an
+/// earlier target already spent comes out of what is left for the next one,
+/// rather than every target getting its own full `--max-total-usd`.
+/// `run_suite`'s existing per-scenario break (it stops before a scenario once
+/// `spent >= cap`) needs no change for this: a cap clamped to `0.0` (spend
+/// can overrun a cap that is only checked between scenarios, so the naive
+/// subtraction can go negative) just makes that break fire before the
+/// target's very first scenario, shutting a fully-out-of-budget target out
+/// entirely.
+///
+/// `targets.len() > 1` decides `multi_target` on every `RunOptions` built
+/// here — including the `targets.len() == 1` case, which is the ordinary
+/// single-target `zs` run (only `--backend mock=` never reaches this
+/// function).
+fn run_over_targets(
+    scenarios: &[Scenario],
+    targets: &[PathBuf],
+    make_backend: impl Fn(&Path) -> Box<dyn AgentBackend>,
+    judge: &dyn zseval::judge::Judge,
+    cfg: &MultiTargetConfig,
+) -> anyhow::Result<Vec<Report>> {
+    let multi_target = targets.len() > 1;
+    let mut reports = Vec::with_capacity(targets.len());
+    let mut spent_so_far = 0.0_f64;
+    for target in targets {
+        let backend = make_backend(target);
+        let opts = RunOptions {
+            target: Some(target.clone()),
+            trials_override: cfg.trials_override,
+            tag: cfg.tag.clone(),
+            no_judge: cfg.no_judge,
+            results_root: cfg.results_root.clone(),
+            max_total_usd: cfg
+                .max_total_usd
+                .map(|total| (total - spent_so_far).max(0.0)),
+            jobs: cfg.jobs,
+            judge_file: cfg.judge_file.clone(),
+            multi_target,
+        };
+        let report = run_suite(scenarios.to_vec(), backend.as_ref(), judge, &opts)?;
+        spent_so_far += report.summary.total_cost_usd;
+        reports.push(report);
+    }
+    Ok(reports)
 }
 
 /// Build a human-identifiable run tag: which scenarios, against what
@@ -792,5 +904,275 @@ mod judge_flag_tests {
         assert!(multi.starts_with("scenarios_"), "{multi}");
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+}
+
+#[cfg(test)]
+mod multi_target_tests {
+    use super::*;
+    use zseval::backend::Mock;
+
+    fn scenario_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "zseval-multitarget-scenario-{name}-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("scenario.toml"),
+            format!("id = \"{name}\"\ntask = \"say hi\"\nexpect = [\"final_contains done\"]\n"),
+        )
+        .unwrap();
+        dir
+    }
+
+    /// A single-file Mock fixture (`backend.rs::Mock`'s legacy shape) whose
+    /// session records `cost_usd` as its `total_cost` and `message` as the
+    /// final assistant turn — replayed verbatim for every scenario/trial the
+    /// backend is asked to run, so a suite of N trials against this fixture
+    /// spends `N * cost_usd` and grades against `message`.
+    fn mock_fixture_with_message(name: &str, cost_usd: f64, message: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "zseval-multitarget-fixture-{name}-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("session.json");
+        std::fs::write(
+            &path,
+            format!(
+                r#"{{"id":"s","messages":[{{"role":"user","content":"hi"}},{{"role":"assistant","content":"{message}"}}],"total_input_tokens":1,"total_output_tokens":1,"total_cost":{cost_usd}}}"#
+            ),
+        )
+        .unwrap();
+        path
+    }
+
+    /// [`mock_fixture_with_message`] with the message the scenarios in this
+    /// module's `scenario_dir` expect (`final_contains done`).
+    fn mock_fixture(name: &str, cost_usd: f64) -> PathBuf {
+        mock_fixture_with_message(name, cost_usd, "done")
+    }
+
+    /// A minimal on-disk target config.toml — `run_suite` copies whatever
+    /// `RunOptions::target` names into the run-level `target.toml` (section
+    /// 3.4), so a placeholder path with nothing behind it won't do.
+    fn target_file(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "zseval-multitarget-target-{name}-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(format!("{name}.toml"));
+        std::fs::write(
+            &path,
+            "provider = \"anthropic\"\nmodel = \"claude-sonnet-4-6\"\n",
+        )
+        .unwrap();
+        path
+    }
+
+    fn base_cfg(name: &str, max_total_usd: Option<f64>) -> MultiTargetConfig {
+        MultiTargetConfig {
+            tag: "t".to_string(),
+            no_judge: true,
+            results_root: std::env::temp_dir().join(format!(
+                "zseval-multitarget-results-{name}-{}",
+                std::process::id()
+            )),
+            max_total_usd,
+            jobs: 1,
+            judge_file: None,
+            trials_override: Some(1),
+        }
+    }
+
+    /// target-matrix 4.2: looping `run_over_targets` over two `--target`
+    /// values produces two reports, one per target, in target order.
+    #[test]
+    fn run_over_targets_produces_one_report_per_target() {
+        let sc_dir = scenario_dir("count");
+        let scenarios = zseval::scenario::discover(&sc_dir).unwrap();
+        let fixture = mock_fixture("count", 0.01);
+        let targets = vec![target_file("count-a"), target_file("count-b")];
+        let cfg = base_cfg("count", None);
+
+        let reports = run_over_targets(
+            &scenarios,
+            &targets,
+            |_t| {
+                Box::new(Mock {
+                    fixture: fixture.clone(),
+                }) as Box<dyn AgentBackend>
+            },
+            &NoJudgeConfigured,
+            &cfg,
+        )
+        .unwrap();
+
+        assert_eq!(reports.len(), 2);
+        assert_eq!(reports[0].summary.n_scenarios, 1);
+        assert_eq!(reports[1].summary.n_scenarios, 1);
+
+        std::fs::remove_dir_all(&sc_dir).ok();
+        std::fs::remove_dir_all(fixture.parent().unwrap()).ok();
+        std::fs::remove_dir_all(&cfg.results_root).ok();
+        for t in &targets {
+            std::fs::remove_dir_all(t.parent().unwrap()).ok();
+        }
+    }
+
+    /// target-matrix 4.3: `--max-total-usd` is one shared total across
+    /// targets, not a cap handed to each target independently. Target 1
+    /// alone spends past the whole budget; target 2's shrunk cap
+    /// (`total - spent`, clamped to 0) then shuts it out before its own
+    /// first scenario — which an independent per-target cap of the same
+    /// size would *not* do, since the per-scenario check only ever compares
+    /// against what that one run has spent so far (target 2 would start at
+    /// 0 < 5 and run its scenario too).
+    #[test]
+    fn budget_is_shared_across_targets_not_per_target() {
+        let sc_dir = scenario_dir("budget");
+        let scenarios = zseval::scenario::discover(&sc_dir).unwrap();
+        let fixture = mock_fixture("budget", 6.0);
+        let targets = vec![target_file("budget-a"), target_file("budget-b")];
+        let cfg = base_cfg("budget", Some(5.0));
+
+        let reports = run_over_targets(
+            &scenarios,
+            &targets,
+            |_t| {
+                Box::new(Mock {
+                    fixture: fixture.clone(),
+                }) as Box<dyn AgentBackend>
+            },
+            &NoJudgeConfigured,
+            &cfg,
+        )
+        .unwrap();
+
+        assert_eq!(reports.len(), 2);
+        assert_eq!(
+            reports[0].summary.n_scenarios, 1,
+            "target 1 runs and spends the shared budget"
+        );
+        assert_eq!(
+            reports[1].summary.n_scenarios, 0,
+            "target 2 is shut out: its shrunk cap is 0 once target 1 exhausted the shared \
+             total, not a fresh independent $5 cap"
+        );
+
+        std::fs::remove_dir_all(&sc_dir).ok();
+        std::fs::remove_dir_all(fixture.parent().unwrap()).ok();
+        std::fs::remove_dir_all(&cfg.results_root).ok();
+        for t in &targets {
+            std::fs::remove_dir_all(t.parent().unwrap()).ok();
+        }
+    }
+
+    /// target-matrix 4.4: the exit code `cmd_run` reports across N targets is
+    /// the most severe of the N reports' own `exit_code()` — here, one
+    /// target's trial fails its deterministic assert (1) while the other
+    /// passes (0), and the aggregate must surface the 1, never silently
+    /// average or ignore it.
+    #[test]
+    fn aggregate_exit_code_is_1_when_any_target_has_a_failing_trial() {
+        let sc_dir = scenario_dir("aggregate-fail");
+        let scenarios = zseval::scenario::discover(&sc_dir).unwrap();
+        let target_a = target_file("aggregate-fail-a");
+        let target_b = target_file("aggregate-fail-b");
+        let targets = vec![target_a.clone(), target_b.clone()];
+        let passing_fixture = mock_fixture("aggregate-fail-pass", 0.01);
+        // Does not contain "done", so `final_contains done` fails the assert.
+        let failing_fixture = mock_fixture_with_message("aggregate-fail-fail", 0.01, "nope");
+        let cfg = base_cfg("aggregate-fail", None);
+
+        let reports = run_over_targets(
+            &scenarios,
+            &targets,
+            |t| {
+                let fixture = if t == target_a {
+                    passing_fixture.clone()
+                } else {
+                    failing_fixture.clone()
+                };
+                Box::new(Mock { fixture }) as Box<dyn AgentBackend>
+            },
+            &NoJudgeConfigured,
+            &cfg,
+        )
+        .unwrap();
+
+        assert_eq!(reports[0].exit_code(), 0, "target a's trial passed");
+        assert_eq!(reports[1].exit_code(), 1, "target b's trial failed");
+        let aggregate = reports.iter().map(Report::exit_code).max().unwrap_or(0);
+        assert_eq!(
+            aggregate, 1,
+            "the failing column must win, not be averaged away"
+        );
+
+        std::fs::remove_dir_all(&sc_dir).ok();
+        std::fs::remove_dir_all(passing_fixture.parent().unwrap()).ok();
+        std::fs::remove_dir_all(failing_fixture.parent().unwrap()).ok();
+        std::fs::remove_dir_all(&cfg.results_root).ok();
+        for t in &targets {
+            std::fs::remove_dir_all(t.parent().unwrap()).ok();
+        }
+    }
+
+    /// target-matrix 4.4: a target whose backend can't even produce a
+    /// gradable transcript (here, a `Mock` fixture pointed at a file that
+    /// does not exist — `backend.run` errors, which `run_trial` grades
+    /// Indeterminate, never Fail) leaves that whole column with nothing
+    /// gradable. The aggregate exit code must escalate to 2 (harness error),
+    /// outranking a same-run target that passed cleanly.
+    #[test]
+    fn aggregate_exit_code_is_2_when_any_target_is_fully_ungradable() {
+        let sc_dir = scenario_dir("aggregate-ungradable");
+        let scenarios = zseval::scenario::discover(&sc_dir).unwrap();
+        let target_a = target_file("aggregate-ungradable-a");
+        let target_b = target_file("aggregate-ungradable-b");
+        let targets = vec![target_a.clone(), target_b.clone()];
+        let passing_fixture = mock_fixture("aggregate-ungradable-pass", 0.01);
+        let missing_fixture = std::env::temp_dir().join(format!(
+            "zseval-multitarget-missing-fixture-{}.json",
+            std::process::id()
+        ));
+        let cfg = base_cfg("aggregate-ungradable", None);
+
+        let reports = run_over_targets(
+            &scenarios,
+            &targets,
+            |t| {
+                let fixture = if t == target_a {
+                    passing_fixture.clone()
+                } else {
+                    missing_fixture.clone()
+                };
+                Box::new(Mock { fixture }) as Box<dyn AgentBackend>
+            },
+            &NoJudgeConfigured,
+            &cfg,
+        )
+        .unwrap();
+
+        assert_eq!(reports[0].exit_code(), 0, "target a's trial passed");
+        assert_eq!(
+            reports[1].exit_code(),
+            2,
+            "target b's backend errored on every trial: nothing gradable"
+        );
+        let aggregate = reports.iter().map(Report::exit_code).max().unwrap_or(0);
+        assert_eq!(
+            aggregate, 2,
+            "the fully-ungradable column must win, over a's clean 0"
+        );
+
+        std::fs::remove_dir_all(&sc_dir).ok();
+        std::fs::remove_dir_all(passing_fixture.parent().unwrap()).ok();
+        std::fs::remove_dir_all(&cfg.results_root).ok();
+        for t in &targets {
+            std::fs::remove_dir_all(t.parent().unwrap()).ok();
+        }
     }
 }

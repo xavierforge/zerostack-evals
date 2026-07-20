@@ -2468,3 +2468,61 @@ fn a_completed_mock_run_records_model_mock() {
     let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(v["model"], "mock", "stdout: {stdout}");
 }
+
+/// target-matrix 4.5: N>1 `--target` has no single JSON report to print, so
+/// `run --json` is a usage error naming `zseval matrix --json` as the way to
+/// render N reports as one table. This must fire before any backend/budget
+/// setup (no `--zs-bin`/`ZS_BIN`, and the target files need not even exist),
+/// so a later failure for a different reason can't be mistaken for this gate.
+#[test]
+fn run_json_with_more_than_one_target_exits_2_naming_matrix() {
+    let dir = no_rubric_scenario_dir("json-multi-target");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--target",
+            "a/opus.toml",
+            "--target",
+            "b/sonnet.toml",
+            "--json",
+        ])
+        .env_remove("ZS_BIN")
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("zseval matrix --json"), "stderr: {stderr}");
+}
+
+/// target-matrix 4.5: the N>1 `--json` gate is keyed on target *count*, not
+/// on `--json` plus `--target` together — one `--target` with `--json` must
+/// reach past it to the next check (no `--zs-bin`/`ZS_BIN`), never the
+/// "matrix" usage error. Paired with `a_completed_mock_run_records_model_mock`
+/// (N=1 via `--backend mock`, no `--target` at all) this covers both N=1
+/// shapes; a live N=1 `zs --target --json` run needs a real `zerostack`
+/// binary this harness does not have.
+#[test]
+fn run_json_with_exactly_one_target_does_not_trip_the_multi_target_gate() {
+    let dir = no_rubric_scenario_dir("json-single-target");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--target",
+            "a/opus.toml",
+            "--json",
+        ])
+        .env_remove("ZS_BIN")
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("zseval matrix --json"),
+        "N=1 must not trip the multi-target JSON gate; stderr: {stderr}"
+    );
+    assert!(stderr.contains("--zs-bin"), "stderr: {stderr}");
+}
