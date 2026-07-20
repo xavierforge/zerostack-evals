@@ -40,12 +40,12 @@ sections only, and none may overlap another.
 
 ## 5. Build the scenario-by-target table [dispatch: executor, parallel: no, reason: introduces a renderer module whose data model and column-identity interface are open design choices]
 
-- [ ] 5.1 Write failing tests for the table model: rows keyed by scenario id in id order; a graded all-fail cell renders `0.000` while an absent or fully-indeterminate cell renders `-`. Verify: the tests fail before the module exists
-- [ ] 5.2 Add the renderer module building a scenario x target model from N reports, consulting `n_graded_trials()` and scenario presence to separate a real zero from a hole. Verify: the 5.1 tests pass; paste the rendered rows
-- [ ] 5.3 Compute the footer over the scenarios gradable in every column and list the scenarios excluded from it. Verify: a two-column test with differing scenario sets shows the intersection footer plus the exclusion list, and an identical-suite test shows the footer matching each report's own summary
-- [ ] 5.4 Implement column identity: stem in the header; full provider/model, target path, and the `judge_model` tri-state in the legend. Verify: a test asserts the three judge states render distinguishably (unknown vs nothing-graded vs listed rulers); paste the rendered legend
-- [ ] 5.5 Disambiguate same-stem columns by tag or timestamp instead of colliding. Verify: a test with two reports for one target from different runs shows both columns present and distinctly labelled
-- [ ] 5.6 Add the fixed-width terminal renderer and the markdown renderer over the same model. Verify: a test renders one fixture both ways; paste both outputs
+- [x] 5.1 Write failing tests for the table model: rows keyed by scenario id in id order; a graded all-fail cell renders `0.000` while an absent or fully-indeterminate cell renders `-`. Verify: the tests fail before the module exists
+- [x] 5.2 Add the renderer module building a scenario x target model from N reports, consulting `n_graded_trials()` and scenario presence to separate a real zero from a hole. Verify: the 5.1 tests pass; paste the rendered rows
+- [x] 5.3 Compute the footer over the scenarios gradable in every column and list the scenarios excluded from it. Verify: a two-column test with differing scenario sets shows the intersection footer plus the exclusion list, and an identical-suite test shows the footer matching each report's own summary
+- [x] 5.4 Implement column identity: stem in the header; full provider/model, target path, and the `judge_model` tri-state in the legend. Verify: a test asserts the three judge states render distinguishably (unknown vs nothing-graded vs listed rulers); paste the rendered legend
+- [x] 5.5 Disambiguate same-stem columns by tag or timestamp instead of colliding. Verify: a test with two reports for one target from different runs shows both columns present and distinctly labelled
+- [x] 5.6 Add the fixed-width terminal renderer and the markdown renderer over the same model. Verify: a test renders one fixture both ways; paste both outputs
 
 ## 6. Mark what the table cannot compare [dispatch: mech-executor, parallel: no, reason: threshold formula, drift granularity, and hole-exclusion rules are all pinned in the spec; only application remains]
 
