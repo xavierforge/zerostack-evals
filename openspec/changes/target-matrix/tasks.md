@@ -49,12 +49,12 @@ sections only, and none may overlap another.
 
 ## 6. Mark what the table cannot compare [dispatch: mech-executor, parallel: no, reason: threshold formula, drift granularity, and hole-exclusion rules are all pinned in the spec; only application remains]
 
-- [ ] 6.1 Write failing tests for SPREAD: a row whose gap exceeds one trial's resolution is marked; one within it is not; a row containing a `-` cell neither divides by zero nor counts the hole in max/min. Verify: the three fail first
-- [ ] 6.2 Implement SPREAD as `max - min` over gradable cells exceeding `1 / min(n_graded_trials)` of those cells, excluding holes from max, min, and the threshold. Verify: the 6.1 tests pass; paste the output
-- [ ] 6.3 Implement per-row DRIFT on `content_hash` mismatch, listing the differing columns grouped by hash with timestamps and naming no column as correct. Verify: a test with one scenario hashed differently across two columns shows the row marked and both columns listed
-- [ ] 6.4 Implement per-column DRIFT when a column's `judge_hash` differs from the others or its judge is unknown. Verify: tests cover both the differing-hash and the unknown-judge case marking the column
-- [ ] 6.5 Mark a column incomplete when it ran fewer scenarios than the suite defines (budget truncation). Verify: a test with a truncated column shows the incomplete mark; paste the rendered column header
-- [ ] 6.6 Label SPREAD and DRIFT in the legend as display heuristics, not statistical or authoritative claims. Verify: paste the rendered legend showing both caveats
+- [x] 6.1 Write failing tests for SPREAD: a row whose gap exceeds one trial's resolution is marked; one within it is not; a row containing a `-` cell neither divides by zero nor counts the hole in max/min. Verify: the three fail first
+- [x] 6.2 Implement SPREAD as `max - min` over gradable cells exceeding `1 / min(n_graded_trials)` of those cells, excluding holes from max, min, and the threshold. Verify: the 6.1 tests pass; paste the output
+- [x] 6.3 Implement per-row DRIFT on `content_hash` mismatch, listing the differing columns grouped by hash with timestamps and naming no column as correct. Verify: a test with one scenario hashed differently across two columns shows the row marked and both columns listed
+- [x] 6.4 Implement per-column DRIFT when a column's `judge_hash` differs from the others or its judge is unknown. Verify: tests cover both the differing-hash and the unknown-judge case marking the column
+- [x] 6.5 Mark a column incomplete when it ran fewer scenarios than the suite defines (budget truncation). Verify: a test with a truncated column shows the incomplete mark; paste the rendered column header
+- [x] 6.6 Label SPREAD and DRIFT in the legend as display heuristics, not statistical or authoritative claims. Verify: paste the rendered legend showing both caveats
 
 ## 7. Add the matrix subcommand [dispatch: mech-executor, parallel: no, reason: command wiring, rejection cases, and exit codes are all fixed by the spec]
 

@@ -63,6 +63,27 @@ pub struct Column {
     pub timestamp: String,
     pub judge: JudgeState,
     pub footer: ColumnFooter,
+    /// This column ran fewer scenarios than the suite defined (the widest
+    /// scenario set observed across this table's columns) — the visible
+    /// trace of a budget-truncated run (design.md, "Budget is one shared
+    /// total; truncation is marked").
+    pub incomplete: bool,
+    /// This column's `judge_hash` differs from another column's, or this
+    /// column's judge is unknown — the measuring stick may have moved.
+    /// SPREAD/DRIFT are display heuristics, not statistical or authoritative
+    /// claims (design.md, "DRIFT marks, never adjudicates").
+    pub judge_drift: bool,
+}
+
+/// One `content_hash` grouping within a row's DRIFT mark: the columns (and
+/// their timestamps) that agreed on this hash. No group is "correct" — DRIFT
+/// marks, it never adjudicates.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DriftGroup {
+    pub hash: String,
+    /// Column labels sharing `hash`, aligned index-for-index with `timestamps`.
+    pub columns: Vec<String>,
+    pub timestamps: Vec<String>,
 }
 
 /// One scenario's row: a cell per column, aligned by index with
@@ -71,6 +92,15 @@ pub struct Column {
 pub struct Row {
     pub id: String,
     pub cells: Vec<Cell>,
+    /// The gradable cells' gap (max - min) exceeds one trial's resolution
+    /// (`1 / min(n_graded_trials)`) over those cells — a display heuristic,
+    /// not a statistical claim (design.md, "SPREAD is data-derived and
+    /// hole-safe").
+    pub spread: bool,
+    /// `content_hash` disagreement across columns that graded this scenario,
+    /// grouped by hash. Empty when every column that graded it agrees (or
+    /// too few columns carry a known hash to compare).
+    pub drift: Vec<DriftGroup>,
 }
 
 /// The scenario x target table. Built once by [`build`] from a set of
@@ -107,18 +137,22 @@ pub fn build(reports: &[&Report]) -> Matrix {
         .collect();
 
     let labels = disambiguate_labels(reports);
+    let judge_drift_flags = judge_drift_flags(reports);
     let columns = reports
         .iter()
-        .zip(labels)
-        .map(|(r, label)| Column {
+        .zip(&labels)
+        .zip(judge_drift_flags)
+        .map(|((r, label), judge_drift)| Column {
             stem: crate::target::stem(Path::new(&r.target)),
-            label,
+            label: label.clone(),
             model: r.model.clone(),
             target: r.target.clone(),
             tag: r.tag.clone(),
             timestamp: r.timestamp.clone(),
             judge: judge_state(r),
             footer: column_footer(r, &intersection),
+            incomplete: r.scenarios.len() < all_ids.len(),
+            judge_drift,
         })
         .collect();
 
@@ -127,6 +161,8 @@ pub fn build(reports: &[&Report]) -> Matrix {
         .map(|id| Row {
             id: id.clone(),
             cells: reports.iter().map(|r| cell(r, id)).collect(),
+            spread: spread_for_row(reports, id),
+            drift: drift_for_row(reports, &labels, id),
         })
         .collect();
 
@@ -231,6 +267,93 @@ fn disambiguate_labels(reports: &[&Report]) -> Vec<String> {
         .collect()
 }
 
+/// SPREAD threshold: `1 / min(n_graded_trials)` over this row's gradable
+/// cells. `-` cells are excluded from max, min, and the threshold — both to
+/// avoid a divide-by-zero on a hole-only row and because a hole is "did not
+/// run", not "ran and disagreed" (design.md, "SPREAD is data-derived and
+/// hole-safe").
+fn spread_for_row(reports: &[&Report], id: &str) -> bool {
+    let gradable: Vec<(f64, usize)> = reports
+        .iter()
+        .filter_map(|r| {
+            gradable_scenario(r, id).map(|s| (s.trial_pass_rate(), s.n_graded_trials()))
+        })
+        .collect();
+    if gradable.len() < 2 {
+        return false;
+    }
+    let max = gradable
+        .iter()
+        .map(|(rate, _)| *rate)
+        .fold(f64::MIN, f64::max);
+    let min = gradable
+        .iter()
+        .map(|(rate, _)| *rate)
+        .fold(f64::MAX, f64::min);
+    let min_n = gradable.iter().map(|(_, n)| *n).min().unwrap_or(1).max(1);
+    let threshold = 1.0 / min_n as f64;
+    (max - min) > threshold
+}
+
+/// Per-row DRIFT: `content_hash` mismatch across the columns that graded
+/// this scenario, grouped by hash. An empty `content_hash` (a baseline
+/// predating the field) is "unknown, skip" — same precedent as
+/// `ScenarioResult::content_hash`'s own doc — never treated as a mismatch on
+/// its own. No group is named "correct" (design.md, "DRIFT marks, never
+/// adjudicates").
+fn drift_for_row(reports: &[&Report], labels: &[String], id: &str) -> Vec<DriftGroup> {
+    let entries: Vec<(String, String, String)> = reports
+        .iter()
+        .zip(labels)
+        .filter_map(|(r, label)| {
+            let s = gradable_scenario(r, id)?;
+            if s.content_hash.is_empty() {
+                return None;
+            }
+            Some((s.content_hash.clone(), label.clone(), r.timestamp.clone()))
+        })
+        .collect();
+
+    let distinct: std::collections::HashSet<&str> =
+        entries.iter().map(|(hash, ..)| hash.as_str()).collect();
+    if distinct.len() <= 1 {
+        return vec![];
+    }
+
+    let mut groups: Vec<DriftGroup> = vec![];
+    for (hash, label, timestamp) in entries {
+        match groups.iter_mut().find(|g| g.hash == hash) {
+            Some(g) => {
+                g.columns.push(label);
+                g.timestamps.push(timestamp);
+            }
+            None => groups.push(DriftGroup {
+                hash,
+                columns: vec![label],
+                timestamps: vec![timestamp],
+            }),
+        }
+    }
+    groups
+}
+
+/// Per-column DRIFT: this column's `judge_hash` differs from another
+/// column's known hash, or this column's judge is unknown outright. Symmetric
+/// on a real mismatch (design.md: DRIFT never picks a "correct" column), so
+/// two disagreeing columns are both marked.
+fn judge_drift_flags(reports: &[&Report]) -> Vec<bool> {
+    reports
+        .iter()
+        .enumerate()
+        .map(|(i, r)| {
+            r.judge_hash.is_none()
+                || reports.iter().enumerate().any(|(j, other)| {
+                    j != i && other.judge_hash.is_some() && other.judge_hash != r.judge_hash
+                })
+        })
+        .collect()
+}
+
 fn round4(x: f64) -> f64 {
     (x * 10_000.0).round() / 10_000.0
 }
@@ -240,6 +363,37 @@ fn format_cell(c: Cell) -> String {
         Cell::Rate(r) => format!("{r:.3}"),
         Cell::Hole => "-".to_string(),
     }
+}
+
+/// Header text for one column: its label plus a trailing `*` when the
+/// column is incomplete (ran fewer scenarios than the suite defines) — the
+/// visible trace of a budget-truncated run.
+fn column_header(col: &Column) -> String {
+    if col.incomplete {
+        format!("{}*", col.label)
+    } else {
+        col.label.clone()
+    }
+}
+
+/// Trailing annotation for one row: `SPREAD` when the row's gap exceeds its
+/// resolution threshold, `DRIFT[...]` listing the hash groups when this
+/// scenario's content differs across columns. Both are display heuristics —
+/// see the legend caveat in [`render_legend_fixed_width`].
+fn row_marks(row: &Row) -> String {
+    let mut marks = String::new();
+    if row.spread {
+        marks.push_str("  SPREAD");
+    }
+    if !row.drift.is_empty() {
+        let groups: Vec<String> = row
+            .drift
+            .iter()
+            .map(|g| format!("{}:{}", &g.hash[..g.hash.len().min(8)], g.columns.join(",")))
+            .collect();
+        marks.push_str(&format!("  DRIFT[{}]", groups.join(" ")));
+    }
+    marks
 }
 
 fn format_judge(j: &JudgeState) -> String {
@@ -259,7 +413,7 @@ pub fn render_fixed_width(m: &Matrix) -> String {
     let mut out = String::new();
     out.push_str(&format!("{:<ID_COL$}", "scenario"));
     for col in &m.columns {
-        out.push_str(&format!("{:>NUM_COL$}", col.label));
+        out.push_str(&format!("{:>NUM_COL$}", column_header(col)));
     }
     out.push('\n');
     for row in &m.rows {
@@ -267,6 +421,7 @@ pub fn render_fixed_width(m: &Matrix) -> String {
         for cell in &row.cells {
             out.push_str(&format!("{:>NUM_COL$}", format_cell(*cell)));
         }
+        out.push_str(&row_marks(row));
         out.push('\n');
     }
     out.push_str(&format!("{:<ID_COL$}", "pass@k"));
@@ -298,15 +453,25 @@ fn render_legend_fixed_width(m: &Matrix) -> String {
     let mut out = String::from("\nlegend:\n");
     for col in &m.columns {
         out.push_str(&format!(
-            "  {:<16} model={:<32} target={:<28} judge={}\n",
+            "  {:<16} model={:<32} target={:<28} judge={:<20}{}{}\n",
             col.label,
             col.model,
             col.target,
-            format_judge(&col.judge)
+            format_judge(&col.judge),
+            if col.incomplete { " incomplete" } else { "" },
+            if col.judge_drift { " judge-drift" } else { "" },
         ));
     }
+    out.push_str(LEGEND_CAVEAT);
     out
 }
+
+/// SPREAD and DRIFT are display heuristics that flag "look here", not a
+/// statistical test or an authoritative verdict about which column is right
+/// (design.md, "SPREAD is data-derived and hole-safe"; "DRIFT marks, never
+/// adjudicates").
+const LEGEND_CAVEAT: &str =
+    "\nSPREAD and DRIFT are display heuristics, not statistical or authoritative claims.\n";
 
 /// Markdown table: for `matrix --markdown` and `experiments/` snapshots (no
 /// width limit, unlike the fixed-width renderer).
@@ -314,7 +479,7 @@ pub fn render_markdown(m: &Matrix) -> String {
     let mut out = String::new();
     out.push_str("| scenario |");
     for col in &m.columns {
-        out.push_str(&format!(" {} |", col.label));
+        out.push_str(&format!(" {} |", column_header(col)));
     }
     out.push('\n');
     out.push_str("|---|");
@@ -326,6 +491,11 @@ pub fn render_markdown(m: &Matrix) -> String {
         out.push_str(&format!("| {} |", row.id));
         for cell in &row.cells {
             out.push_str(&format!(" {} |", format_cell(*cell)));
+        }
+        let marks = row_marks(row);
+        if !marks.is_empty() {
+            out.push_str(marks.trim());
+            out.push(' ');
         }
         out.push('\n');
     }
@@ -353,13 +523,18 @@ pub fn render_markdown(m: &Matrix) -> String {
     out.push_str("\n**Legend**\n\n");
     for col in &m.columns {
         out.push_str(&format!(
-            "- `{}`: model={}, target={}, judge={}\n",
+            "- `{}`: model={}, target={}, judge={}{}{}\n",
             col.label,
             col.model,
             col.target,
-            format_judge(&col.judge)
+            format_judge(&col.judge),
+            if col.incomplete { ", incomplete" } else { "" },
+            if col.judge_drift { ", judge-drift" } else { "" },
         ));
     }
+    out.push_str(
+        "\n_SPREAD and DRIFT are display heuristics, not statistical or authoritative claims._\n",
+    );
     out
 }
 
@@ -420,6 +595,21 @@ mod tests {
                 ..Default::default()
             },
             scenarios,
+        )
+    }
+
+    fn report_with_judge_hash(target: &str, tag: &str, judge_hash: Option<String>) -> Report {
+        Report::build(
+            ReportMeta {
+                tag: tag.into(),
+                model: format!("anthropic/{tag}"),
+                backend: "zs".into(),
+                trials: 1,
+                target: target.into(),
+                judge_hash,
+                ..Default::default()
+            },
+            vec![],
         )
     }
 
@@ -603,6 +793,193 @@ mod tests {
         assert!(m.columns[1].label.starts_with("opus"));
         assert_eq!(m.columns[0].stem, "opus");
         assert_eq!(m.columns[1].stem, "opus");
+    }
+
+    // 6.1 — a row whose gap exceeds one trial's resolution is marked SPREAD.
+    #[test]
+    fn row_with_gap_beyond_one_trial_resolution_is_marked_spread() {
+        // Two trials each => resolution 1/2 = 0.5. Gap here is 1.0 - 0.0 = 1.0.
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Pass), trial(Final::Pass)],
+            )],
+        );
+        let b = report(
+            "targets/sonnet.toml",
+            "run-b",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Fail), trial(Final::Fail)],
+            )],
+        );
+        let m = build(&[&a, &b]);
+        assert!(m.rows[0].spread, "gap of 1.0 exceeds resolution of 0.5");
+    }
+
+    // 6.1 — a row whose gap sits within one trial's resolution is not marked.
+    #[test]
+    fn row_with_gap_within_one_trial_resolution_is_not_marked_spread() {
+        // Four trials each => resolution 1/4 = 0.25. Gap here is 0.25 - 0.0 = 0.25,
+        // not strictly greater than the threshold.
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![
+                    trial(Final::Pass),
+                    trial(Final::Fail),
+                    trial(Final::Fail),
+                    trial(Final::Fail),
+                ],
+            )],
+        );
+        let b = report(
+            "targets/sonnet.toml",
+            "run-b",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![
+                    trial(Final::Fail),
+                    trial(Final::Fail),
+                    trial(Final::Fail),
+                    trial(Final::Fail),
+                ],
+            )],
+        );
+        let m = build(&[&a, &b]);
+        assert!(
+            !m.rows[0].spread,
+            "gap of 0.25 does not exceed resolution of 0.25"
+        );
+    }
+
+    // 6.1 — a row with a hole neither divides by zero nor lets the hole feed
+    // max/min or the threshold.
+    #[test]
+    fn row_with_a_hole_is_safe_and_excludes_it_from_spread_computation() {
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let b = report("targets/sonnet.toml", "run-b", vec![]); // hole: never ran "s"
+        let m = build(&[&a, &b]);
+        assert_eq!(m.rows[0].cells[1], Cell::Hole);
+        // A single gradable cell (the hole excluded) cannot produce a spread.
+        assert!(!m.rows[0].spread);
+    }
+
+    // 6.3 — per-row DRIFT on content_hash mismatch: the row is marked and both
+    // differing columns are listed, grouped by hash, with timestamps, naming
+    // no column as correct.
+    #[test]
+    fn row_drift_marks_content_hash_mismatch_and_lists_both_columns() {
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials_with_hash(
+                "s".into(),
+                "hash-old".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let b = report(
+            "targets/sonnet.toml",
+            "run-b",
+            vec![ScenarioResult::from_trials_with_hash(
+                "s".into(),
+                "hash-new".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let m = build(&[&a, &b]);
+        let row = &m.rows[0];
+        assert_eq!(row.drift.len(), 2, "two distinct hashes => two groups");
+        let all_columns: Vec<&str> = row
+            .drift
+            .iter()
+            .flat_map(|g| g.columns.iter().map(|c| c.as_str()))
+            .collect();
+        assert!(all_columns.contains(&"opus"));
+        assert!(all_columns.contains(&"sonnet"));
+        for g in &row.drift {
+            assert!(!g.timestamps.is_empty());
+        }
+    }
+
+    // 6.4 — per-column DRIFT when judge_hash differs from the others.
+    #[test]
+    fn column_drift_marks_differing_judge_hash() {
+        let a = report_with_judge_hash("targets/opus.toml", "run-a", Some("hash-a".into()));
+        let b = report_with_judge_hash("targets/sonnet.toml", "run-b", Some("hash-b".into()));
+        let m = build(&[&a, &b]);
+        assert!(m.columns[0].judge_drift);
+        assert!(m.columns[1].judge_drift);
+    }
+
+    // 6.4 — per-column DRIFT when the judge is unknown.
+    #[test]
+    fn column_drift_marks_unknown_judge() {
+        let a = report_with_judge_hash("targets/opus.toml", "run-a", None);
+        let b = report_with_judge_hash("targets/sonnet.toml", "run-b", None);
+        let m = build(&[&a, &b]);
+        assert!(m.columns[0].judge_drift, "unknown judge always marks");
+        assert!(m.columns[1].judge_drift, "unknown judge always marks");
+    }
+
+    // 6.5 — a column that ran fewer scenarios than the suite defines is
+    // marked incomplete.
+    #[test]
+    fn truncated_column_is_marked_incomplete() {
+        let full = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![
+                ScenarioResult::from_trials("one".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials("two".into(), vec![trial(Final::Pass)]),
+            ],
+        );
+        let truncated = report(
+            "targets/sonnet.toml",
+            "run-b",
+            vec![ScenarioResult::from_trials(
+                "one".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let m = build(&[&full, &truncated]);
+        assert!(!m.columns[0].incomplete);
+        assert!(m.columns[1].incomplete);
+
+        let header = render_fixed_width(&m);
+        assert!(
+            header.contains("sonnet*") || header.contains("incomplete"),
+            "the rendered column header carries the incomplete mark: {header}"
+        );
+    }
+
+    // 6.6 — SPREAD and DRIFT are labelled in the legend as display
+    // heuristics, not statistical or authoritative claims.
+    #[test]
+    fn legend_labels_spread_and_drift_as_display_heuristics() {
+        let a = report("targets/opus.toml", "run-a", vec![]);
+        let m = build(&[&a]);
+        let legend = render_legend_fixed_width(&m);
+        assert!(legend.to_lowercase().contains("spread"));
+        assert!(legend.to_lowercase().contains("drift"));
+        assert!(
+            legend.to_lowercase().contains("heuristic")
+                || legend.to_lowercase().contains("not statistical")
+                || legend.to_lowercase().contains("not authoritative"),
+            "legend: {legend}"
+        );
     }
 
     // 5.6 — both renderers over one fixture.
