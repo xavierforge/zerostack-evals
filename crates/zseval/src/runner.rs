@@ -77,6 +77,30 @@ struct Grading<'a> {
     judge_artifacts_dir: &'a Path,
 }
 
+/// The results root for one target's report and trial dirs: flat
+/// `results/<tag>/` for a single-target run, nested
+/// `results/<tag>/<stem>/` when `multi_target` (so N targets sharing one
+/// `--tag` don't collide on `sc.id`). Derived in exactly one place and
+/// reused by both `run_suite` and the end-of-run summary printer, rather
+/// than re-deriving the same formula at each site (design.md: compute once,
+/// reuse). Requires `target` to be `Some` when `multi_target`: the stem has
+/// nothing to derive from otherwise.
+pub fn run_root(
+    results_root: &Path,
+    tag: &str,
+    multi_target: bool,
+    target: Option<&Path>,
+) -> Result<PathBuf> {
+    if multi_target {
+        let target = target.ok_or_else(|| {
+            anyhow::anyhow!("multi-target run requires --target to derive the results stem")
+        })?;
+        Ok(results_root.join(tag).join(crate::target::stem(target)))
+    } else {
+        Ok(results_root.join(tag))
+    }
+}
+
 pub fn run_suite(
     scenarios: &[Scenario],
     backend: &dyn AgentBackend,
@@ -98,16 +122,12 @@ pub fn run_suite(
     // Derived once here and threaded down (rather than re-derived at the
     // trial-dir site) so the report and its trial dirs can never split
     // across two different roots — see design.md's "implementation trap".
-    let run_root = if opts.multi_target {
-        let target = opts.target.as_deref().ok_or_else(|| {
-            anyhow::anyhow!("multi-target run requires --target to derive the results stem")
-        })?;
-        opts.results_root
-            .join(&opts.tag)
-            .join(crate::target::stem(target))
-    } else {
-        opts.results_root.join(&opts.tag)
-    };
+    let run_root = run_root(
+        &opts.results_root,
+        &opts.tag,
+        opts.multi_target,
+        opts.target.as_deref(),
+    )?;
     std::fs::create_dir_all(&run_root)?;
 
     // A clean, run-level copy of the target config — identity, not the

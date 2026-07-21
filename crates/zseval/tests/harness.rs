@@ -2771,3 +2771,41 @@ fn matrix_with_no_format_flag_renders_fixed_width_not_markdown() {
     assert!(!stdout.contains("|---|"), "stdout: {stdout}");
     assert!(stdout.contains("fixed-width-scenario"), "stdout: {stdout}");
 }
+
+/// target-matrix design decision: `matrix` treats an all-holes / empty column
+/// as ungradable and exits 2. A report with a valid target but *zero*
+/// scenarios yields an empty column that contributes nothing but holes, so the
+/// matrix is ungradable even though the report's own `exit_code` would be 0.
+#[test]
+fn matrix_over_a_zero_scenario_report_exits_2() {
+    use zseval::verdict::{Report, ReportMeta};
+
+    let dir = std::env::temp_dir().join(format!("zseval-matrix-e2e-empty-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let r = Report::build(
+        ReportMeta {
+            tag: "run-a".into(),
+            model: "anthropic/opus".into(),
+            backend: "zs".into(),
+            trials: 1,
+            target: "targets/opus.toml".into(),
+            ..Default::default()
+        },
+        vec![],
+    );
+    let report_path = dir.join("a.json");
+    std::fs::write(&report_path, serde_json::to_string_pretty(&r).unwrap()).unwrap();
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args(["matrix", report_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "a zero-scenario column is ungradable"
+    );
+}

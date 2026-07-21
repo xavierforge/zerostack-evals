@@ -64,7 +64,10 @@ pub struct Column {
     pub tag: String,
     pub timestamp: String,
     pub judge: JudgeState,
-    pub footer: ColumnFooter,
+    /// Footer figures over the scenarios gradable in *every* column. `None`
+    /// when that intersection is empty: there is no shared gradable basis, so
+    /// the footer is honestly a hole rather than a real-looking `0.000`.
+    pub footer: Option<ColumnFooter>,
     /// This column's run was cut short by the shared budget
     /// (`Report::budget_truncated`) — the visible trace of a budget-truncated
     /// run (design.md, "Budget is one shared total; truncation is marked").
@@ -73,9 +76,11 @@ pub struct Column {
     /// is *not* marked — its missing scenarios already show as `-` holes.
     pub incomplete: bool,
     /// This column's `judge_hash` differs from another column's, or this
-    /// column's judge is unknown — the measuring stick may have moved.
-    /// SPREAD/DRIFT are display heuristics, not statistical or authoritative
-    /// claims (design.md, "DRIFT marks, never adjudicates").
+    /// column's judge is unknown while some other column carries a known hash
+    /// — the measuring stick may have moved. When no column has a known hash
+    /// there is no ruler to have moved, so nothing drifts. SPREAD/DRIFT are
+    /// display heuristics, not statistical or authoritative claims (design.md,
+    /// "DRIFT marks, never adjudicates").
     pub judge_drift: bool,
 }
 
@@ -213,13 +218,18 @@ fn judge_state(report: &Report) -> JudgeState {
 /// column (`intersection`) — never the column's own full scenario set, so
 /// two columns are never compared on two different denominators (see the
 /// module's footer requirement).
-fn column_footer(report: &Report, intersection: &[String]) -> ColumnFooter {
+fn column_footer(report: &Report, intersection: &[String]) -> Option<ColumnFooter> {
     let gradable: Vec<&ScenarioResult> = report
         .scenarios
         .iter()
         .filter(|s| intersection.contains(&s.id) && s.is_gradable())
         .collect();
-    let g = gradable.len().max(1) as f64;
+    if gradable.is_empty() {
+        // No scenario is gradable in every column: there is no shared basis to
+        // average, so the footer is a hole rather than a fabricated 0.000.
+        return None;
+    }
+    let g = gradable.len() as f64;
     let pass_at_k = gradable.iter().map(|s| s.pass_at_k).sum::<f64>() / g;
     let pass_hat_k = gradable.iter().map(|s| s.pass_hat_k).sum::<f64>() / g;
     let total_cost_usd = report
@@ -229,11 +239,11 @@ fn column_footer(report: &Report, intersection: &[String]) -> ColumnFooter {
         .flat_map(|s| s.trials.iter())
         .map(|t| t.cost_usd)
         .sum();
-    ColumnFooter {
+    Some(ColumnFooter {
         pass_at_k: round4(pass_at_k),
         pass_hat_k: round4(pass_hat_k),
         total_cost_usd: round4(total_cost_usd),
-    }
+    })
 }
 
 /// Two columns for the same target evaluated at different times are a
@@ -341,19 +351,24 @@ fn drift_for_row(reports: &[&Report], labels: &[String], id: &str) -> Vec<DriftG
     groups
 }
 
-/// Per-column DRIFT: this column's `judge_hash` differs from another
-/// column's known hash, or this column's judge is unknown outright. Symmetric
-/// on a real mismatch (design.md: DRIFT never picks a "correct" column), so
-/// two disagreeing columns are both marked.
+/// Per-column DRIFT: this column's `judge_hash` differs from another column's
+/// known hash, or this column's judge is unknown while some *other* column
+/// carries a known hash. When no column in the set has a known hash (e.g.
+/// every column ran `--no-judge`), there is no ruler that could have moved, so
+/// nothing drifts: no known ruler anywhere ⇒ no drift. Symmetric on a real
+/// mismatch (design.md: DRIFT never picks a "correct" column), so two
+/// disagreeing columns are both marked.
 fn judge_drift_flags(reports: &[&Report]) -> Vec<bool> {
+    let any_known = reports.iter().any(|r| r.judge_hash.is_some());
     reports
         .iter()
         .enumerate()
         .map(|(i, r)| {
-            r.judge_hash.is_none()
-                || reports.iter().enumerate().any(|(j, other)| {
-                    j != i && other.judge_hash.is_some() && other.judge_hash != r.judge_hash
-                })
+            any_known
+                && (r.judge_hash.is_none()
+                    || reports.iter().enumerate().any(|(j, other)| {
+                        j != i && other.judge_hash.is_some() && other.judge_hash != r.judge_hash
+                    }))
         })
         .collect()
 }
@@ -366,6 +381,24 @@ fn format_cell(c: Cell) -> String {
     match c {
         Cell::Rate(r) => format!("{r:.3}"),
         Cell::Hole => "-".to_string(),
+    }
+}
+
+/// One footer figure in the fixed-width table: right-aligned to `NUM_COL`,
+/// a bare `-` when there is no shared gradable basis (`None`).
+fn footer_cell_fixed_width(v: Option<f64>) -> String {
+    match v {
+        Some(v) => format!("{v:>NUM_COL$.3}"),
+        None => format!("{:>NUM_COL$}", "-"),
+    }
+}
+
+/// One footer figure in the markdown table: a `-` when there is no shared
+/// gradable basis (`None`).
+fn footer_cell_markdown(v: Option<f64>) -> String {
+    match v {
+        Some(v) => format!(" {v:.3} |"),
+        None => " - |".to_string(),
     }
 }
 
@@ -430,17 +463,19 @@ pub fn render_fixed_width(m: &Matrix) -> String {
     }
     out.push_str(&format!("{:<ID_COL$}", "pass@k"));
     for col in &m.columns {
-        out.push_str(&format!("{:>NUM_COL$.3}", col.footer.pass_at_k));
+        out.push_str(&footer_cell_fixed_width(col.footer.map(|f| f.pass_at_k)));
     }
     out.push('\n');
     out.push_str(&format!("{:<ID_COL$}", "pass^k"));
     for col in &m.columns {
-        out.push_str(&format!("{:>NUM_COL$.3}", col.footer.pass_hat_k));
+        out.push_str(&footer_cell_fixed_width(col.footer.map(|f| f.pass_hat_k)));
     }
     out.push('\n');
     out.push_str(&format!("{:<ID_COL$}", "cost usd"));
     for col in &m.columns {
-        out.push_str(&format!("{:>NUM_COL$.3}", col.footer.total_cost_usd));
+        out.push_str(&footer_cell_fixed_width(
+            col.footer.map(|f| f.total_cost_usd),
+        ));
     }
     out.push('\n');
     if !m.footer_excluded.is_empty() {
@@ -515,7 +550,7 @@ pub fn render_markdown(m: &Matrix) -> String {
     }
     out.push_str("| pass@k |");
     for col in &m.columns {
-        out.push_str(&format!(" {:.3} |", col.footer.pass_at_k));
+        out.push_str(&footer_cell_markdown(col.footer.map(|f| f.pass_at_k)));
     }
     if any_marks {
         out.push_str(" |");
@@ -523,7 +558,7 @@ pub fn render_markdown(m: &Matrix) -> String {
     out.push('\n');
     out.push_str("| pass^k |");
     for col in &m.columns {
-        out.push_str(&format!(" {:.3} |", col.footer.pass_hat_k));
+        out.push_str(&footer_cell_markdown(col.footer.map(|f| f.pass_hat_k)));
     }
     if any_marks {
         out.push_str(" |");
@@ -531,7 +566,7 @@ pub fn render_markdown(m: &Matrix) -> String {
     out.push('\n');
     out.push_str("| cost usd |");
     for col in &m.columns {
-        out.push_str(&format!(" {:.3} |", col.footer.total_cost_usd));
+        out.push_str(&footer_cell_markdown(col.footer.map(|f| f.total_cost_usd)));
     }
     if any_marks {
         out.push_str(" |");
@@ -719,8 +754,8 @@ mod tests {
         // Only "shared" feeds the footer: column a is all-pass on it, column
         // b is all-fail on it — neither column's own (larger) summary would
         // show these numbers.
-        assert_eq!(m.columns[0].footer.pass_hat_k, 1.0);
-        assert_eq!(m.columns[1].footer.pass_hat_k, 0.0);
+        assert_eq!(m.columns[0].footer.unwrap().pass_hat_k, 1.0);
+        assert_eq!(m.columns[1].footer.unwrap().pass_hat_k, 0.0);
     }
 
     // 5.3 — identical suites: the footer equals each report's own summary,
@@ -737,12 +772,68 @@ mod tests {
         let b = report("targets/sonnet.toml", "run-b", scenarios());
         let m = build(&[&a, &b]);
         assert!(m.footer_excluded.is_empty());
-        assert_eq!(m.columns[0].footer.pass_at_k, a.summary.pass_at_k);
-        assert_eq!(m.columns[0].footer.pass_hat_k, a.summary.pass_hat_k);
-        assert_eq!(m.columns[0].footer.total_cost_usd, a.summary.total_cost_usd);
-        assert_eq!(m.columns[1].footer.pass_at_k, b.summary.pass_at_k);
-        assert_eq!(m.columns[1].footer.pass_hat_k, b.summary.pass_hat_k);
-        assert_eq!(m.columns[1].footer.total_cost_usd, b.summary.total_cost_usd);
+        let fa = m.columns[0].footer.as_ref().unwrap();
+        let fb = m.columns[1].footer.as_ref().unwrap();
+        assert_eq!(fa.pass_at_k, a.summary.pass_at_k);
+        assert_eq!(fa.pass_hat_k, a.summary.pass_hat_k);
+        assert_eq!(fa.total_cost_usd, a.summary.total_cost_usd);
+        assert_eq!(fb.pass_at_k, b.summary.pass_at_k);
+        assert_eq!(fb.pass_hat_k, b.summary.pass_hat_k);
+        assert_eq!(fb.total_cost_usd, b.summary.total_cost_usd);
+    }
+
+    // 5.3 — when the shared scenario is gradable in one column but not the
+    // other, the gradable intersection is empty, so every column's footer is a
+    // hole (`None`) and both renderers print `-`, never a fabricated `0.000`.
+    #[test]
+    fn empty_gradable_intersection_makes_the_footer_a_hole_not_a_fake_zero() {
+        // Both report a scenario "s", so they share an id and are comparable,
+        // but column b's "s" is all-indeterminate (not gradable) — the
+        // gradable intersection across the two columns is empty.
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let b = report(
+            "targets/sonnet.toml",
+            "run-b",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Indeterminate)],
+            )],
+        );
+        let m = build(&[&a, &b]);
+        assert!(m.columns[0].footer.is_none(), "no shared gradable basis");
+        assert!(m.columns[1].footer.is_none(), "no shared gradable basis");
+
+        let fixed = render_fixed_width(&m);
+        // The three footer rows must show `-`, never `0.000`.
+        for label in ["pass@k", "pass^k", "cost usd"] {
+            let line = fixed
+                .lines()
+                .find(|l| l.starts_with(label))
+                .unwrap_or_else(|| panic!("missing footer row {label}: {fixed}"));
+            assert!(
+                line.contains('-') && !line.contains("0.000"),
+                "footer row {label} must be a hole, not a fake zero: {line}"
+            );
+        }
+
+        let md = render_markdown(&m);
+        for label in ["| pass@k |", "| pass^k |", "| cost usd |"] {
+            let line = md
+                .lines()
+                .find(|l| l.starts_with(label))
+                .unwrap_or_else(|| panic!("missing footer row {label}: {md}"));
+            assert!(
+                line.contains(" - |") && !line.contains("0.000"),
+                "markdown footer row {label} must be a hole, not a fake zero: {line}"
+            );
+        }
     }
 
     // 5.4 — header carries only the stem; legend carries model/target/judge.
@@ -947,14 +1038,29 @@ mod tests {
         assert!(m.columns[1].judge_drift);
     }
 
-    // 6.4 — per-column DRIFT when the judge is unknown.
+    // 6.4 — when NO column carries a known judge hash (e.g. every column ran
+    // `--no-judge`), there is no ruler that could have moved, so nothing
+    // drifts: no known ruler anywhere ⇒ no drift.
     #[test]
-    fn column_drift_marks_unknown_judge() {
+    fn all_unknown_judges_do_not_drift() {
         let a = report_with_judge_hash("targets/opus.toml", "run-a", None);
         let b = report_with_judge_hash("targets/sonnet.toml", "run-b", None);
         let m = build(&[&a, &b]);
-        assert!(m.columns[0].judge_drift, "unknown judge always marks");
-        assert!(m.columns[1].judge_drift, "unknown judge always marks");
+        assert!(!m.columns[0].judge_drift, "no known ruler => no drift");
+        assert!(!m.columns[1].judge_drift, "no known ruler => no drift");
+    }
+
+    // 6.4 — a column whose judge is unknown IS marked when ANOTHER column
+    // carries a known hash: that is the genuine unknown-vs-ruler drift.
+    #[test]
+    fn unknown_judge_drifts_against_a_known_ruler() {
+        let known = report_with_judge_hash("targets/opus.toml", "run-a", Some("hash-a".into()));
+        let unknown = report_with_judge_hash("targets/sonnet.toml", "run-b", None);
+        let m = build(&[&known, &unknown]);
+        // The known-hash column has no differing ruler to drift against.
+        assert!(!m.columns[0].judge_drift);
+        // The unknown column drifts against the known ruler.
+        assert!(m.columns[1].judge_drift);
     }
 
     // 6.5 — a column whose run was cut short by the budget is marked

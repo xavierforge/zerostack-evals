@@ -522,17 +522,16 @@ fn print_run_report_summaries(
             report.summary.indeterminate_trials,
             report.summary.total_cost_usd,
         )?;
-        // Mirrors `run_suite`'s own `run_root` (runner.rs): flat at N=1,
-        // nested under the target's stem at N>1 — see
-        // `RunOptions::multi_target`.
-        let run_root = match targets.get(i) {
-            Some(t) if multi => cfg
-                .results_root
-                .join(&cfg.tag)
-                .join(zseval::target::stem(t)),
-            _ => cfg.results_root.join(&cfg.tag),
-        };
-        writeln!(err, "report: {}/report.json", run_root.display())?;
+        // The same derivation `run_suite` used to place this report (flat at
+        // N=1, nested under the target's stem at N>1): computed once in
+        // `runner::run_root`, reused here rather than re-derived.
+        let run_root = zseval::runner::run_root(
+            &cfg.results_root,
+            &cfg.tag,
+            multi,
+            targets.get(i).map(|t| t.as_path()),
+        )?;
+        writeln!(err, "report: {}", run_root.join("report.json").display())?;
     }
 
     if multi {
@@ -900,10 +899,9 @@ fn cmd_matrix(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     // it contributes nothing but holes — an all-holes column is the true
     // "fully ungradable" signal and catches that case too.
     let any_fully_ungradable = (0..m.columns.len()).any(|c| {
-        !m.rows.is_empty()
-            && m.rows
-                .iter()
-                .all(|row| row.cells[c] == zseval::matrix::Cell::Hole)
+        m.rows
+            .iter()
+            .all(|row| row.cells[c] == zseval::matrix::Cell::Hole)
     });
     Ok(ExitCode::from(if any_fully_ungradable { 2 } else { 0 }))
 }
