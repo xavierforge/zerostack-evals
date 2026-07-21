@@ -19,11 +19,15 @@ The `run` subcommand SHALL accept `--target` more than once; each occurrence nam
 - **THEN** spend accumulates across targets and a later target sees the budget already partly consumed by earlier ones
 
 ### Requirement: A budget-truncated column is marked incomplete
-WHEN the shared budget cap stops a target before it has run every scenario, the table SHALL mark that column incomplete rather than letting its missing rows read as an ordinary absence.
+WHEN the shared budget cap stops a target before it has run every scenario, the table SHALL mark that column incomplete rather than letting its missing rows read as an ordinary absence. The mark SHALL be keyed off the truncation fact the run records (`Report.budget_truncated`), NOT off a scenario count, so that a column which simply ran a smaller suite in full is never mistaken for a truncated one.
 
 #### Scenario: A cut-short column is flagged
-- **WHEN** a column ran fewer scenarios than the suite defines because the budget cap was reached
+- **WHEN** a run recorded `budget_truncated` because the shared cap was reached before a declared scenario
 - **THEN** that column is marked incomplete in the rendered table
+
+#### Scenario: A complete smaller suite is not flagged
+- **WHEN** a column ran every scenario its own suite defines but that suite is smaller than another column's (e.g. a shorter committed baseline), and it was not budget-truncated
+- **THEN** that column is NOT marked incomplete, and its missing scenarios render as ordinary `-` holes
 
 ### Requirement: --target is mandatory for the zs backend
 The `zs` backend SHALL require `--target`. WHEN it is selected with no `--target`, the command SHALL exit 2 before any trial runs, and `"provider-default"` SHALL NOT be recorded as a model.

@@ -359,6 +359,18 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     let targets: Vec<PathBuf> = f.get_all("target").into_iter().map(PathBuf::from).collect();
     let multi = targets.len() > 1;
 
+    // mock replays canned artifacts and never reads a target config.toml, so
+    // any `--target` under `--backend mock` is a usage error. Checked before
+    // the --json/N>1 guards below so the caller sees the specific "mock
+    // rejects --target" reason, not a generic multi-target complaint about a
+    // combination mock could never honour anyway.
+    if matches!(f.get("backend"), Some(b) if b.starts_with("mock=")) && !targets.is_empty() {
+        anyhow::bail!(
+            "--target is rejected for --backend mock: mock replays canned artifacts \
+             and never reads a target config.toml"
+        );
+    }
+
     // N reports have no single JSON form (design.md: "`run --json` at N>1 is
     // a usage error"). Checked before backend/budget setup, so this is a
     // pure usage error rather than a partial run.
@@ -404,12 +416,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
 
     let reports: Vec<Report> = match f.get("backend") {
         Some(b) if b.starts_with("mock=") => {
-            if !targets.is_empty() {
-                anyhow::bail!(
-                    "--target is rejected for --backend mock: mock replays canned artifacts \
-                     and never reads a target config.toml"
-                );
-            }
+            // `--target` under mock is already rejected above.
             let backend: Box<dyn AgentBackend> = Box::new(Mock {
                 fixture: PathBuf::from(b.trim_start_matches("mock=")),
             });
@@ -424,12 +431,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
                 judge_file: cfg.judge_file.clone(),
                 multi_target: false,
             };
-            vec![run_suite(
-                scenarios,
-                backend.as_ref(),
-                judge.as_ref(),
-                &opts,
-            )?]
+            vec![run_suite(&scenarios, backend.as_ref(), judge.as_ref(), &opts)?]
         }
         Some("zs") | None => {
             if targets.is_empty() {
@@ -589,7 +591,7 @@ fn run_over_targets(
             judge_file: cfg.judge_file.clone(),
             multi_target,
         };
-        let report = run_suite(scenarios.to_vec(), backend.as_ref(), judge, &opts)?;
+        let report = run_suite(scenarios, backend.as_ref(), judge, &opts)?;
         spent_so_far += report.summary.total_cost_usd;
         reports.push(report);
     }
@@ -881,8 +883,17 @@ fn cmd_matrix(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     }
 
     // 0 when a table rendered, 2 when any column is fully ungradable, never
-    // 1 (matrix compares columns, it does not gate a regression).
-    let any_fully_ungradable = report_refs.iter().any(|r| r.exit_code() == 2);
+    // 1 (matrix compares columns, it does not gate a regression). Read the
+    // rendered matrix, not `Report::exit_code`: a column budget-truncated to
+    // zero scenarios has an empty `scenarios` and so scores exit_code 0, yet
+    // it contributes nothing but holes — an all-holes column is the true
+    // "fully ungradable" signal and catches that case too.
+    let any_fully_ungradable = (0..m.columns.len()).any(|c| {
+        !m.rows.is_empty()
+            && m.rows
+                .iter()
+                .all(|row| row.cells[c] == zseval::matrix::Cell::Hole)
+    });
     Ok(ExitCode::from(if any_fully_ungradable { 2 } else { 0 }))
 }
 

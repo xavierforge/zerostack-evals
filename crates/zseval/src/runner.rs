@@ -78,7 +78,7 @@ struct Grading<'a> {
 }
 
 pub fn run_suite(
-    scenarios: Vec<Scenario>,
+    scenarios: &[Scenario],
     backend: &dyn AgentBackend,
     judge: &dyn Judge,
     opts: &RunOptions,
@@ -120,12 +120,17 @@ pub fn run_suite(
             .with_context(|| format!("copy run-level target {}", target.display()))?;
     }
 
-    for sc in &scenarios {
+    let mut budget_truncated = false;
+    for sc in scenarios {
         // Check the cost cap once per scenario, so a scenario always runs its
         // full trial count or not at all — never a partial, misleading pass^k.
         if let Some(cap) = opts.max_total_usd {
             if spent >= cap {
                 eprintln!("budget cap ${cap} reached; stopping before {}", sc.id);
+                // A declared scenario is going unrun: record the fact on the
+                // report so `matrix` can mark this column truncated rather
+                // than guessing from its scenario count.
+                budget_truncated = true;
                 break;
             }
         }
@@ -186,6 +191,7 @@ pub fn run_suite(
                 .as_deref()
                 .map(crate::verdict::record_path)
                 .unwrap_or_default(),
+            budget_truncated,
         },
         results,
     );

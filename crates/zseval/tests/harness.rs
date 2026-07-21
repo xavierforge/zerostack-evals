@@ -940,7 +940,7 @@ fn loop_scenario_loads_and_grades_from_iteration_records_via_mock() {
         judge_file: None,
         multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
     assert_eq!(tr.outcome, Final::Pass, "{tr:?}");
 
@@ -1065,7 +1065,7 @@ fn end_to_end_mock_run_produces_pass_and_report() {
         judge_file: None,
         multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
 
     assert_eq!(report.scenarios.len(), 1);
     let s = &report.scenarios[0];
@@ -1116,7 +1116,7 @@ fn single_target_run_stays_flat_under_the_tag() {
         judge_file: None,
         multi_target: false,
     };
-    run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
 
     assert!(results_root.join("flat/report.json").is_file());
     assert!(results_root.join("flat/target.toml").is_file());
@@ -1173,7 +1173,7 @@ fn multi_target_run_nests_results_under_the_target_stem() {
             multi_target: true,
         };
         run_suite(
-            vec![make_sc()],
+            &[make_sc()],
             &backend,
             &LlmJudge::new(test_judge_cfg()),
             &opts,
@@ -1229,7 +1229,7 @@ fn jobs_greater_than_one_grades_every_trial_and_keeps_them_in_order() {
         judge_file: None,
         multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
 
     let s = &report.scenarios[0];
     assert_eq!(s.trials.len(), 6);
@@ -1291,7 +1291,7 @@ fn success_path_run_dir_is_recorded_relative_to_the_working_directory() {
         judge_file: None,
         multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
 
     assert!(!tr.run_dir.starts_with('/'), "{}", tr.run_dir);
@@ -1340,7 +1340,7 @@ fn regrade_locates_a_run_dir_from_a_relative_run_dir() {
         multi_target: false,
     };
     let report = run_suite(
-        vec![sc.clone()],
+        std::slice::from_ref(&sc),
         &backend,
         &LlmJudge::new(test_judge_cfg()),
         &opts,
@@ -1414,7 +1414,7 @@ fn jobs_warm_up_runs_trial_zero_solo_before_the_parallel_fan_out() {
         judge_file: None,
         multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.scenarios[0].trials.len(), 4);
 
     let log = backend.log.lock().unwrap();
@@ -1518,7 +1518,7 @@ judge = "Did the agent answer the question?"
             judge_file: None,
             multi_target: false,
         };
-        let report = run_suite(vec![sc], &backend, judge, &opts).unwrap();
+        let report = run_suite(&[sc], &backend, judge, &opts).unwrap();
         std::fs::remove_dir_all(&results_root).ok();
         report.scenarios[0].trials[0].clone()
     };
@@ -1622,7 +1622,7 @@ fn indeterminate_trial_recovers_cost_already_spent_before_the_failure() {
         judge_file: None,
         multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
     assert_eq!(tr.outcome, Final::Indeterminate);
     assert!(
@@ -1632,6 +1632,61 @@ fn indeterminate_trial_recovers_cost_already_spent_before_the_failure() {
     );
 
     std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+#[test]
+fn a_run_stopped_by_the_budget_cap_records_budget_truncated() {
+    // The shared cost cap can stop a run before a declared scenario. That
+    // fact must be recorded on the report (not left to be inferred from a
+    // scenario count) so `matrix` can mark the column truncated apart from a
+    // simply-smaller suite. Each Mock trial costs the fixture's 0.0182, so a
+    // $0.01 cap runs the first scenario, then breaks before the second.
+    let root = std::env::temp_dir().join(format!("zseval-budget-trunc-{}", std::process::id()));
+    let mut ids = Vec::new();
+    for id in ["aaa", "bbb"] {
+        let d = root.join(id);
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(
+            d.join("scenario.toml"),
+            format!("id = \"{id}\"\ntask = \"hi\"\nexpect = [\"final_contains x\"]\n"),
+        )
+        .unwrap();
+        ids.push(Scenario::load(&d).unwrap());
+    }
+
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-budget-trunc-results-{}", std::process::id()));
+    let backend = Mock {
+        fixture: fixture("session-search-then-read.json"),
+    };
+    let opts = RunOptions {
+        target: None,
+        trials_override: Some(1),
+        tag: "trunc".into(),
+        no_judge: true,
+        results_root: results_root.clone(),
+        max_total_usd: Some(0.01),
+        jobs: 1,
+        judge_file: None,
+        multi_target: false,
+    };
+    let report = run_suite(&ids, &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+
+    assert_eq!(report.scenarios.len(), 1, "cap stopped the run after one scenario");
+    assert!(report.budget_truncated, "the truncation is recorded on the report");
+
+    // A run under the same cap that fits within budget is NOT truncated.
+    let opts_ample = RunOptions {
+        max_total_usd: Some(100.0),
+        tag: "ample".into(),
+        ..opts
+    };
+    let full = run_suite(&ids, &backend, &LlmJudge::new(test_judge_cfg()), &opts_ample).unwrap();
+    assert_eq!(full.scenarios.len(), 2);
+    assert!(!full.budget_truncated);
+
+    std::fs::remove_dir_all(&root).ok();
     std::fs::remove_dir_all(&results_root).ok();
 }
 
@@ -1665,7 +1720,7 @@ fn indeterminate_trial_run_dir_is_also_recorded_relative_to_the_working_director
         judge_file: None,
         multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
     assert_eq!(tr.outcome, Final::Indeterminate);
     assert!(!tr.run_dir.starts_with('/'), "{}", tr.run_dir);
@@ -1713,7 +1768,7 @@ fn the_report_records_the_judge_file_it_was_configured_with() {
 
     let opts = base(Some(PathBuf::from("judges/opus.toml")), false);
     let report = run_suite(
-        vec![sc.clone()],
+        std::slice::from_ref(&sc),
         &backend,
         &LlmJudge::new(test_judge_cfg()),
         &opts,
@@ -1723,7 +1778,7 @@ fn the_report_records_the_judge_file_it_was_configured_with() {
 
     let opts = base(None, false);
     let report = run_suite(
-        vec![sc.clone()],
+        std::slice::from_ref(&sc),
         &backend,
         &LlmJudge::new(test_judge_cfg()),
         &opts,
@@ -1743,7 +1798,7 @@ fn the_report_records_the_judge_file_it_was_configured_with() {
     std::fs::write(&judge_file, bytes).unwrap();
 
     let opts = base(Some(judge_file.clone()), false);
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.judge_file, "private-judge.toml");
     assert_eq!(
         report.judge_hash,
@@ -1796,7 +1851,7 @@ fn the_report_records_the_model_that_actually_graded() {
     };
     // ...but this is what actually served the request.
     let judge = TestJudge::Served("claude-sonnet-4-6-20260101".into());
-    let report = run_suite(vec![sc], &backend, &judge, &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &judge, &opts).unwrap();
 
     assert_eq!(report.judge_file, "judges/opus.toml");
     assert_eq!(
@@ -1846,7 +1901,7 @@ fn a_judge_that_grades_without_naming_its_model_leaves_the_ruler_unknown() {
     };
     // Answers Yes, but its response names no model.
     let judge = TestJudge::Verdict(zseval::judge::JudgeVerdict::Yes);
-    let report = run_suite(vec![sc], &backend, &judge, &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &judge, &opts).unwrap();
 
     assert_eq!(report.scenarios[0].trials[0].outcome, Final::Pass);
     assert_eq!(report.scenarios[0].trials[0].judge_model, None);
@@ -1890,7 +1945,7 @@ fn a_judge_that_never_graded_records_no_model_but_keeps_the_file() {
         judge_file: Some(PathBuf::from("judges/opus.toml")),
         multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.judge_file, "judges/opus.toml");
     assert_eq!(
         report.judge_model,
@@ -1931,7 +1986,7 @@ fn no_judge_leaves_both_judge_fields_empty() {
         judge_file: None,
         multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.judge_file, "");
     assert_eq!(report.judge_hash, None);
     assert_eq!(report.judge_model, Some(vec![]), "no ruler was applied");
@@ -1976,7 +2031,7 @@ fn regrading_with_a_second_judge_records_it_and_keeps_the_first_ones_evidence() 
         multi_target: false,
     };
     let report = run_suite(
-        vec![sc.clone()],
+        std::slice::from_ref(&sc),
         &backend,
         &TestJudge::Served("first-ruler".into()),
         &opts,
@@ -2075,7 +2130,7 @@ fn a_no_judge_regrade_leaves_no_regrade_artifacts_dir() {
         multi_target: false,
     };
     run_suite(
-        vec![sc.clone()],
+        std::slice::from_ref(&sc),
         &backend,
         &LlmJudge::new(test_judge_cfg()),
         &opts,
@@ -2140,7 +2195,7 @@ fn regrade_regrades_existing_artifacts_without_driving_the_agent() {
         judge_file: None,
         multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.scenarios[0].trials[0].outcome, Final::Pass);
     let run_dir = results_root
         .join("orig")

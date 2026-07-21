@@ -232,6 +232,15 @@ pub struct Report {
     /// existed still loads, as an empty target rather than an error.
     #[serde(default)]
     pub target: String,
+    /// This run stopped early because it hit `--max-total-usd`: at least one
+    /// declared scenario was never reached. Recorded as a fact on the report
+    /// rather than inferred from a scenario count, so a consumer (`matrix`'s
+    /// incomplete/`*` mark) can tell "the budget cut this short" apart from
+    /// "this was simply a smaller suite" (a shorter baseline reached in full),
+    /// which a bare count cannot distinguish. `#[serde(default)]` so a report
+    /// written before this field existed still loads, as `false`.
+    #[serde(default)]
+    pub budget_truncated: bool,
     pub scenarios: Vec<ScenarioResult>,
     pub summary: Summary,
 }
@@ -346,6 +355,9 @@ pub struct ReportMeta {
     /// See `Report::target`. Already normalised (`record_path`) by the
     /// caller; `Report::build` copies it through unchanged.
     pub target: String,
+    /// See `Report::budget_truncated`. Set by `run_suite` when the cost cap
+    /// stopped the run before a declared scenario.
+    pub budget_truncated: bool,
 }
 
 impl Report {
@@ -377,6 +389,7 @@ impl Report {
             judge_hash: meta.judge_hash,
             judge_model: meta.judge_model,
             target: meta.target,
+            budget_truncated: meta.budget_truncated,
             summary: Summary {
                 n_scenarios: scenarios.len(),
                 n_gradable: gradable.len(),

@@ -65,10 +65,12 @@ pub struct Column {
     pub timestamp: String,
     pub judge: JudgeState,
     pub footer: ColumnFooter,
-    /// This column ran fewer scenarios than the suite defined (the widest
-    /// scenario set observed across this table's columns) — the visible
-    /// trace of a budget-truncated run (design.md, "Budget is one shared
-    /// total; truncation is marked").
+    /// This column's run was cut short by the shared budget
+    /// (`Report::budget_truncated`) — the visible trace of a budget-truncated
+    /// run (design.md, "Budget is one shared total; truncation is marked").
+    /// Keyed off the recorded truncation fact, not a scenario count, so a
+    /// column that simply ran a smaller suite in full (a shorter baseline)
+    /// is *not* marked — its missing scenarios already show as `-` holes.
     pub incomplete: bool,
     /// This column's `judge_hash` differs from another column's, or this
     /// column's judge is unknown — the measuring stick may have moved.
@@ -153,7 +155,7 @@ pub fn build(reports: &[&Report]) -> Matrix {
             timestamp: r.timestamp.clone(),
             judge: judge_state(r),
             footer: column_footer(r, &intersection),
-            incomplete: r.scenarios.len() < all_ids.len(),
+            incomplete: r.budget_truncated,
             judge_drift,
         })
         .collect();
@@ -478,14 +480,26 @@ const LEGEND_CAVEAT: &str =
 /// Markdown table: for `matrix --markdown` and `experiments/` snapshots (no
 /// width limit, unlike the fixed-width renderer).
 pub fn render_markdown(m: &Matrix) -> String {
+    // SPREAD/DRIFT belong in a real cell: text after a row's final `|` is
+    // dropped by GFM table parsers, so the marks would vanish from the very
+    // records this renderer exists to keep. Only add the column when some row
+    // actually carries a mark, so unmarked tables stay clean.
+    let any_marks = m.rows.iter().any(|r| !row_marks(r).trim().is_empty());
+
     let mut out = String::new();
     out.push_str("| scenario |");
     for col in &m.columns {
         out.push_str(&format!(" {} |", column_header(col)));
     }
+    if any_marks {
+        out.push_str(" notes |");
+    }
     out.push('\n');
     out.push_str("|---|");
     for _ in &m.columns {
+        out.push_str("---|");
+    }
+    if any_marks {
         out.push_str("---|");
     }
     out.push('\n');
@@ -494,10 +508,8 @@ pub fn render_markdown(m: &Matrix) -> String {
         for cell in &row.cells {
             out.push_str(&format!(" {} |", format_cell(*cell)));
         }
-        let marks = row_marks(row);
-        if !marks.is_empty() {
-            out.push_str(marks.trim());
-            out.push(' ');
+        if any_marks {
+            out.push_str(&format!(" {} |", row_marks(row).trim()));
         }
         out.push('\n');
     }
@@ -505,15 +517,24 @@ pub fn render_markdown(m: &Matrix) -> String {
     for col in &m.columns {
         out.push_str(&format!(" {:.3} |", col.footer.pass_at_k));
     }
+    if any_marks {
+        out.push_str(" |");
+    }
     out.push('\n');
     out.push_str("| pass^k |");
     for col in &m.columns {
         out.push_str(&format!(" {:.3} |", col.footer.pass_hat_k));
     }
+    if any_marks {
+        out.push_str(" |");
+    }
     out.push('\n');
     out.push_str("| cost usd |");
     for col in &m.columns {
         out.push_str(&format!(" {:.3} |", col.footer.total_cost_usd));
+    }
+    if any_marks {
+        out.push_str(" |");
     }
     out.push('\n');
     if !m.footer_excluded.is_empty() {
@@ -936,10 +957,11 @@ mod tests {
         assert!(m.columns[1].judge_drift, "unknown judge always marks");
     }
 
-    // 6.5 — a column that ran fewer scenarios than the suite defines is
-    // marked incomplete.
+    // 6.5 — a column whose run was cut short by the budget is marked
+    // incomplete; this is keyed off the recorded `budget_truncated` fact, not
+    // a scenario count.
     #[test]
-    fn truncated_column_is_marked_incomplete() {
+    fn budget_truncated_column_is_marked_incomplete() {
         let full = report(
             "targets/opus.toml",
             "run-a",
@@ -948,7 +970,7 @@ mod tests {
                 ScenarioResult::from_trials("two".into(), vec![trial(Final::Pass)]),
             ],
         );
-        let truncated = report(
+        let mut truncated = report(
             "targets/sonnet.toml",
             "run-b",
             vec![ScenarioResult::from_trials(
@@ -956,6 +978,8 @@ mod tests {
                 vec![trial(Final::Pass)],
             )],
         );
+        truncated.budget_truncated = true;
+
         let m = build(&[&full, &truncated]);
         assert!(!m.columns[0].incomplete);
         assert!(m.columns[1].incomplete);
@@ -965,6 +989,39 @@ mod tests {
             header.contains("sonnet*") || header.contains("incomplete"),
             "the rendered column header carries the incomplete mark: {header}"
         );
+    }
+
+    // 6.5 — a column that ran a *smaller suite in full* (a shorter baseline,
+    // not budget-truncated) must NOT be marked incomplete: the scenarios it
+    // lacks show as `-` holes, but the `*`/incomplete mark is reserved for a
+    // real budget cut. This is the case the old count-based rule got wrong.
+    #[test]
+    fn a_smaller_but_complete_suite_is_not_marked_incomplete() {
+        let wide = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![
+                ScenarioResult::from_trials("one".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials("two".into(), vec![trial(Final::Pass)]),
+            ],
+        );
+        // A committed baseline that only ever defined "one" — reached in full,
+        // never budget-truncated (budget_truncated defaults to false).
+        let baseline = report(
+            "targets/baseline.toml",
+            "main",
+            vec![ScenarioResult::from_trials(
+                "one".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        assert!(!baseline.budget_truncated);
+
+        let m = build(&[&wide, &baseline]);
+        assert!(!m.columns[1].incomplete, "a complete smaller suite is not incomplete");
+        // "two" is simply a hole in the baseline column.
+        let two = m.rows.iter().find(|r| r.id == "two").unwrap();
+        assert_eq!(two.cells[1], Cell::Hole);
     }
 
     // 6.6 — SPREAD and DRIFT are labelled in the legend as display
@@ -982,6 +1039,58 @@ mod tests {
                 || legend.to_lowercase().contains("not authoritative"),
             "legend: {legend}"
         );
+    }
+
+    // 6.2 — a row's SPREAD/DRIFT mark must survive into the markdown table.
+    // Text after a row's final `|` is dropped by GFM parsers, so the mark has
+    // to land in a real `notes` cell (added only when some row carries one).
+    #[test]
+    fn markdown_keeps_row_marks_in_a_notes_cell() {
+        // Two trials each => resolution 0.5; gap here is 1.0 => SPREAD.
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Pass), trial(Final::Pass)],
+            )],
+        );
+        let b = report(
+            "targets/sonnet.toml",
+            "run-b",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Fail), trial(Final::Fail)],
+            )],
+        );
+        let m = build(&[&a, &b]);
+        assert!(m.rows[0].spread);
+
+        let md = render_markdown(&m);
+        assert!(md.contains("| notes |"), "notes column header: {md}");
+        // The SPREAD text lands before a closing pipe, not trailing off the
+        // end of the row where GFM would discard it.
+        assert!(
+            md.lines()
+                .any(|l| l.contains("| s |") && l.contains("SPREAD |")),
+            "SPREAD in a real cell: {md}"
+        );
+    }
+
+    // A table with no marked rows keeps the tidy, notes-less shape.
+    #[test]
+    fn markdown_omits_the_notes_column_when_no_row_is_marked() {
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let m = build(&[&a]);
+        assert!(m.rows.iter().all(|r| !r.spread && r.drift.is_empty()));
+        assert!(!render_markdown(&m).contains("notes"));
     }
 
     // 5.6 — both renderers over one fixture.

@@ -119,10 +119,14 @@ identity), never by gating on `schema_version`. Legacy schema <= 3 baselines are
 retired and regenerated, not migrated.
 
 **Budget is one shared total; truncation is marked.** The orchestrator feeds each
-target a shrinking cap (`total - spent_so_far`) so `run_suite`'s existing per-scenario
-break needs no change. A target cut short runs fewer scenarios than the suite defines;
-the renderer detects this (column scenario count < suite count) and marks the column
-incomplete, turning a silent short-column into a visible hole.
+target a shrinking cap (`total - spent_so_far`). `run_suite`'s per-scenario break needs
+no change to its stopping logic, but it now records the truncation as a fact on the
+report (`Report.budget_truncated`) when the cap stops it before a declared scenario.
+The renderer marks the column incomplete off that recorded fact, NOT off a scenario
+count: a bare count cannot tell a budget-cut column apart from one that simply ran a
+smaller suite in full (a shorter committed baseline reached completely), and marking the
+latter incomplete would be a false alarm. A column's missing scenarios render as `-`
+holes regardless; the incomplete `*` is reserved for a real truncation.
 
 **mock records `"mock"`.** With `--target` mandatory for zs and rejected for mock,
 `describe(None)` / `"provider-default"` is unreachable and is deleted. A mock run's
