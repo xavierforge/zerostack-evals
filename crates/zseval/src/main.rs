@@ -431,7 +431,12 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
                 judge_file: cfg.judge_file.clone(),
                 multi_target: false,
             };
-            vec![run_suite(&scenarios, backend.as_ref(), judge.as_ref(), &opts)?]
+            vec![run_suite(
+                &scenarios,
+                backend.as_ref(),
+                judge.as_ref(),
+                &opts,
+            )?]
         }
         Some("zs") | None => {
             if targets.is_empty() {

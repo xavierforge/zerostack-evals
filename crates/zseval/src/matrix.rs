@@ -1018,7 +1018,10 @@ mod tests {
         assert!(!baseline.budget_truncated);
 
         let m = build(&[&wide, &baseline]);
-        assert!(!m.columns[1].incomplete, "a complete smaller suite is not incomplete");
+        assert!(
+            !m.columns[1].incomplete,
+            "a complete smaller suite is not incomplete"
+        );
         // "two" is simply a hole in the baseline column.
         let two = m.rows.iter().find(|r| r.id == "two").unwrap();
         assert_eq!(two.cells[1], Cell::Hole);

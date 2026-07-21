@@ -1655,8 +1655,10 @@ fn a_run_stopped_by_the_budget_cap_records_budget_truncated() {
         ids.push(Scenario::load(&d).unwrap());
     }
 
-    let results_root =
-        std::env::temp_dir().join(format!("zseval-budget-trunc-results-{}", std::process::id()));
+    let results_root = std::env::temp_dir().join(format!(
+        "zseval-budget-trunc-results-{}",
+        std::process::id()
+    ));
     let backend = Mock {
         fixture: fixture("session-search-then-read.json"),
     };
@@ -1673,8 +1675,15 @@ fn a_run_stopped_by_the_budget_cap_records_budget_truncated() {
     };
     let report = run_suite(&ids, &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
 
-    assert_eq!(report.scenarios.len(), 1, "cap stopped the run after one scenario");
-    assert!(report.budget_truncated, "the truncation is recorded on the report");
+    assert_eq!(
+        report.scenarios.len(),
+        1,
+        "cap stopped the run after one scenario"
+    );
+    assert!(
+        report.budget_truncated,
+        "the truncation is recorded on the report"
+    );
 
     // A run under the same cap that fits within budget is NOT truncated.
     let opts_ample = RunOptions {
@@ -1682,7 +1691,13 @@ fn a_run_stopped_by_the_budget_cap_records_budget_truncated() {
         tag: "ample".into(),
         ..opts
     };
-    let full = run_suite(&ids, &backend, &LlmJudge::new(test_judge_cfg()), &opts_ample).unwrap();
+    let full = run_suite(
+        &ids,
+        &backend,
+        &LlmJudge::new(test_judge_cfg()),
+        &opts_ample,
+    )
+    .unwrap();
     assert_eq!(full.scenarios.len(), 2);
     assert!(!full.budget_truncated);
 
