@@ -938,8 +938,9 @@ fn loop_scenario_loads_and_grades_from_iteration_records_via_mock() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
     assert_eq!(tr.outcome, Final::Pass, "{tr:?}");
 
@@ -1062,8 +1063,9 @@ fn end_to_end_mock_run_produces_pass_and_report() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
 
     assert_eq!(report.scenarios.len(), 1);
     let s = &report.scenarios[0];
@@ -1080,6 +1082,126 @@ fn end_to_end_mock_run_produces_pass_and_report() {
         zseval::compare::load_report(&results_root.join("e2e").join("report.json")).unwrap();
     assert_eq!(loaded.scenarios[0].id, "prompt-ask-readonly-refuses-edit");
     std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// target-matrix 3.2/3.3: `multi_target: false` (today's single-target
+/// shape) keeps the flat `results/<tag>/` layout — no stem level, even
+/// though a `target` is set.
+#[test]
+fn single_target_run_stays_flat_under_the_tag() {
+    let sc = Scenario::load(&scenarios_root().join("prompts/ask-readonly")).unwrap();
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-flat-layout-{}", std::process::id()));
+    let target_dir =
+        std::env::temp_dir().join(format!("zseval-flat-layout-target-{}", std::process::id()));
+    std::fs::create_dir_all(&target_dir).unwrap();
+    let target_path = target_dir.join("opus.toml");
+    std::fs::write(
+        &target_path,
+        "provider = \"anthropic\"\nmodel = \"claude-opus-4-8\"\n",
+    )
+    .unwrap();
+
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    let opts = RunOptions {
+        target: Some(target_path.clone()),
+        trials_override: Some(1),
+        tag: "flat".into(),
+        no_judge: true,
+        results_root: results_root.clone(),
+        max_total_usd: None,
+        jobs: 1,
+        judge_file: None,
+        multi_target: false,
+    };
+    run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+
+    assert!(results_root.join("flat/report.json").is_file());
+    assert!(results_root.join("flat/target.toml").is_file());
+    assert!(results_root
+        .join("flat")
+        .join("prompt-ask-readonly-refuses-edit/trial-0/trial.json")
+        .is_file());
+    // No stem level inserted for a single target.
+    assert!(!results_root.join("flat/opus").exists());
+
+    std::fs::remove_dir_all(&results_root).ok();
+    std::fs::remove_dir_all(&target_dir).ok();
+}
+
+/// target-matrix 3.2/3.3: two targets sharing one tag (`multi_target: true`)
+/// each nest their report, run-level target copy, and trial dirs under
+/// `results/<tag>/<stem>/`, so they don't collide on `sc.id`.
+#[test]
+fn multi_target_run_nests_results_under_the_target_stem() {
+    let make_sc = || Scenario::load(&scenarios_root().join("prompts/ask-readonly")).unwrap();
+    let results_root =
+        std::env::temp_dir().join(format!("zseval-nested-layout-{}", std::process::id()));
+    let target_dir = std::env::temp_dir().join(format!(
+        "zseval-nested-layout-target-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&target_dir).unwrap();
+    let opus = target_dir.join("opus.toml");
+    let sonnet = target_dir.join("sonnet.toml");
+    std::fs::write(
+        &opus,
+        "provider = \"anthropic\"\nmodel = \"claude-opus-4-8\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        &sonnet,
+        "provider = \"anthropic\"\nmodel = \"claude-sonnet-4-6\"\n",
+    )
+    .unwrap();
+
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    for (target, stem) in [(&opus, "opus"), (&sonnet, "sonnet")] {
+        let opts = RunOptions {
+            target: Some(target.clone()),
+            trials_override: Some(1),
+            tag: "nested".into(),
+            no_judge: true,
+            results_root: results_root.clone(),
+            max_total_usd: None,
+            jobs: 1,
+            judge_file: None,
+            multi_target: true,
+        };
+        run_suite(
+            &[make_sc()],
+            &backend,
+            &LlmJudge::new(test_judge_cfg()),
+            &opts,
+        )
+        .unwrap();
+
+        let root = results_root.join("nested").join(stem);
+        assert!(root.join("report.json").is_file(), "{}", root.display());
+        assert!(root.join("target.toml").is_file(), "{}", root.display());
+        assert_eq!(
+            std::fs::read_to_string(root.join("target.toml")).unwrap(),
+            std::fs::read_to_string(target).unwrap(),
+            "run-level copy must hold the original target bytes"
+        );
+        assert!(root
+            .join("prompt-ask-readonly-refuses-edit/trial-0/trial.json")
+            .is_file());
+    }
+    // Both targets' trial dirs survive side by side, not overwritten.
+    assert!(results_root
+        .join("nested/opus/prompt-ask-readonly-refuses-edit/trial-0/trial.json")
+        .is_file());
+    assert!(results_root
+        .join("nested/sonnet/prompt-ask-readonly-refuses-edit/trial-0/trial.json")
+        .is_file());
+
+    std::fs::remove_dir_all(&results_root).ok();
+    std::fs::remove_dir_all(&target_dir).ok();
 }
 
 #[test]
@@ -1105,8 +1227,9 @@ fn jobs_greater_than_one_grades_every_trial_and_keeps_them_in_order() {
         max_total_usd: None,
         jobs: 3,
         judge_file: None,
+        multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
 
     let s = &report.scenarios[0];
     assert_eq!(s.trials.len(), 6);
@@ -1166,8 +1289,9 @@ fn success_path_run_dir_is_recorded_relative_to_the_working_directory() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
 
     assert!(!tr.run_dir.starts_with('/'), "{}", tr.run_dir);
@@ -1213,9 +1337,10 @@ fn regrade_locates_a_run_dir_from_a_relative_run_dir() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     let report = run_suite(
-        vec![sc.clone()],
+        std::slice::from_ref(&sc),
         &backend,
         &LlmJudge::new(test_judge_cfg()),
         &opts,
@@ -1287,8 +1412,9 @@ fn jobs_warm_up_runs_trial_zero_solo_before_the_parallel_fan_out() {
         max_total_usd: None,
         jobs: 3,
         judge_file: None,
+        multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.scenarios[0].trials.len(), 4);
 
     let log = backend.log.lock().unwrap();
@@ -1390,8 +1516,9 @@ judge = "Did the agent answer the question?"
             max_total_usd: None,
             jobs: 1,
             judge_file: None,
+            multi_target: false,
         };
-        let report = run_suite(vec![sc], &backend, judge, &opts).unwrap();
+        let report = run_suite(&[sc], &backend, judge, &opts).unwrap();
         std::fs::remove_dir_all(&results_root).ok();
         report.scenarios[0].trials[0].clone()
     };
@@ -1493,8 +1620,9 @@ fn indeterminate_trial_recovers_cost_already_spent_before_the_failure() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
     assert_eq!(tr.outcome, Final::Indeterminate);
     assert!(
@@ -1504,6 +1632,76 @@ fn indeterminate_trial_recovers_cost_already_spent_before_the_failure() {
     );
 
     std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+#[test]
+fn a_run_stopped_by_the_budget_cap_records_budget_truncated() {
+    // The shared cost cap can stop a run before a declared scenario. That
+    // fact must be recorded on the report (not left to be inferred from a
+    // scenario count) so `matrix` can mark the column truncated apart from a
+    // simply-smaller suite. Each Mock trial costs the fixture's 0.0182, so a
+    // $0.01 cap runs the first scenario, then breaks before the second.
+    let root = std::env::temp_dir().join(format!("zseval-budget-trunc-{}", std::process::id()));
+    let mut ids = Vec::new();
+    for id in ["aaa", "bbb"] {
+        let d = root.join(id);
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(
+            d.join("scenario.toml"),
+            format!("id = \"{id}\"\ntask = \"hi\"\nexpect = [\"final_contains x\"]\n"),
+        )
+        .unwrap();
+        ids.push(Scenario::load(&d).unwrap());
+    }
+
+    let results_root = std::env::temp_dir().join(format!(
+        "zseval-budget-trunc-results-{}",
+        std::process::id()
+    ));
+    let backend = Mock {
+        fixture: fixture("session-search-then-read.json"),
+    };
+    let opts = RunOptions {
+        target: None,
+        trials_override: Some(1),
+        tag: "trunc".into(),
+        no_judge: true,
+        results_root: results_root.clone(),
+        max_total_usd: Some(0.01),
+        jobs: 1,
+        judge_file: None,
+        multi_target: false,
+    };
+    let report = run_suite(&ids, &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+
+    assert_eq!(
+        report.scenarios.len(),
+        1,
+        "cap stopped the run after one scenario"
+    );
+    assert!(
+        report.budget_truncated,
+        "the truncation is recorded on the report"
+    );
+
+    // A run under the same cap that fits within budget is NOT truncated.
+    let opts_ample = RunOptions {
+        max_total_usd: Some(100.0),
+        tag: "ample".into(),
+        ..opts
+    };
+    let full = run_suite(
+        &ids,
+        &backend,
+        &LlmJudge::new(test_judge_cfg()),
+        &opts_ample,
+    )
+    .unwrap();
+    assert_eq!(full.scenarios.len(), 2);
+    assert!(!full.budget_truncated);
+
+    std::fs::remove_dir_all(&root).ok();
     std::fs::remove_dir_all(&results_root).ok();
 }
 
@@ -1535,8 +1733,9 @@ fn indeterminate_trial_run_dir_is_also_recorded_relative_to_the_working_director
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
     assert_eq!(tr.outcome, Final::Indeterminate);
     assert!(!tr.run_dir.starts_with('/'), "{}", tr.run_dir);
@@ -1579,11 +1778,12 @@ fn the_report_records_the_judge_file_it_was_configured_with() {
         max_total_usd: None,
         jobs: 1,
         judge_file: judge,
+        multi_target: false,
     };
 
     let opts = base(Some(PathBuf::from("judges/opus.toml")), false);
     let report = run_suite(
-        vec![sc.clone()],
+        std::slice::from_ref(&sc),
         &backend,
         &LlmJudge::new(test_judge_cfg()),
         &opts,
@@ -1593,7 +1793,7 @@ fn the_report_records_the_judge_file_it_was_configured_with() {
 
     let opts = base(None, false);
     let report = run_suite(
-        vec![sc.clone()],
+        std::slice::from_ref(&sc),
         &backend,
         &LlmJudge::new(test_judge_cfg()),
         &opts,
@@ -1613,7 +1813,7 @@ fn the_report_records_the_judge_file_it_was_configured_with() {
     std::fs::write(&judge_file, bytes).unwrap();
 
     let opts = base(Some(judge_file.clone()), false);
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.judge_file, "private-judge.toml");
     assert_eq!(
         report.judge_hash,
@@ -1662,10 +1862,11 @@ fn the_report_records_the_model_that_actually_graded() {
         jobs: 1,
         // Configured to ask for opus...
         judge_file: Some(PathBuf::from("judges/opus.toml")),
+        multi_target: false,
     };
     // ...but this is what actually served the request.
     let judge = TestJudge::Served("claude-sonnet-4-6-20260101".into());
-    let report = run_suite(vec![sc], &backend, &judge, &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &judge, &opts).unwrap();
 
     assert_eq!(report.judge_file, "judges/opus.toml");
     assert_eq!(
@@ -1711,10 +1912,11 @@ fn a_judge_that_grades_without_naming_its_model_leaves_the_ruler_unknown() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     // Answers Yes, but its response names no model.
     let judge = TestJudge::Verdict(zseval::judge::JudgeVerdict::Yes);
-    let report = run_suite(vec![sc], &backend, &judge, &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &judge, &opts).unwrap();
 
     assert_eq!(report.scenarios[0].trials[0].outcome, Final::Pass);
     assert_eq!(report.scenarios[0].trials[0].judge_model, None);
@@ -1756,8 +1958,9 @@ fn a_judge_that_never_graded_records_no_model_but_keeps_the_file() {
         max_total_usd: None,
         jobs: 1,
         judge_file: Some(PathBuf::from("judges/opus.toml")),
+        multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.judge_file, "judges/opus.toml");
     assert_eq!(
         report.judge_model,
@@ -1796,8 +1999,9 @@ fn no_judge_leaves_both_judge_fields_empty() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.judge_file, "");
     assert_eq!(report.judge_hash, None);
     assert_eq!(report.judge_model, Some(vec![]), "no ruler was applied");
@@ -1839,9 +2043,10 @@ fn regrading_with_a_second_judge_records_it_and_keeps_the_first_ones_evidence() 
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     let report = run_suite(
-        vec![sc.clone()],
+        std::slice::from_ref(&sc),
         &backend,
         &TestJudge::Served("first-ruler".into()),
         &opts,
@@ -1937,9 +2142,10 @@ fn a_no_judge_regrade_leaves_no_regrade_artifacts_dir() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
     run_suite(
-        vec![sc.clone()],
+        std::slice::from_ref(&sc),
         &backend,
         &LlmJudge::new(test_judge_cfg()),
         &opts,
@@ -2002,8 +2208,9 @@ fn regrade_regrades_existing_artifacts_without_driving_the_agent() {
         max_total_usd: None,
         jobs: 1,
         judge_file: None,
+        multi_target: false,
     };
-    let report = run_suite(vec![sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.scenarios[0].trials[0].outcome, Final::Pass);
     let run_dir = results_root
         .join("orig")
@@ -2249,4 +2456,356 @@ fn generic_seed_resolves_roots_without_domain_knowledge() {
     assert!(resolve_dest("data:../escape", &ctx).is_err());
     assert!(resolve_dest("nope:x", &ctx).is_err());
     assert!(resolve_dest("no-prefix", &ctx).is_err());
+}
+
+/// target-matrix section 2: `--target` becomes mandatory for the `zs`
+/// backend — a missing target is a usage error (exit 2), fired before any
+/// trial runs (no `--zs-bin`/`ZS_BIN` is given, so a later failure would be
+/// for the wrong reason).
+#[test]
+fn run_with_zs_backend_and_no_target_exits_2_before_any_trial() {
+    let dir = no_rubric_scenario_dir("zs-no-target");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args(["run", dir.to_str().unwrap(), "--backend", "zs"])
+        .env_remove("ZS_BIN")
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("--target"), "stderr: {stderr}");
+}
+
+/// target-matrix section 2: `--target` is rejected for the `mock` backend —
+/// mock replays canned artifacts, so naming a target it would never read is
+/// a usage error.
+#[test]
+fn run_with_mock_backend_and_target_exits_2() {
+    let dir = no_rubric_scenario_dir("mock-with-target");
+    let target_dir =
+        std::env::temp_dir().join(format!("zseval-test-mock-target-{}", std::process::id()));
+    std::fs::create_dir_all(&target_dir).unwrap();
+    let target_path = target_dir.join("config.toml");
+    std::fs::write(
+        &target_path,
+        "provider = \"anthropic\"\nmodel = \"claude-sonnet-4-6\"\n",
+    )
+    .unwrap();
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--backend",
+            &format!("mock={}", fixture("session-ask-readonly.json").display()),
+            "--target",
+            target_path.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::remove_dir_all(&target_dir).ok();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("--target"), "stderr: {stderr}");
+}
+
+/// target-matrix section 2: `--target` is unreachable for `mock`, so a mock
+/// run's model is a fixed `"mock"` label, not derived from an absent target
+/// (the old empty-target fallback label is now unreachable and deleted).
+#[test]
+fn a_completed_mock_run_records_model_mock() {
+    let dir = no_rubric_scenario_dir("mock-model-label");
+    let results = std::env::temp_dir().join(format!(
+        "zseval-test-mock-model-results-{}",
+        std::process::id()
+    ));
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--backend",
+            &format!("mock={}", fixture("session-ask-readonly.json").display()),
+            "--results",
+            results.to_str().unwrap(),
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    std::fs::remove_dir_all(&results).ok();
+    assert_ne!(out.status.code(), Some(2), "stdout: {stdout}");
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(v["model"], "mock", "stdout: {stdout}");
+}
+
+/// target-matrix 4.5: N>1 `--target` has no single JSON report to print, so
+/// `run --json` is a usage error naming `zseval matrix --json` as the way to
+/// render N reports as one table. This must fire before any backend/budget
+/// setup (no `--zs-bin`/`ZS_BIN`, and the target files need not even exist),
+/// so a later failure for a different reason can't be mistaken for this gate.
+#[test]
+fn run_json_with_more_than_one_target_exits_2_naming_matrix() {
+    let dir = no_rubric_scenario_dir("json-multi-target");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--target",
+            "a/opus.toml",
+            "--target",
+            "b/sonnet.toml",
+            "--json",
+        ])
+        .env_remove("ZS_BIN")
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("zseval matrix --json"), "stderr: {stderr}");
+}
+
+/// target-matrix 4.5: the N>1 `--json` gate is keyed on target *count*, not
+/// on `--json` plus `--target` together — one `--target` with `--json` must
+/// reach past it to the next check (no `--zs-bin`/`ZS_BIN`), never the
+/// "matrix" usage error. Paired with `a_completed_mock_run_records_model_mock`
+/// (N=1 via `--backend mock`, no `--target` at all) this covers both N=1
+/// shapes; a live N=1 `zs --target --json` run needs a real `zerostack`
+/// binary this harness does not have.
+#[test]
+fn run_json_with_exactly_one_target_does_not_trip_the_multi_target_gate() {
+    let dir = no_rubric_scenario_dir("json-single-target");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--target",
+            "a/opus.toml",
+            "--json",
+        ])
+        .env_remove("ZS_BIN")
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("zseval matrix --json"),
+        "N=1 must not trip the multi-target JSON gate; stderr: {stderr}"
+    );
+    assert!(stderr.contains("--zs-bin"), "stderr: {stderr}");
+}
+
+/// target-matrix section 7: `matrix --json` is genuine end-to-end coverage
+/// for the CLI wiring at main.rs — it exits 0, its stdout parses as JSON,
+/// and the parsed value carries the matrix model itself (not just any
+/// JSON), by asserting on a real field (`columns`).
+#[test]
+fn matrix_json_flag_exits_0_and_stdout_parses_as_the_matrix_model() {
+    use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
+
+    let dir = std::env::temp_dir().join(format!("zseval-matrix-e2e-json-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let trial = TrialResult {
+        trial: 0,
+        outcome: Final::Pass,
+        reasons: vec![],
+        asserts: vec![],
+        judge: None,
+        judge_file: String::new(),
+        judge_hash: None,
+        judge_model: None,
+        input_tokens: 0,
+        output_tokens: 0,
+        judge_input_tokens: 0,
+        judge_output_tokens: 0,
+        cost_usd: 0.0,
+        wall_secs: 0.0,
+        tool_call_count: 0,
+        run_dir: String::new(),
+    };
+    let r = Report::build(
+        ReportMeta {
+            tag: "run-a".into(),
+            model: "anthropic/opus".into(),
+            backend: "zs".into(),
+            trials: 1,
+            target: "targets/opus.toml".into(),
+            ..Default::default()
+        },
+        vec![ScenarioResult::from_trials("s".into(), vec![trial])],
+    );
+    let report_path = dir.join("a.json");
+    std::fs::write(&report_path, serde_json::to_string_pretty(&r).unwrap()).unwrap();
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args(["matrix", report_path.to_str().unwrap(), "--json"])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+
+    assert_eq!(out.status.code(), Some(0));
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout)
+        .unwrap_or_else(|e| panic!("stdout did not parse as JSON: {e}"));
+    let columns = v["columns"]
+        .as_array()
+        .unwrap_or_else(|| panic!("expected a `columns` array in the matrix model: {v}"));
+    assert_eq!(columns.len(), 1, "matrix json: {v}");
+}
+
+/// target-matrix section 7: `matrix --markdown` is genuine end-to-end
+/// coverage for the CLI wiring at main.rs:877-878 — `render_markdown` is
+/// unit-tested in matrix.rs, but the flag itself was never exercised
+/// through the binary until now.
+#[test]
+fn matrix_markdown_flag_exits_0_and_stdout_is_a_markdown_table() {
+    use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
+
+    let dir =
+        std::env::temp_dir().join(format!("zseval-matrix-e2e-markdown-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let trial = TrialResult {
+        trial: 0,
+        outcome: Final::Pass,
+        reasons: vec![],
+        asserts: vec![],
+        judge: None,
+        judge_file: String::new(),
+        judge_hash: None,
+        judge_model: None,
+        input_tokens: 0,
+        output_tokens: 0,
+        judge_input_tokens: 0,
+        judge_output_tokens: 0,
+        cost_usd: 0.0,
+        wall_secs: 0.0,
+        tool_call_count: 0,
+        run_dir: String::new(),
+    };
+    let r = Report::build(
+        ReportMeta {
+            tag: "run-a".into(),
+            model: "anthropic/opus".into(),
+            backend: "zs".into(),
+            trials: 1,
+            target: "targets/opus.toml".into(),
+            ..Default::default()
+        },
+        vec![ScenarioResult::from_trials(
+            "markdown-scenario".into(),
+            vec![trial],
+        )],
+    );
+    let report_path = dir.join("a.json");
+    std::fs::write(&report_path, serde_json::to_string_pretty(&r).unwrap()).unwrap();
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args(["matrix", report_path.to_str().unwrap(), "--markdown"])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+
+    assert_eq!(out.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("|---|"), "stdout: {stdout}");
+    assert!(stdout.contains("markdown-scenario"), "stdout: {stdout}");
+}
+
+/// target-matrix section 7: with no format flag, `matrix` renders the fixed
+/// -width form, not markdown — the absence of the markdown separator row
+/// distinguishes the two renderers through the actual CLI wiring.
+#[test]
+fn matrix_with_no_format_flag_renders_fixed_width_not_markdown() {
+    use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
+
+    let dir =
+        std::env::temp_dir().join(format!("zseval-matrix-e2e-default-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let trial = TrialResult {
+        trial: 0,
+        outcome: Final::Pass,
+        reasons: vec![],
+        asserts: vec![],
+        judge: None,
+        judge_file: String::new(),
+        judge_hash: None,
+        judge_model: None,
+        input_tokens: 0,
+        output_tokens: 0,
+        judge_input_tokens: 0,
+        judge_output_tokens: 0,
+        cost_usd: 0.0,
+        wall_secs: 0.0,
+        tool_call_count: 0,
+        run_dir: String::new(),
+    };
+    let r = Report::build(
+        ReportMeta {
+            tag: "run-a".into(),
+            model: "anthropic/opus".into(),
+            backend: "zs".into(),
+            trials: 1,
+            target: "targets/opus.toml".into(),
+            ..Default::default()
+        },
+        vec![ScenarioResult::from_trials(
+            "fixed-width-scenario".into(),
+            vec![trial],
+        )],
+    );
+    let report_path = dir.join("a.json");
+    std::fs::write(&report_path, serde_json::to_string_pretty(&r).unwrap()).unwrap();
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args(["matrix", report_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+
+    assert_eq!(out.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(!stdout.contains("|---|"), "stdout: {stdout}");
+    assert!(stdout.contains("fixed-width-scenario"), "stdout: {stdout}");
+}
+
+/// target-matrix design decision: `matrix` treats an all-holes / empty column
+/// as ungradable and exits 2. A report with a valid target but *zero*
+/// scenarios yields an empty column that contributes nothing but holes, so the
+/// matrix is ungradable even though the report's own `exit_code` would be 0.
+#[test]
+fn matrix_over_a_zero_scenario_report_exits_2() {
+    use zseval::verdict::{Report, ReportMeta};
+
+    let dir = std::env::temp_dir().join(format!("zseval-matrix-e2e-empty-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let r = Report::build(
+        ReportMeta {
+            tag: "run-a".into(),
+            model: "anthropic/opus".into(),
+            backend: "zs".into(),
+            trials: 1,
+            target: "targets/opus.toml".into(),
+            ..Default::default()
+        },
+        vec![],
+    );
+    let report_path = dir.join("a.json");
+    std::fs::write(&report_path, serde_json::to_string_pretty(&r).unwrap()).unwrap();
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args(["matrix", report_path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "a zero-scenario column is ungradable"
+    );
 }

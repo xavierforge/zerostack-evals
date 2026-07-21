@@ -50,8 +50,10 @@ pub struct Comparison {
     pub low_resolution: Vec<String>,
     /// Whether baseline and candidate were evaluated against a different
     /// provider/model (`Report.model`) — comparing across targets isn't
-    /// inherently wrong (that's the A/B use case), but it must never be
-    /// silent when the caller expected an apples-to-apples regression check.
+    /// inherently wrong (that's a migration gate: deciding whether to switch
+    /// from baseline to candidate), but it must never be silent when the
+    /// caller expected an apples-to-apples regression check. Comparing N
+    /// targets side by side belongs to `zseval matrix`, not here.
     pub target_mismatch: bool,
     pub base_model: String,
     pub cand_model: String,
@@ -190,8 +192,10 @@ pub fn print_human(c: &Comparison) {
     if c.target_mismatch {
         println!(
             "⚠ comparing different targets — baseline was evaluated against \
-             '{}', candidate against '{}'. A pass-rate diff here is an A/B \
-             comparison, not a regression check.",
+             '{}', candidate against '{}'. A pass-rate diff here is a \
+             migration gate (deciding whether to switch targets), not a \
+             regression check. For a scenario x target table, use `zseval \
+             matrix`.",
             c.base_model, c.cand_model
         );
     }

@@ -10,6 +10,7 @@ pub mod backend;
 pub mod compare;
 pub mod domains;
 pub mod judge;
+pub mod matrix;
 pub mod runner;
 pub mod scenario;
 pub mod seed;

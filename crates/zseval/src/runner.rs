@@ -49,6 +49,15 @@ pub struct RunOptions {
     /// `judge: &dyn Judge` argument at the same call site: this is the file
     /// naming a ruler, that is the ruler.
     pub judge_file: Option<PathBuf>,
+    /// Whether this `run_suite` call is one of several targets evaluated by
+    /// one `zseval run` invocation (target-matrix section 3/4). `false` (the
+    /// default single-target shape) keeps today's flat `results/<tag>/`
+    /// layout; `true` nests this target's report and trial dirs one level
+    /// deeper, under `results/<tag>/<stem>/` (`stem` = `target`'s filename
+    /// without extension — see `target::stem`), so N targets sharing one
+    /// `--tag` don't collide on `sc.id`. Requires `target` to be `Some`: the
+    /// stem has nothing to derive from otherwise.
+    pub multi_target: bool,
 }
 
 /// Everything the grading half of a trial needs to know about the ruler: the
@@ -68,8 +77,32 @@ struct Grading<'a> {
     judge_artifacts_dir: &'a Path,
 }
 
+/// The results root for one target's report and trial dirs: flat
+/// `results/<tag>/` for a single-target run, nested
+/// `results/<tag>/<stem>/` when `multi_target` (so N targets sharing one
+/// `--tag` don't collide on `sc.id`). Derived in exactly one place and
+/// reused by both `run_suite` and the end-of-run summary printer, rather
+/// than re-deriving the same formula at each site (design.md: compute once,
+/// reuse). Requires `target` to be `Some` when `multi_target`: the stem has
+/// nothing to derive from otherwise.
+pub fn run_root(
+    results_root: &Path,
+    tag: &str,
+    multi_target: bool,
+    target: Option<&Path>,
+) -> Result<PathBuf> {
+    if multi_target {
+        let target = target.ok_or_else(|| {
+            anyhow::anyhow!("multi-target run requires --target to derive the results stem")
+        })?;
+        Ok(results_root.join(tag).join(crate::target::stem(target)))
+    } else {
+        Ok(results_root.join(tag))
+    }
+}
+
 pub fn run_suite(
-    scenarios: Vec<Scenario>,
+    scenarios: &[Scenario],
     backend: &dyn AgentBackend,
     judge: &dyn Judge,
     opts: &RunOptions,
@@ -84,17 +117,46 @@ pub fn run_suite(
         .map(JudgeFileRef::of)
         .unwrap_or_default();
 
-    for sc in &scenarios {
+    // Everything for this target lives under one root: the report next to
+    // its per-trial artifacts, so results/ never fills with loose files.
+    // Derived once here and threaded down (rather than re-derived at the
+    // trial-dir site) so the report and its trial dirs can never split
+    // across two different roots — see design.md's "implementation trap".
+    let run_root = run_root(
+        &opts.results_root,
+        &opts.tag,
+        opts.multi_target,
+        opts.target.as_deref(),
+    )?;
+    std::fs::create_dir_all(&run_root)?;
+
+    // A clean, run-level copy of the target config — identity, not the
+    // per-trial seed `ZsCli::run` writes into each trial's own config dir
+    // (backend.rs:307), which a scenario's `config:` seed may then override.
+    // This copy is what a detached `report.json` (e.g. one embedded in
+    // `experiments/`) can point back to for what was actually evaluated.
+    if let Some(target) = &opts.target {
+        std::fs::copy(target, run_root.join("target.toml"))
+            .with_context(|| format!("copy run-level target {}", target.display()))?;
+    }
+
+    let mut budget_truncated = false;
+    for sc in scenarios {
         // Check the cost cap once per scenario, so a scenario always runs its
         // full trial count or not at all — never a partial, misleading pass^k.
         if let Some(cap) = opts.max_total_usd {
             if spent >= cap {
                 eprintln!("budget cap ${cap} reached; stopping before {}", sc.id);
+                // A declared scenario is going unrun: record the fact on the
+                // report so `matrix` can mark this column truncated rather
+                // than guessing from its scenario count.
+                budget_truncated = true;
                 break;
             }
         }
         let trials = opts.trials_override.unwrap_or(sc.trials).max(1);
-        let trial_results = run_trials_for_scenario(sc, backend, judge, &judge_file, opts, trials)?;
+        let trial_results =
+            run_trials_for_scenario(sc, backend, judge, &judge_file, opts, trials, &run_root)?;
         for tr in &trial_results {
             spent += tr.cost_usd;
         }
@@ -130,19 +192,29 @@ pub fn run_suite(
     let report = Report::build(
         ReportMeta {
             tag: opts.tag.clone(),
-            model: crate::target::describe(opts.target.as_deref()),
+            // `--target` is mandatory for `zs` and rejected for `mock`
+            // (target-matrix section 2), so a mock run never has a target to
+            // describe: its model is the fixed `"mock"` label, set here
+            // rather than derived from an absent target.
+            model: if backend.name() == "mock" {
+                "mock".to_string()
+            } else {
+                crate::target::describe(opts.target.as_deref())
+            },
             backend: backend.name().to_string(),
             trials: opts.trials_override.unwrap_or(0),
             judge_file: judge_file.path,
             judge_hash: judge_file.hash,
             judge_model,
+            target: opts
+                .target
+                .as_deref()
+                .map(crate::verdict::record_path)
+                .unwrap_or_default(),
+            budget_truncated,
         },
         results,
     );
-    // Everything for a run lives under results/<tag>/ — the report next to its
-    // per-trial artifacts, so the results root never fills with loose files.
-    let run_root = opts.results_root.join(&opts.tag);
-    std::fs::create_dir_all(&run_root)?;
     let report_path = run_root.join("report.json");
     std::fs::write(&report_path, serde_json::to_vec_pretty(&report)?)
         .with_context(|| format!("write {}", report_path.display()))?;
@@ -164,13 +236,10 @@ fn run_trials_for_scenario(
     judge_file: &JudgeFileRef,
     opts: &RunOptions,
     trials: usize,
+    run_root: &Path,
 ) -> Result<Vec<TrialResult>> {
     let run_one = |trial: usize| -> Result<TrialResult> {
-        let run_dir = opts
-            .results_root
-            .join(&opts.tag)
-            .join(&sc.id)
-            .join(format!("trial-{trial}"));
+        let run_dir = run_root.join(&sc.id).join(format!("trial-{trial}"));
         std::fs::create_dir_all(&run_dir)?;
         let grading = Grading {
             judge,

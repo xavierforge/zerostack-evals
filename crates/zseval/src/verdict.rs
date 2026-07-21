@@ -18,7 +18,12 @@ use serde::{Deserialize, Serialize};
 use crate::asserts::AssertResult;
 use crate::judge::JudgeVerdict;
 
-pub const REPORT_SCHEMA_VERSION: u32 = 3;
+/// Frozen at `1`: nothing reads this value (verified — only set at build and
+/// asserted in tests), so bumping it is decorative. `#[serde(default)]` on
+/// individual fields (e.g. `Report::target`) does the real backward-load
+/// work; consumers check for a field's own presence on its own merits rather
+/// than branching on this number.
+pub const REPORT_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -216,6 +221,26 @@ pub struct Report {
     ///   model is listed rather than one being picked to stand for the rest.
     #[serde(default)]
     pub judge_model: Option<Vec<String>>,
+    /// The target this run evaluated against: column identity, not content.
+    /// `target.toml` (the file's bytes) lives only in the run dir; this field
+    /// is what travels with the report when it is copied elsewhere (e.g. into
+    /// `baselines/`), so a detached report still names what it evaluated.
+    /// Normalised through the same `record_path` rule as `JudgeFileRef::path`
+    /// (working-directory-relative, forward-slashed, never absolute; reduced
+    /// to a bare file name when the target lives outside the working
+    /// directory). `#[serde(default)]` so a report written before this field
+    /// existed still loads, as an empty target rather than an error.
+    #[serde(default)]
+    pub target: String,
+    /// This run stopped early because it hit `--max-total-usd`: at least one
+    /// declared scenario was never reached. Recorded as a fact on the report
+    /// rather than inferred from a scenario count, so a consumer (`matrix`'s
+    /// incomplete/`*` mark) can tell "the budget cut this short" apart from
+    /// "this was simply a smaller suite" (a shorter baseline reached in full),
+    /// which a bare count cannot distinguish. `#[serde(default)]` so a report
+    /// written before this field existed still loads, as `false`.
+    #[serde(default)]
+    pub budget_truncated: bool,
     pub scenarios: Vec<ScenarioResult>,
     pub summary: Summary,
 }
@@ -327,6 +352,12 @@ pub struct ReportMeta {
     pub judge_hash: Option<String>,
     /// See `Report::judge_model` for the three states.
     pub judge_model: Option<Vec<String>>,
+    /// See `Report::target`. Already normalised (`record_path`) by the
+    /// caller; `Report::build` copies it through unchanged.
+    pub target: String,
+    /// See `Report::budget_truncated`. Set by `run_suite` when the cost cap
+    /// stopped the run before a declared scenario.
+    pub budget_truncated: bool,
 }
 
 impl Report {
@@ -357,6 +388,8 @@ impl Report {
             judge_file: meta.judge_file,
             judge_hash: meta.judge_hash,
             judge_model: meta.judge_model,
+            target: meta.target,
+            budget_truncated: meta.budget_truncated,
             summary: Summary {
                 n_scenarios: scenarios.len(),
                 n_gradable: gradable.len(),
@@ -550,7 +583,7 @@ mod exit_code_tests {
     #[test]
     fn a_fresh_report_carries_the_current_schema_version() {
         let report = Report::build(meta(), vec![]);
-        assert_eq!(report.schema_version, 3);
+        assert_eq!(report.schema_version, 1);
     }
 
     /// Same precedent as `content_hash`: a baseline committed before these
@@ -619,6 +652,104 @@ mod exit_code_tests {
             ],
         );
         assert_eq!(report.exit_code(), 0);
+    }
+}
+
+#[cfg(test)]
+mod target_field_tests {
+    use super::*;
+
+    fn meta_with_target(target: String) -> ReportMeta {
+        ReportMeta {
+            tag: "t".into(),
+            model: "m".into(),
+            backend: "b".into(),
+            trials: 1,
+            target,
+            ..Default::default()
+        }
+    }
+
+    /// Column identity: a target under the working directory records as the
+    /// relative path the caller would have typed, never the absolute one —
+    /// same rule as `JudgeFileRef::path`, reused via `record_path`.
+    #[test]
+    fn a_target_under_cwd_records_a_relative_forward_slashed_path_never_starting_with_slash() {
+        let cwd = std::env::current_dir().unwrap();
+        let dir = cwd.join(format!("zseval-target-field-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("opus.toml");
+        std::fs::write(&file, b"provider = \"anthropic\"\n").unwrap();
+
+        let report = Report::build(meta_with_target(record_path(&file)), vec![]);
+        let expected = format!("zseval-target-field-{}/opus.toml", std::process::id());
+        assert_eq!(report.target, expected);
+        assert!(!report.target.starts_with('/'), "{}", report.target);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A target outside the working directory must not leak the local
+    /// filesystem layout into a committed report; only its file name
+    /// survives.
+    #[test]
+    fn a_target_outside_cwd_records_only_its_file_name() {
+        let dir =
+            std::env::temp_dir().join(format!("zseval-target-field-out-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("private-target.toml");
+        std::fs::write(&file, b"provider = \"anthropic\"\n").unwrap();
+
+        let report = Report::build(meta_with_target(record_path(&file)), vec![]);
+        assert_eq!(report.target, "private-target.toml");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The target field is recorded on the report itself, so a report
+    /// serialized, moved away from its run dir (e.g. into `baselines/`), and
+    /// deserialized elsewhere still names what it evaluated.
+    #[test]
+    fn a_report_copied_away_from_its_run_dir_still_names_its_target() {
+        let cwd = std::env::current_dir().unwrap();
+        let dir = cwd.join(format!("zseval-target-field-copy-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("sonnet.toml");
+        std::fs::write(&file, b"provider = \"anthropic\"\n").unwrap();
+
+        let report = Report::build(meta_with_target(record_path(&file)), vec![]);
+        let json = serde_json::to_string(&report).unwrap();
+
+        // The run dir (and the target file within it) is gone, as if the
+        // report alone had been copied into `baselines/`.
+        std::fs::remove_dir_all(&dir).ok();
+
+        let reloaded: Report = serde_json::from_str(&json).unwrap();
+        assert_eq!(reloaded.target, report.target);
+        assert!(!reloaded.target.is_empty());
+    }
+
+    /// Same precedent as `judge_file`/`content_hash`: a report written before
+    /// this field existed must still load, as an empty target rather than an
+    /// error.
+    #[test]
+    fn a_report_json_lacking_the_field_deserialises_to_an_empty_target() {
+        let old = r#"{
+            "schema_version": 1,
+            "tag": "main",
+            "model": "anthropic/claude-sonnet-4-6",
+            "backend": "zs",
+            "timestamp": "2026-07-01T00:00:00Z",
+            "trials": 3,
+            "scenarios": [],
+            "summary": {
+                "n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0,
+                "indeterminate_scenarios": 0, "indeterminate_trials": 0,
+                "total_cost_usd": 0.0, "avg_wall_secs": 0.0
+            }
+        }"#;
+        let report: Report = serde_json::from_str(old).unwrap();
+        assert_eq!(report.target, "");
     }
 }
 

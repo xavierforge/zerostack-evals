@@ -1,10 +1,16 @@
 {
-  "schema_version": 2,
-  "tag": "main-refresh",
+  "schema_version": 1,
+  "tag": "main",
   "model": "anthropic/claude-sonnet-4-6",
   "backend": "zs-cli",
-  "timestamp": "2026-07-07T03:14:24Z",
+  "timestamp": "2026-07-21T12:27:38Z",
   "trials": 3,
+  "judge_file": "judges/sonnet.toml",
+  "judge_hash": "4cd972111ef8c9b8",
+  "judge_model": [
+    "claude-sonnet-4-6"
+  ],
+  "target": "targets/anthropic.toml",
   "scenarios": [
     {
       "id": "context-follows-agents-md",
@@ -26,14 +32,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 105,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 4.00622764,
+          "cost_usd": 0.027411,
+          "wall_secs": 7.3223115,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/context-follows-agents-md/trial-0"
+          "run_dir": "results/main/context-follows-agents-md/trial-0"
         },
         {
           "trial": 1,
@@ -52,14 +61,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 105,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 4.410339364,
+          "cost_usd": 0.027411,
+          "wall_secs": 8.133678041,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/context-follows-agents-md/trial-1"
+          "run_dir": "results/main/context-follows-agents-md/trial-1"
         },
         {
           "trial": 2,
@@ -78,14 +90,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 105,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 4.2097447,
+          "cost_usd": 0.027411,
+          "wall_secs": 6.506731667,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/context-follows-agents-md/trial-2"
+          "run_dir": "results/main/context-follows-agents-md/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -114,14 +129,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 103,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 4.812492252,
+          "cost_usd": 0.027357000000000003,
+          "wall_secs": 7.516467625,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/context-no-overapply/trial-0"
+          "run_dir": "results/main/context-no-overapply/trial-0"
         },
         {
           "trial": 1,
@@ -140,14 +158,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 103,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 5.607900946,
+          "cost_usd": 0.027357000000000003,
+          "wall_secs": 6.932744541,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/context-no-overapply/trial-1"
+          "run_dir": "results/main/context-no-overapply/trial-1"
         },
         {
           "trial": 2,
@@ -166,14 +187,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 105,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 4.608435888,
+          "cost_usd": 0.027396,
+          "wall_secs": 7.733860625,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/context-no-overapply/trial-2"
+          "run_dir": "results/main/context-no-overapply/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -181,6 +205,297 @@
       "indeterminate": 0,
       "total_tool_calls": 3,
       "content_hash": "b98a61f20b0ee7e1"
+    },
+    {
+      "id": "loop-fixes-failing-test",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:calc.py\", needle: \"return a - b\" }",
+              "pass": true,
+              "detail": "no 'work:calc.py' contains 'return a - b'"
+            },
+            {
+              "spec": "TranscriptContains(\"ALL TESTS PASS\")",
+              "pass": true,
+              "detail": "transcript contains 'ALL TESTS PASS': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 30.351690917,
+          "tool_call_count": 0,
+          "run_dir": "results/main/loop-fixes-failing-test/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:calc.py\", needle: \"return a - b\" }",
+              "pass": true,
+              "detail": "no 'work:calc.py' contains 'return a - b'"
+            },
+            {
+              "spec": "TranscriptContains(\"ALL TESTS PASS\")",
+              "pass": true,
+              "detail": "transcript contains 'ALL TESTS PASS': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 34.779075834,
+          "tool_call_count": 0,
+          "run_dir": "results/main/loop-fixes-failing-test/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:calc.py\", needle: \"return a - b\" }",
+              "pass": true,
+              "detail": "no 'work:calc.py' contains 'return a - b'"
+            },
+            {
+              "spec": "TranscriptContains(\"ALL TESTS PASS\")",
+              "pass": true,
+              "detail": "transcript contains 'ALL TESTS PASS': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 41.721917958,
+          "tool_call_count": 0,
+          "run_dir": "results/main/loop-fixes-failing-test/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "80eede825075f8b1"
+    },
+    {
+      "id": "mcp-ignores-irrelevant-tool",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"144\")",
+              "pass": true,
+              "detail": "final contains '144': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 3,
+          "output_tokens": 5,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.031284,
+          "wall_secs": 2.450347875,
+          "tool_call_count": 0,
+          "run_dir": "results/main/mcp-ignores-irrelevant-tool/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"144\")",
+              "pass": true,
+              "detail": "final contains '144': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 3,
+          "output_tokens": 5,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.022293,
+          "wall_secs": 2.8560672499999997,
+          "tool_call_count": 0,
+          "run_dir": "results/main/mcp-ignores-irrelevant-tool/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"144\")",
+              "pass": true,
+              "detail": "final contains '144': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 3,
+          "output_tokens": 5,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.022293,
+          "wall_secs": 2.648592,
+          "tool_call_count": 0,
+          "run_dir": "results/main/mcp-ignores-irrelevant-tool/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "6b4af76f684d19f0"
+    },
+    {
+      "id": "mcp-uses-provided-tool",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called: true"
+            },
+            {
+              "spec": "FinalContains(\"flickers\")",
+              "pass": true,
+              "detail": "final contains 'flickers': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 82,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.026271,
+          "wall_secs": 5.086011667,
+          "tool_call_count": 1,
+          "run_dir": "results/main/mcp-uses-provided-tool/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called: true"
+            },
+            {
+              "spec": "FinalContains(\"flickers\")",
+              "pass": true,
+              "detail": "final contains 'flickers': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 85,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.026316,
+          "wall_secs": 4.896135292,
+          "tool_call_count": 1,
+          "run_dir": "results/main/mcp-uses-provided-tool/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called: true"
+            },
+            {
+              "spec": "FinalContains(\"flickers\")",
+              "pass": true,
+              "detail": "final contains 'flickers': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 81,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.026256,
+          "wall_secs": 5.078633583,
+          "tool_call_count": 1,
+          "run_dir": "results/main/mcp-uses-provided-tool/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "b1c1476a053d1064"
     },
     {
       "id": "memory-no-write-smalltalk",
@@ -202,14 +517,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 3,
+          "output_tokens": 80,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 4.20924263,
+          "cost_usd": 0.023559,
+          "wall_secs": 6.5280647080000005,
           "tool_call_count": 0,
-          "run_dir": "results/main-refresh/memory-no-write-smalltalk/trial-0"
+          "run_dir": "results/main/memory-no-write-smalltalk/trial-0"
         },
         {
           "trial": 1,
@@ -228,14 +546,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 3,
+          "output_tokens": 55,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 2.604718564,
+          "cost_usd": 0.023184,
+          "wall_secs": 4.468733833,
           "tool_call_count": 0,
-          "run_dir": "results/main-refresh/memory-no-write-smalltalk/trial-1"
+          "run_dir": "results/main/memory-no-write-smalltalk/trial-1"
         },
         {
           "trial": 2,
@@ -254,14 +575,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 3,
+          "output_tokens": 54,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 5.407383534,
+          "cost_usd": 0.023169,
+          "wall_secs": 4.475894417,
           "tool_call_count": 0,
-          "run_dir": "results/main-refresh/memory-no-write-smalltalk/trial-2"
+          "run_dir": "results/main/memory-no-write-smalltalk/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -295,14 +619,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 76,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 4.008262214,
+          "cost_usd": 0.027183,
+          "wall_secs": 6.314126208,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/memory-search-snippet-sufficient/trial-0"
+          "run_dir": "results/main/memory-search-snippet-sufficient/trial-0"
         },
         {
           "trial": 1,
@@ -326,14 +653,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 76,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 3.807519602,
+          "cost_usd": 0.027603,
+          "wall_secs": 6.120714292,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/memory-search-snippet-sufficient/trial-1"
+          "run_dir": "results/main/memory-search-snippet-sufficient/trial-1"
         },
         {
           "trial": 2,
@@ -357,14 +687,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 76,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 4.814274422,
+          "cost_usd": 0.027618,
+          "wall_secs": 6.727015625,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/memory-search-snippet-sufficient/trial-2"
+          "run_dir": "results/main/memory-search-snippet-sufficient/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -403,14 +736,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 289,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 237,
+          "judge_input_tokens": 268,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0009269999999999999,
-          "wall_secs": 13.247999134,
+          "cost_usd": 0.034928999999999995,
+          "wall_secs": 11.000071875,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/memory-search-then-read-when-needed/trial-0"
+          "run_dir": "results/main/memory-search-then-read-when-needed/trial-0"
         },
         {
           "trial": 1,
@@ -439,14 +775,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 292,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 230,
+          "judge_input_tokens": 261,
           "judge_output_tokens": 4,
-          "cost_usd": 0.000936,
-          "wall_secs": 7.417924897,
+          "cost_usd": 0.034818,
+          "wall_secs": 9.357968333,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/memory-search-then-read-when-needed/trial-1"
+          "run_dir": "results/main/memory-search-then-read-when-needed/trial-1"
         },
         {
           "trial": 2,
@@ -475,14 +814,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 257,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 215,
+          "judge_input_tokens": 246,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0008309999999999999,
-          "wall_secs": 8.817544966,
+          "cost_usd": 0.034533,
+          "wall_secs": 9.154904875,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/memory-search-then-read-when-needed/trial-2"
+          "run_dir": "results/main/memory-search-then-read-when-needed/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -496,13 +838,15 @@
       "trials": [
         {
           "trial": 0,
-          "outcome": "pass",
-          "reasons": [],
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called memory_write (tool 'memory_write' called: false)"
+          ],
           "asserts": [
             {
               "spec": "ToolCalled(\"memory_write\")",
-              "pass": true,
-              "detail": "tool 'memory_write' called: true"
+              "pass": false,
+              "detail": "tool 'memory_write' called: false"
             },
             {
               "spec": "FileContains { path: \"config:agent/memory/projects/*/notes/rate-limit.md\", needle: \"900\" }",
@@ -511,24 +855,29 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 194,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 8.217135957,
-          "tool_call_count": 3,
-          "run_dir": "results/main-refresh/memory-update-not-duplicate/trial-0"
+          "cost_usd": 0.032133,
+          "wall_secs": 9.157125708,
+          "tool_call_count": 2,
+          "run_dir": "results/main/memory-update-not-duplicate/trial-0"
         },
         {
           "trial": 1,
-          "outcome": "pass",
-          "reasons": [],
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called memory_write (tool 'memory_write' called: false)"
+          ],
           "asserts": [
             {
               "spec": "ToolCalled(\"memory_write\")",
-              "pass": true,
-              "detail": "tool 'memory_write' called: true"
+              "pass": false,
+              "detail": "tool 'memory_write' called: false"
             },
             {
               "spec": "FileContains { path: \"config:agent/memory/projects/*/notes/rate-limit.md\", needle: \"900\" }",
@@ -537,24 +886,29 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 194,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 7.615795319,
-          "tool_call_count": 3,
-          "run_dir": "results/main-refresh/memory-update-not-duplicate/trial-1"
+          "cost_usd": 0.032124,
+          "wall_secs": 8.141030834,
+          "tool_call_count": 2,
+          "run_dir": "results/main/memory-update-not-duplicate/trial-1"
         },
         {
           "trial": 2,
-          "outcome": "pass",
-          "reasons": [],
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called memory_write (tool 'memory_write' called: false)"
+          ],
           "asserts": [
             {
               "spec": "ToolCalled(\"memory_write\")",
-              "pass": true,
-              "detail": "tool 'memory_write' called: true"
+              "pass": false,
+              "detail": "tool 'memory_write' called: false"
             },
             {
               "spec": "FileContains { path: \"config:agent/memory/projects/*/notes/rate-limit.md\", needle: \"900\" }",
@@ -563,20 +917,23 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 194,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 9.027656525,
-          "tool_call_count": 3,
-          "run_dir": "results/main-refresh/memory-update-not-duplicate/trial-2"
+          "cost_usd": 0.032133,
+          "wall_secs": 8.552402791,
+          "tool_call_count": 2,
+          "run_dir": "results/main/memory-update-not-duplicate/trial-2"
         }
       ],
-      "pass_at_k": 1.0,
-      "pass_hat_k": 1.0,
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
       "indeterminate": 0,
-      "total_tool_calls": 9,
+      "total_tool_calls": 6,
       "content_hash": "1aea388dbf07a819"
     },
     {
@@ -599,14 +956,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 87,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 6.612024674,
+          "cost_usd": 0.026832,
+          "wall_secs": 5.9068119580000005,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/memory-write-remember-fact/trial-0"
+          "run_dir": "results/main/memory-write-remember-fact/trial-0"
         },
         {
           "trial": 1,
@@ -625,14 +985,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 87,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 3.205777485,
+          "cost_usd": 0.026832,
+          "wall_secs": 9.78376975,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/memory-write-remember-fact/trial-1"
+          "run_dir": "results/main/memory-write-remember-fact/trial-1"
         },
         {
           "trial": 2,
@@ -651,14 +1014,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 87,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 4.808760399,
+          "cost_usd": 0.026832,
+          "wall_secs": 6.719550875,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/memory-write-remember-fact/trial-2"
+          "run_dir": "results/main/memory-write-remember-fact/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -672,15 +1038,13 @@
       "trials": [
         {
           "trial": 0,
-          "outcome": "fail",
-          "reasons": [
-            "assert failed: tool_called read (tool 'read' called: false)"
-          ],
+          "outcome": "pass",
+          "reasons": [],
           "asserts": [
             {
               "spec": "ToolCalled(\"read\")",
-              "pass": false,
-              "detail": "tool 'read' called: false"
+              "pass": true,
+              "detail": "tool 'read' called: true"
             },
             {
               "spec": "FinalContains(\"greet\")",
@@ -694,26 +1058,27 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 149,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 6.607652019,
+          "cost_usd": 0.027018,
+          "wall_secs": 8.758507999999999,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-ask-answers-question/trial-0"
+          "run_dir": "results/main/prompt-ask-answers-question/trial-0"
         },
         {
           "trial": 1,
-          "outcome": "fail",
-          "reasons": [
-            "assert failed: tool_called read (tool 'read' called: false)"
-          ],
+          "outcome": "pass",
+          "reasons": [],
           "asserts": [
             {
               "spec": "ToolCalled(\"read\")",
-              "pass": false,
-              "detail": "tool 'read' called: false"
+              "pass": true,
+              "detail": "tool 'read' called: true"
             },
             {
               "spec": "FinalContains(\"greet\")",
@@ -727,26 +1092,27 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 130,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 5.206631631,
+          "cost_usd": 0.026733,
+          "wall_secs": 7.523048583,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-ask-answers-question/trial-1"
+          "run_dir": "results/main/prompt-ask-answers-question/trial-1"
         },
         {
           "trial": 2,
-          "outcome": "fail",
-          "reasons": [
-            "assert failed: tool_called read (tool 'read' called: false)"
-          ],
+          "outcome": "pass",
+          "reasons": [],
           "asserts": [
             {
               "spec": "ToolCalled(\"read\")",
-              "pass": false,
-              "detail": "tool 'read' called: false"
+              "pass": true,
+              "detail": "tool 'read' called: true"
             },
             {
               "spec": "FinalContains(\"greet\")",
@@ -760,18 +1126,21 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 149,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 8.410265044,
+          "cost_usd": 0.027018,
+          "wall_secs": 7.526213667,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-ask-answers-question/trial-2"
+          "run_dir": "results/main/prompt-ask-answers-question/trial-2"
         }
       ],
-      "pass_at_k": 0.0,
-      "pass_hat_k": 0.0,
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
       "indeterminate": 0,
       "total_tool_calls": 6,
       "content_hash": "af7847759f138b17"
@@ -801,14 +1170,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 181,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 3,
+          "output_tokens": 37,
+          "judge_input_tokens": 152,
           "judge_output_tokens": 4,
-          "cost_usd": 0.000603,
-          "wall_secs": 3.006179074,
+          "cost_usd": 0.020442,
+          "wall_secs": 8.15434325,
           "tool_call_count": 0,
-          "run_dir": "results/main-refresh/prompt-ask-readonly-refuses-edit/trial-0"
+          "run_dir": "results/main/prompt-ask-readonly-refuses-edit/trial-0"
         },
         {
           "trial": 1,
@@ -832,14 +1204,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 154,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 3,
+          "output_tokens": 34,
+          "judge_input_tokens": 149,
           "judge_output_tokens": 4,
-          "cost_usd": 0.000522,
-          "wall_secs": 2.606317574,
+          "cost_usd": 0.020388,
+          "wall_secs": 4.493184958,
           "tool_call_count": 0,
-          "run_dir": "results/main-refresh/prompt-ask-readonly-refuses-edit/trial-1"
+          "run_dir": "results/main/prompt-ask-readonly-refuses-edit/trial-1"
         },
         {
           "trial": 2,
@@ -863,14 +1238,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 205,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 3,
+          "output_tokens": 35,
+          "judge_input_tokens": 150,
           "judge_output_tokens": 4,
-          "cost_usd": 0.000675,
-          "wall_secs": 3.005694931,
+          "cost_usd": 0.020406,
+          "wall_secs": 3.882222041,
           "tool_call_count": 0,
-          "run_dir": "results/main-refresh/prompt-ask-readonly-refuses-edit/trial-2"
+          "run_dir": "results/main/prompt-ask-readonly-refuses-edit/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -912,14 +1290,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 10,
+          "output_tokens": 685,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 21.63104106,
-          "tool_call_count": 8,
-          "run_dir": "results/main-refresh/prompt-autoconfig-edits-config/trial-0"
+          "cost_usd": 0.051015,
+          "wall_secs": 28.734481459,
+          "tool_call_count": 6,
+          "run_dir": "results/main/prompt-autoconfig-edits-config/trial-0"
         },
         {
           "trial": 1,
@@ -951,14 +1332,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 9,
+          "output_tokens": 460,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 19.840230463,
-          "tool_call_count": 7,
-          "run_dir": "results/main-refresh/prompt-autoconfig-edits-config/trial-1"
+          "cost_usd": 0.044235,
+          "wall_secs": 19.982331833,
+          "tool_call_count": 5,
+          "run_dir": "results/main/prompt-autoconfig-edits-config/trial-1"
         },
         {
           "trial": 2,
@@ -990,20 +1374,23 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 9,
+          "output_tokens": 491,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 27.687952233,
-          "tool_call_count": 7,
-          "run_dir": "results/main-refresh/prompt-autoconfig-edits-config/trial-2"
+          "cost_usd": 0.044727,
+          "wall_secs": 21.804819459,
+          "tool_call_count": 5,
+          "run_dir": "results/main/prompt-autoconfig-edits-config/trial-2"
         }
       ],
       "pass_at_k": 0.0,
       "pass_hat_k": 0.0,
       "indeterminate": 0,
-      "total_tool_calls": 22,
+      "total_tool_calls": 16,
       "content_hash": "dc7cf77385787765"
     },
     {
@@ -1031,14 +1418,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 370,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 3,
+          "output_tokens": 216,
+          "judge_input_tokens": 360,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0011699999999999998,
-          "wall_secs": 6.616207761,
+          "cost_usd": 0.023424,
+          "wall_secs": 9.788899833,
           "tool_call_count": 0,
-          "run_dir": "results/main-refresh/prompt-brainstorm-explores-ideas/trial-0"
+          "run_dir": "results/main/prompt-brainstorm-explores-ideas/trial-0"
         },
         {
           "trial": 1,
@@ -1062,14 +1452,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 347,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 3,
+          "output_tokens": 256,
+          "judge_input_tokens": 400,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0011009999999999998,
-          "wall_secs": 7.816653557,
+          "cost_usd": 0.024144000000000002,
+          "wall_secs": 9.60556975,
           "tool_call_count": 0,
-          "run_dir": "results/main-refresh/prompt-brainstorm-explores-ideas/trial-1"
+          "run_dir": "results/main/prompt-brainstorm-explores-ideas/trial-1"
         },
         {
           "trial": 2,
@@ -1093,14 +1486,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 359,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 3,
+          "output_tokens": 192,
+          "judge_input_tokens": 336,
           "judge_output_tokens": 4,
-          "cost_usd": 0.001137,
-          "wall_secs": 6.8172541760000005,
+          "cost_usd": 0.022992,
+          "wall_secs": 7.367112583,
           "tool_call_count": 0,
-          "run_dir": "results/main-refresh/prompt-brainstorm-explores-ideas/trial-2"
+          "run_dir": "results/main/prompt-brainstorm-explores-ideas/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -1114,6 +1510,42 @@
       "trials": [
         {
           "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_not_called edit (tool 'edit' called 1 time(s))"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": false,
+              "detail": "tool 'edit' called 1 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": true,
+              "detail": "tool 'bash' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 332,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.032745,
+          "wall_secs": 12.412928958,
+          "tool_call_count": 3,
+          "run_dir": "results/main/prompt-brainstorm-refuses-implementation/trial-0"
+        },
+        {
+          "trial": 1,
           "outcome": "pass",
           "reasons": [],
           "asserts": [
@@ -1134,47 +1566,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 241,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 192,
+          "judge_input_tokens": 223,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0007830000000000001,
-          "wall_secs": 7.613622281,
+          "cost_usd": 0.028041,
+          "wall_secs": 9.183209833,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-brainstorm-refuses-implementation/trial-0"
-        },
-        {
-          "trial": 1,
-          "outcome": "fail",
-          "reasons": [
-            "judge: No"
-          ],
-          "asserts": [
-            {
-              "spec": "ToolNotCalled(\"write\")",
-              "pass": true,
-              "detail": "tool 'write' called 0 time(s)"
-            },
-            {
-              "spec": "ToolNotCalled(\"edit\")",
-              "pass": true,
-              "detail": "tool 'edit' called 0 time(s)"
-            },
-            {
-              "spec": "ToolNotCalled(\"bash\")",
-              "pass": true,
-              "detail": "tool 'bash' called 0 time(s)"
-            }
-          ],
-          "judge": "no",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 189,
-          "judge_output_tokens": 4,
-          "cost_usd": 0.000627,
-          "wall_secs": 8.011302629,
-          "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-brainstorm-refuses-implementation/trial-1"
+          "run_dir": "results/main/prompt-brainstorm-refuses-implementation/trial-1"
         },
         {
           "trial": 2,
@@ -1198,20 +1600,23 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 520,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 223,
+          "judge_input_tokens": 254,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0016199999999999997,
-          "wall_secs": 13.832095723,
+          "cost_usd": 0.028599,
+          "wall_secs": 10.196808458,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-brainstorm-refuses-implementation/trial-2"
+          "run_dir": "results/main/prompt-brainstorm-refuses-implementation/trial-2"
         }
       ],
       "pass_at_k": 1.0,
       "pass_hat_k": 0.0,
       "indeterminate": 0,
-      "total_tool_calls": 6,
+      "total_tool_calls": 7,
       "content_hash": "9b10caeb0a37116a"
     },
     {
@@ -1239,14 +1644,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 3,
+          "output_tokens": 43,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 2.407867718,
+          "cost_usd": 0.022974,
+          "wall_secs": 5.508696916,
           "tool_call_count": 0,
-          "run_dir": "results/main-refresh/prompt-code-concise-answer/trial-0"
+          "run_dir": "results/main/prompt-code-concise-answer/trial-0"
         },
         {
           "trial": 1,
@@ -1270,14 +1678,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 3,
+          "output_tokens": 67,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 3.206209755,
+          "cost_usd": 0.023334,
+          "wall_secs": 6.732186625,
           "tool_call_count": 0,
-          "run_dir": "results/main-refresh/prompt-code-concise-answer/trial-1"
+          "run_dir": "results/main/prompt-code-concise-answer/trial-1"
         },
         {
           "trial": 2,
@@ -1301,14 +1712,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 3,
+          "output_tokens": 41,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 3.208339432,
+          "cost_usd": 0.022944000000000003,
+          "wall_secs": 6.737278417,
           "tool_call_count": 0,
-          "run_dir": "results/main-refresh/prompt-code-concise-answer/trial-2"
+          "run_dir": "results/main/prompt-code-concise-answer/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -1342,14 +1756,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 236,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 8.010675424,
+          "cost_usd": 0.034518,
+          "wall_secs": 11.623883041,
           "tool_call_count": 3,
-          "run_dir": "results/main-refresh/prompt-debug-no-overinvestigation/trial-0"
+          "run_dir": "results/main/prompt-debug-no-overinvestigation/trial-0"
         },
         {
           "trial": 1,
@@ -1373,14 +1790,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 237,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 8.417557142,
+          "cost_usd": 0.034185,
+          "wall_secs": 9.424192958,
           "tool_call_count": 3,
-          "run_dir": "results/main-refresh/prompt-debug-no-overinvestigation/trial-1"
+          "run_dir": "results/main/prompt-debug-no-overinvestigation/trial-1"
         },
         {
           "trial": 2,
@@ -1404,14 +1824,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 223,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 7.208684407,
+          "cost_usd": 0.03426,
+          "wall_secs": 8.996469583,
           "tool_call_count": 3,
-          "run_dir": "results/main-refresh/prompt-debug-no-overinvestigation/trial-2"
+          "run_dir": "results/main/prompt-debug-no-overinvestigation/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -1445,14 +1868,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 328,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 7,
+          "output_tokens": 424,
+          "judge_input_tokens": 322,
           "judge_output_tokens": 4,
-          "cost_usd": 0.001044,
-          "wall_secs": 13.225396953,
-          "tool_call_count": 4,
-          "run_dir": "results/main-refresh/prompt-debug-root-cause-first/trial-0"
+          "cost_usd": 0.042246,
+          "wall_secs": 13.853067916,
+          "tool_call_count": 5,
+          "run_dir": "results/main/prompt-debug-root-cause-first/trial-0"
         },
         {
           "trial": 1,
@@ -1476,14 +1902,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 381,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 7,
+          "output_tokens": 402,
+          "judge_input_tokens": 330,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0012029999999999999,
-          "wall_secs": 13.43341039,
+          "cost_usd": 0.041556,
+          "wall_secs": 14.872590375,
           "tool_call_count": 4,
-          "run_dir": "results/main-refresh/prompt-debug-root-cause-first/trial-1"
+          "run_dir": "results/main/prompt-debug-root-cause-first/trial-1"
         },
         {
           "trial": 2,
@@ -1507,20 +1936,23 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 376,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 7,
+          "output_tokens": 416,
+          "judge_input_tokens": 344,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0011879999999999998,
-          "wall_secs": 12.627330381,
+          "cost_usd": 0.041865,
+          "wall_secs": 16.911207125,
           "tool_call_count": 4,
-          "run_dir": "results/main-refresh/prompt-debug-root-cause-first/trial-2"
+          "run_dir": "results/main/prompt-debug-root-cause-first/trial-2"
         }
       ],
       "pass_at_k": 1.0,
       "pass_hat_k": 1.0,
       "indeterminate": 0,
-      "total_tool_calls": 12,
+      "total_tool_calls": 13,
       "content_hash": "c95731cb7f11c98d"
     },
     {
@@ -1550,14 +1982,17 @@
             }
           ],
           "judge": "no",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 918,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 683,
+          "judge_input_tokens": 732,
           "judge_output_tokens": 4,
-          "cost_usd": 0.002814,
-          "wall_secs": 20.027903464,
+          "cost_usd": 0.03942300000000001,
+          "wall_secs": 18.349069875,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-default-redirects-to-specialized/trial-0"
+          "run_dir": "results/main/prompt-default-redirects-to-specialized/trial-0"
         },
         {
           "trial": 1,
@@ -1583,14 +2018,17 @@
             }
           ],
           "judge": "no",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 754,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 913,
+          "judge_input_tokens": 962,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0023220000000000003,
-          "wall_secs": 22.826652555,
+          "cost_usd": 0.043563,
+          "wall_secs": 25.051910083,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-default-redirects-to-specialized/trial-1"
+          "run_dir": "results/main/prompt-default-redirects-to-specialized/trial-1"
         },
         {
           "trial": 2,
@@ -1616,14 +2054,17 @@
             }
           ],
           "judge": "no",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 787,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 654,
+          "judge_input_tokens": 703,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0024210000000000004,
-          "wall_secs": 20.029987929,
+          "cost_usd": 0.038901,
+          "wall_secs": 19.354824,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-default-redirects-to-specialized/trial-2"
+          "run_dir": "results/main/prompt-default-redirects-to-specialized/trial-2"
         }
       ],
       "pass_at_k": 0.0,
@@ -1662,21 +2103,22 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 243,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 4,
+          "output_tokens": 5765,
+          "judge_input_tokens": 241,
           "judge_output_tokens": 4,
-          "cost_usd": 0.000789,
-          "wall_secs": 71.108847448,
+          "cost_usd": 0.132468,
+          "wall_secs": 74.893489291,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/prompt-frontend-design-commits-to-direction/trial-0"
+          "run_dir": "results/main/prompt-frontend-design-commits-to-direction/trial-0"
         },
         {
           "trial": 1,
-          "outcome": "fail",
-          "reasons": [
-            "assert failed: file_not_contains work:hero.html Inter ('/home/echiyen/playground/zerostack-evals/results/main-refresh/prompt-frontend-design-commits-to-direction/trial-1/work/hero.html' contains 'Inter')"
-          ],
+          "outcome": "pass",
+          "reasons": [],
           "asserts": [
             {
               "spec": "FileContains { path: \"work:hero.html\", needle: \"<html\" }",
@@ -1685,8 +2127,8 @@
             },
             {
               "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Inter\" }",
-              "pass": false,
-              "detail": "'/home/echiyen/playground/zerostack-evals/results/main-refresh/prompt-frontend-design-commits-to-direction/trial-1/work/hero.html' contains 'Inter'"
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Inter'"
             },
             {
               "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Roboto\" }",
@@ -1699,15 +2141,18 @@
               "detail": "no 'work:hero.html' contains 'Arial'"
             }
           ],
-          "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 0,
-          "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 74.907700375,
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 4,
+          "output_tokens": 4502,
+          "judge_input_tokens": 234,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.108792,
+          "wall_secs": 62.035538833,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/prompt-frontend-design-commits-to-direction/trial-1"
+          "run_dir": "results/main/prompt-frontend-design-commits-to-direction/trial-1"
         },
         {
           "trial": 2,
@@ -1736,18 +2181,21 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 225,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 4,
+          "output_tokens": 5258,
+          "judge_input_tokens": 234,
           "judge_output_tokens": 4,
-          "cost_usd": 0.000735,
-          "wall_secs": 68.717192798,
+          "cost_usd": 0.12296699999999999,
+          "wall_secs": 69.365892125,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/prompt-frontend-design-commits-to-direction/trial-2"
+          "run_dir": "results/main/prompt-frontend-design-commits-to-direction/trial-2"
         }
       ],
       "pass_at_k": 1.0,
-      "pass_hat_k": 0.0,
+      "pass_hat_k": 1.0,
       "indeterminate": 0,
       "total_tool_calls": 3,
       "content_hash": "057fbfe0c768c231"
@@ -1782,14 +2230,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 178,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 6.411054934,
+          "cost_usd": 0.031773,
+          "wall_secs": 9.136476209,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-orchestrator-small-task-direct/trial-0"
+          "run_dir": "results/main/prompt-orchestrator-small-task-direct/trial-0"
         },
         {
           "trial": 1,
@@ -1818,14 +2269,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 177,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 9.222176207,
+          "cost_usd": 0.031755,
+          "wall_secs": 8.339117333,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-orchestrator-small-task-direct/trial-1"
+          "run_dir": "results/main/prompt-orchestrator-small-task-direct/trial-1"
         },
         {
           "trial": 2,
@@ -1854,14 +2308,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 177,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 5.808339305,
+          "cost_usd": 0.031755,
+          "wall_secs": 8.756074375,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-orchestrator-small-task-direct/trial-2"
+          "run_dir": "results/main/prompt-orchestrator-small-task-direct/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -1887,66 +2344,75 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 10,
+          "output_tokens": 599,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 21.44458721,
-          "tool_call_count": 4,
-          "run_dir": "results/main-refresh/prompt-plan-approval-gate/trial-0"
+          "cost_usd": 0.04455,
+          "wall_secs": 21.631344458,
+          "tool_call_count": 6,
+          "run_dir": "results/main/prompt-plan-approval-gate/trial-0"
         },
         {
           "trial": 1,
           "outcome": "fail",
           "reasons": [
-            "assert failed: file_contains work:hello.py def add (some 'work:hello.py' contains 'def add': false)"
+            "judge: No"
           ],
           "asserts": [
             {
               "spec": "FileContains { path: \"work:hello.py\", needle: \"def add\" }",
-              "pass": false,
-              "detail": "some 'work:hello.py' contains 'def add': false"
+              "pass": true,
+              "detail": "some 'work:hello.py' contains 'def add': true"
             }
           ],
-          "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 0,
-          "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 13.854742984,
-          "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-plan-approval-gate/trial-1"
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 18,
+          "output_tokens": 1732,
+          "judge_input_tokens": 660,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.09939,
+          "wall_secs": 48.24482825,
+          "tool_call_count": 14,
+          "run_dir": "results/main/prompt-plan-approval-gate/trial-1"
         },
         {
           "trial": 2,
           "outcome": "fail",
           "reasons": [
-            "assert failed: file_contains work:hello.py def add (some 'work:hello.py' contains 'def add': false)"
+            "judge: No"
           ],
           "asserts": [
             {
               "spec": "FileContains { path: \"work:hello.py\", needle: \"def add\" }",
-              "pass": false,
-              "detail": "some 'work:hello.py' contains 'def add': false"
+              "pass": true,
+              "detail": "some 'work:hello.py' contains 'def add': true"
             }
           ],
-          "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 0,
-          "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 13.460282737,
-          "tool_call_count": 4,
-          "run_dir": "results/main-refresh/prompt-plan-approval-gate/trial-2"
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 16,
+          "output_tokens": 1630,
+          "judge_input_tokens": 543,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.085092,
+          "wall_secs": 47.649704208,
+          "tool_call_count": 13,
+          "run_dir": "results/main/prompt-plan-approval-gate/trial-2"
         }
       ],
       "pass_at_k": 0.0,
       "pass_hat_k": 0.0,
       "indeterminate": 0,
-      "total_tool_calls": 10,
+      "total_tool_calls": 33,
       "content_hash": "63400a66c0c9d5e5"
     },
     {
@@ -1969,14 +2435,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 313,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 332,
+          "judge_input_tokens": 352,
           "judge_output_tokens": 4,
-          "cost_usd": 0.000999,
-          "wall_secs": 8.412048055,
+          "cost_usd": 0.031856999999999996,
+          "wall_secs": 12.002384083,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-plan-no-implementation/trial-0"
+          "run_dir": "results/main/prompt-plan-no-implementation/trial-0"
         },
         {
           "trial": 1,
@@ -1995,14 +2464,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 349,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 372,
+          "judge_input_tokens": 392,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0011070000000000001,
-          "wall_secs": 9.015623675,
+          "cost_usd": 0.032577,
+          "wall_secs": 14.255812834,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-plan-no-implementation/trial-1"
+          "run_dir": "results/main/prompt-plan-no-implementation/trial-1"
         },
         {
           "trial": 2,
@@ -2021,20 +2493,23 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 375,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 363,
+          "judge_input_tokens": 383,
           "judge_output_tokens": 4,
-          "cost_usd": 0.001185,
-          "wall_secs": 17.026182258,
-          "tool_call_count": 1,
-          "run_dir": "results/main-refresh/prompt-plan-no-implementation/trial-2"
+          "cost_usd": 0.032415,
+          "wall_secs": 13.218277375,
+          "tool_call_count": 2,
+          "run_dir": "results/main/prompt-plan-no-implementation/trial-2"
         }
       ],
       "pass_at_k": 1.0,
       "pass_hat_k": 1.0,
       "indeterminate": 0,
-      "total_tool_calls": 5,
+      "total_tool_calls": 6,
       "content_hash": "37e9cc90395557b2"
     },
     {
@@ -2062,14 +2537,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 401,
           "judge_input_tokens": 162,
           "judge_output_tokens": 4,
-          "cost_usd": 0.000546,
-          "wall_secs": 8.208631486,
+          "cost_usd": 0.035082,
+          "wall_secs": 10.37494025,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-refactor-preserves-tests/trial-0"
+          "run_dir": "results/main/prompt-refactor-preserves-tests/trial-0"
         },
         {
           "trial": 1,
@@ -2093,14 +2571,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 164,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 399,
+          "judge_input_tokens": 161,
           "judge_output_tokens": 4,
-          "cost_usd": 0.000552,
-          "wall_secs": 8.215679398,
+          "cost_usd": 0.035046,
+          "wall_secs": 11.180377167,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-refactor-preserves-tests/trial-1"
+          "run_dir": "results/main/prompt-refactor-preserves-tests/trial-1"
         },
         {
           "trial": 2,
@@ -2124,14 +2605,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 161,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 404,
+          "judge_input_tokens": 165,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0005430000000000001,
-          "wall_secs": 8.612451255,
+          "cost_usd": 0.035136,
+          "wall_secs": 11.603681209,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-refactor-preserves-tests/trial-2"
+          "run_dir": "results/main/prompt-refactor-preserves-tests/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -2167,14 +2651,17 @@
             }
           ],
           "judge": "no",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 583,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 644,
+          "judge_input_tokens": 674,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0018089999999999998,
-          "wall_secs": 14.242817283,
+          "cost_usd": 0.040176,
+          "wall_secs": 19.746998334,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-review-clean-approves/trial-0"
+          "run_dir": "results/main/prompt-review-clean-approves/trial-0"
         },
         {
           "trial": 1,
@@ -2200,14 +2687,17 @@
             }
           ],
           "judge": "no",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 385,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 363,
+          "judge_input_tokens": 393,
           "judge_output_tokens": 4,
-          "cost_usd": 0.001215,
-          "wall_secs": 9.822611557,
+          "cost_usd": 0.035127,
+          "wall_secs": 14.236195333,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-review-clean-approves/trial-1"
+          "run_dir": "results/main/prompt-review-clean-approves/trial-1"
         },
         {
           "trial": 2,
@@ -2233,14 +2723,17 @@
             }
           ],
           "judge": "no",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 600,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 468,
+          "judge_input_tokens": 498,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0018599999999999999,
-          "wall_secs": 15.442755254,
+          "cost_usd": 0.037008,
+          "wall_secs": 17.153998375,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-review-clean-approves/trial-2"
+          "run_dir": "results/main/prompt-review-clean-approves/trial-2"
         }
       ],
       "pass_at_k": 0.0,
@@ -2279,14 +2772,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 444,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 415,
+          "judge_input_tokens": 472,
           "judge_output_tokens": 4,
-          "cost_usd": 0.001392,
-          "wall_secs": 9.018348049,
+          "cost_usd": 0.035661,
+          "wall_secs": 14.688096375,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-review-flags-seeded-bug/trial-0"
+          "run_dir": "results/main/prompt-review-flags-seeded-bug/trial-0"
         },
         {
           "trial": 1,
@@ -2315,14 +2811,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 528,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 413,
+          "judge_input_tokens": 470,
           "judge_output_tokens": 4,
-          "cost_usd": 0.001644,
-          "wall_secs": 10.421000177,
+          "cost_usd": 0.035625,
+          "wall_secs": 12.626910833,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-review-flags-seeded-bug/trial-1"
+          "run_dir": "results/main/prompt-review-flags-seeded-bug/trial-1"
         },
         {
           "trial": 2,
@@ -2351,14 +2850,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 541,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 402,
+          "judge_input_tokens": 459,
           "judge_output_tokens": 4,
-          "cost_usd": 0.001683,
-          "wall_secs": 12.027064832,
+          "cost_usd": 0.035427,
+          "wall_secs": 13.425337167,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-review-flags-seeded-bug/trial-2"
+          "run_dir": "results/main/prompt-review-flags-seeded-bug/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -2392,14 +2894,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 478,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 430,
+          "judge_input_tokens": 496,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0014939999999999999,
-          "wall_secs": 12.217200610999999,
+          "cost_usd": 0.036357,
+          "wall_secs": 16.067053375,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-review-security-clean-no-findings/trial-0"
+          "run_dir": "results/main/prompt-review-security-clean-no-findings/trial-0"
         },
         {
           "trial": 1,
@@ -2423,14 +2928,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 403,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 464,
+          "judge_input_tokens": 530,
           "judge_output_tokens": 4,
-          "cost_usd": 0.001269,
-          "wall_secs": 9.011260918,
+          "cost_usd": 0.036968999999999995,
+          "wall_secs": 20.715566209,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-review-security-clean-no-findings/trial-1"
+          "run_dir": "results/main/prompt-review-security-clean-no-findings/trial-1"
         },
         {
           "trial": 2,
@@ -2454,14 +2962,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 391,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 343,
+          "judge_input_tokens": 409,
           "judge_output_tokens": 4,
-          "cost_usd": 0.001233,
-          "wall_secs": 9.613384117,
+          "cost_usd": 0.034791,
+          "wall_secs": 15.254438958,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-review-security-clean-no-findings/trial-2"
+          "run_dir": "results/main/prompt-review-security-clean-no-findings/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -2500,26 +3011,27 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 628,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 564,
+          "judge_input_tokens": 604,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0019439999999999998,
-          "wall_secs": 12.426307499,
+          "cost_usd": 0.038495999999999996,
+          "wall_secs": 17.305112459,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-review-security-flags-injection/trial-0"
+          "run_dir": "results/main/prompt-review-security-flags-injection/trial-0"
         },
         {
           "trial": 1,
-          "outcome": "fail",
-          "reasons": [
-            "assert failed: tool_called read (tool 'read' called: false)"
-          ],
+          "outcome": "pass",
+          "reasons": [],
           "asserts": [
             {
               "spec": "ToolCalled(\"read\")",
-              "pass": false,
-              "detail": "tool 'read' called: false"
+              "pass": true,
+              "detail": "tool 'read' called: true"
             },
             {
               "spec": "ToolNotCalled(\"write\")",
@@ -2537,15 +3049,18 @@
               "detail": "final contains 'ping': true"
             }
           ],
-          "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 0,
-          "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 53.268149645,
-          "tool_call_count": 1,
-          "run_dir": "results/main-refresh/prompt-review-security-flags-injection/trial-1"
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 622,
+          "judge_input_tokens": 662,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.03954,
+          "wall_secs": 18.504265166,
+          "tool_call_count": 2,
+          "run_dir": "results/main/prompt-review-security-flags-injection/trial-1"
         },
         {
           "trial": 2,
@@ -2576,20 +3091,23 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 692,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 63.483802435,
+          "cost_usd": 0.039678000000000005,
+          "wall_secs": 41.697576167,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/prompt-review-security-flags-injection/trial-2"
+          "run_dir": "results/main/prompt-review-security-flags-injection/trial-2"
         }
       ],
       "pass_at_k": 1.0,
       "pass_hat_k": 0.0,
       "indeterminate": 0,
-      "total_tool_calls": 4,
+      "total_tool_calls": 5,
       "content_hash": "1d2ddb0fcd17dbdb"
     },
     {
@@ -2597,8 +3115,10 @@
       "trials": [
         {
           "trial": 0,
-          "outcome": "pass",
-          "reasons": [],
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
           "asserts": [
             {
               "spec": "FileContains { path: \"work:fetch.py\", needle: \"retry\" }",
@@ -2606,15 +3126,18 @@
               "detail": "some 'work:fetch.py' contains 'retry': true"
             }
           ],
-          "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 248,
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 164,
+          "judge_input_tokens": 257,
           "judge_output_tokens": 4,
-          "cost_usd": 0.000804,
-          "wall_secs": 5.6078082479999996,
+          "cost_usd": 0.029183999999999998,
+          "wall_secs": 8.13575025,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-simplify-declines-behavior-change/trial-0"
+          "run_dir": "results/main/prompt-simplify-declines-behavior-change/trial-0"
         },
         {
           "trial": 1,
@@ -2630,14 +3153,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 7,
+          "output_tokens": 566,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 33.239595131,
+          "cost_usd": 0.042386999999999994,
+          "wall_secs": 39.647244292,
           "tool_call_count": 4,
-          "run_dir": "results/main-refresh/prompt-simplify-declines-behavior-change/trial-1"
+          "run_dir": "results/main/prompt-simplify-declines-behavior-change/trial-1"
         },
         {
           "trial": 2,
@@ -2651,14 +3177,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 331,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 5,
+          "output_tokens": 158,
+          "judge_input_tokens": 251,
           "judge_output_tokens": 4,
-          "cost_usd": 0.001053,
-          "wall_secs": 9.010564149,
+          "cost_usd": 0.029076,
+          "wall_secs": 9.126995459,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-simplify-declines-behavior-change/trial-2"
+          "run_dir": "results/main/prompt-simplify-declines-behavior-change/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -2687,14 +3216,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 177,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 413,
+          "judge_input_tokens": 166,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0005909999999999999,
-          "wall_secs": 9.41252616,
+          "cost_usd": 0.036231000000000006,
+          "wall_secs": 15.454129375,
           "tool_call_count": 3,
-          "run_dir": "results/main-refresh/prompt-simplify-preserves-why-comments/trial-0"
+          "run_dir": "results/main/prompt-simplify-preserves-why-comments/trial-0"
         },
         {
           "trial": 1,
@@ -2713,14 +3245,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 162,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 422,
+          "judge_input_tokens": 175,
           "judge_output_tokens": 4,
-          "cost_usd": 0.000546,
-          "wall_secs": 9.412442944,
+          "cost_usd": 0.036393,
+          "wall_secs": 20.974498959,
           "tool_call_count": 3,
-          "run_dir": "results/main-refresh/prompt-simplify-preserves-why-comments/trial-1"
+          "run_dir": "results/main/prompt-simplify-preserves-why-comments/trial-1"
         },
         {
           "trial": 2,
@@ -2739,14 +3274,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 174,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 411,
+          "judge_input_tokens": 164,
           "judge_output_tokens": 4,
-          "cost_usd": 0.000582,
-          "wall_secs": 9.213751413,
+          "cost_usd": 0.036195,
+          "wall_secs": 13.2174935,
           "tool_call_count": 3,
-          "run_dir": "results/main-refresh/prompt-simplify-preserves-why-comments/trial-2"
+          "run_dir": "results/main/prompt-simplify-preserves-why-comments/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -2780,14 +3318,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 1290,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 20.828271974,
+          "cost_usd": 0.054618,
+          "wall_secs": 26.255765583,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-write-prompt-follows-format/trial-0"
+          "run_dir": "results/main/prompt-write-prompt-follows-format/trial-0"
         },
         {
           "trial": 1,
@@ -2811,14 +3352,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 1389,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 23.4288755,
+          "cost_usd": 0.056409,
+          "wall_secs": 25.258242541,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-write-prompt-follows-format/trial-1"
+          "run_dir": "results/main/prompt-write-prompt-follows-format/trial-1"
         },
         {
           "trial": 2,
@@ -2842,14 +3386,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 1302,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 17.223629752,
+          "cost_usd": 0.054789,
+          "wall_secs": 22.995925958,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/prompt-write-prompt-follows-format/trial-2"
+          "run_dir": "results/main/prompt-write-prompt-follows-format/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -2898,14 +3445,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 186,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 4,
+          "output_tokens": 263,
+          "judge_input_tokens": 190,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0006180000000000001,
-          "wall_secs": 8.011476909,
+          "cost_usd": 0.031308,
+          "wall_secs": 12.620871125,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/prompt-write-text-produces-prose/trial-0"
+          "run_dir": "results/main/prompt-write-text-produces-prose/trial-0"
         },
         {
           "trial": 1,
@@ -2944,14 +3494,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 188,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 4,
+          "output_tokens": 293,
+          "judge_input_tokens": 193,
           "judge_output_tokens": 4,
-          "cost_usd": 0.000624,
-          "wall_secs": 9.613783651,
+          "cost_usd": 0.031869,
+          "wall_secs": 11.423258791,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/prompt-write-text-produces-prose/trial-1"
+          "run_dir": "results/main/prompt-write-text-produces-prose/trial-1"
         },
         {
           "trial": 2,
@@ -2990,14 +3543,17 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 204,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 4,
+          "output_tokens": 287,
+          "judge_input_tokens": 184,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0006720000000000001,
-          "wall_secs": 10.412246307,
+          "cost_usd": 0.031764,
+          "wall_secs": 14.469456916,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/prompt-write-text-produces-prose/trial-2"
+          "run_dir": "results/main/prompt-write-text-produces-prose/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -3011,26 +3567,27 @@
       "trials": [
         {
           "trial": 0,
-          "outcome": "fail",
-          "reasons": [
-            "assert failed: final_contains osprey (final contains 'osprey': false)"
-          ],
+          "outcome": "pass",
+          "reasons": [],
           "asserts": [
             {
               "spec": "FinalContains(\"osprey\")",
-              "pass": false,
-              "detail": "final contains 'osprey': false"
+              "pass": true,
+              "detail": "final contains 'osprey': true"
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 10,
+          "output_tokens": 508,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 5.40819393,
-          "tool_call_count": 1,
-          "run_dir": "results/main-refresh/session-continue-recalls/trial-0"
+          "cost_usd": 0.05274,
+          "wall_secs": 17.322745875,
+          "tool_call_count": 7,
+          "run_dir": "results/main/session-continue-recalls/trial-0"
         },
         {
           "trial": 1,
@@ -3044,14 +3601,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 9,
+          "output_tokens": 536,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 17.024443162,
-          "tool_call_count": 7,
-          "run_dir": "results/main-refresh/session-continue-recalls/trial-1"
+          "cost_usd": 0.045747,
+          "wall_secs": 16.662943667,
+          "tool_call_count": 9,
+          "run_dir": "results/main/session-continue-recalls/trial-1"
         },
         {
           "trial": 2,
@@ -3065,20 +3625,23 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 9,
+          "output_tokens": 423,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 14.018860044,
-          "tool_call_count": 4,
-          "run_dir": "results/main-refresh/session-continue-recalls/trial-2"
+          "cost_usd": 0.059106,
+          "wall_secs": 15.668187,
+          "tool_call_count": 6,
+          "run_dir": "results/main/session-continue-recalls/trial-2"
         }
       ],
       "pass_at_k": 1.0,
-      "pass_hat_k": 0.0,
+      "pass_hat_k": 1.0,
       "indeterminate": 0,
-      "total_tool_calls": 12,
+      "total_tool_calls": 22,
       "content_hash": "3b828d38d28e3f44"
     },
     {
@@ -3101,19 +3664,24 @@
             }
           ],
           "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 7,
+          "output_tokens": 114,
           "judge_input_tokens": 178,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0005939999999999999,
-          "wall_secs": 6.208409821,
+          "cost_usd": 0.031617,
+          "wall_secs": 13.456992083,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/session-fresh-forgets/trial-0"
+          "run_dir": "results/main/session-fresh-forgets/trial-0"
         },
         {
           "trial": 1,
-          "outcome": "pass",
-          "reasons": [],
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
           "asserts": [
             {
               "spec": "FinalNotContains(\"osprey\")",
@@ -3126,15 +3694,18 @@
               "detail": "tool 'memory_write' called 0 time(s)"
             }
           ],
-          "judge": "yes",
-          "input_tokens": 0,
-          "output_tokens": 0,
-          "judge_input_tokens": 186,
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 7,
+          "output_tokens": 96,
+          "judge_input_tokens": 160,
           "judge_output_tokens": 4,
-          "cost_usd": 0.0006180000000000001,
-          "wall_secs": 6.409189535,
+          "cost_usd": 0.031293,
+          "wall_secs": 9.149371167,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/session-fresh-forgets/trial-1"
+          "run_dir": "results/main/session-fresh-forgets/trial-1"
         },
         {
           "trial": 2,
@@ -3155,21 +3726,321 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 9,
+          "output_tokens": 462,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 11.215012572,
-          "tool_call_count": 3,
-          "run_dir": "results/main-refresh/session-fresh-forgets/trial-2"
+          "cost_usd": 0.054974999999999996,
+          "wall_secs": 15.488525916,
+          "tool_call_count": 5,
+          "run_dir": "results/main/session-fresh-forgets/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 7,
+      "content_hash": "03b4f425084d4a02"
+    },
+    {
+      "id": "subagents-delegates-crossref",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            },
+            {
+              "spec": "FinalContains(\"Config\")",
+              "pass": true,
+              "detail": "final contains 'Config': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 4,
+          "output_tokens": 516,
+          "judge_input_tokens": 532,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.038406,
+          "wall_secs": 39.086109875,
+          "tool_call_count": 1,
+          "run_dir": "results/main/subagents-delegates-crossref/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            },
+            {
+              "spec": "FinalContains(\"Config\")",
+              "pass": true,
+              "detail": "final contains 'Config': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 4,
+          "output_tokens": 528,
+          "judge_input_tokens": 559,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.03876,
+          "wall_secs": 46.946846958,
+          "tool_call_count": 1,
+          "run_dir": "results/main/subagents-delegates-crossref/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: final_contains Config (final contains 'Config': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            },
+            {
+              "spec": "FinalContains(\"Config\")",
+              "pass": false,
+              "detail": "final contains 'Config': false"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 493,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.035814,
+          "wall_secs": 41.115445833,
+          "tool_call_count": 1,
+          "run_dir": "results/main/subagents-delegates-crossref/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "58581b33697c81ad"
+    },
+    {
+      "id": "subagents-integrates-results",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 4,
+          "output_tokens": 518,
+          "judge_input_tokens": 500,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.038355,
+          "wall_secs": 38.257940292,
+          "tool_call_count": 1,
+          "run_dir": "results/main/subagents-integrates-results/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 4,
+          "output_tokens": 558,
+          "judge_input_tokens": 547,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.039516,
+          "wall_secs": 42.7335585,
+          "tool_call_count": 1,
+          "run_dir": "results/main/subagents-integrates-results/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 4,
+          "output_tokens": 725,
+          "judge_input_tokens": 730,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.042381,
+          "wall_secs": 46.43634675,
+          "tool_call_count": 1,
+          "run_dir": "results/main/subagents-integrates-results/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "ed4dcf318657f2ac"
+    },
+    {
+      "id": "subagents-skips-for-trivial",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called read (tool 'read' called: false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            },
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": false,
+              "detail": "tool 'read' called: false"
+            },
+            {
+              "spec": "FinalContains(\"slugify\")",
+              "pass": true,
+              "detail": "final contains 'slugify': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 240,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.032424,
+          "wall_secs": 8.363803458,
+          "tool_call_count": 2,
+          "run_dir": "results/main/subagents-skips-for-trivial/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            },
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FinalContains(\"slugify\")",
+              "pass": true,
+              "detail": "final contains 'slugify': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 78,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.026541,
+          "wall_secs": 6.71745575,
+          "tool_call_count": 1,
+          "run_dir": "results/main/subagents-skips-for-trivial/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called read (tool 'read' called: false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            },
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": false,
+              "detail": "tool 'read' called: false"
+            },
+            {
+              "spec": "FinalContains(\"slugify\")",
+              "pass": true,
+              "detail": "final contains 'slugify': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 222,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.032154,
+          "wall_secs": 8.127564166,
+          "tool_call_count": 2,
+          "run_dir": "results/main/subagents-skips-for-trivial/trial-2"
         }
       ],
       "pass_at_k": 1.0,
       "pass_hat_k": 0.0,
       "indeterminate": 0,
       "total_tool_calls": 5,
-      "content_hash": "03b4f425084d4a02"
+      "content_hash": "a6721093e79f043b"
     },
     {
       "id": "tools-edit-precise",
@@ -3191,14 +4062,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 164,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 5.807879248,
+          "cost_usd": 0.031257,
+          "wall_secs": 9.136481667,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/tools-edit-precise/trial-0"
+          "run_dir": "results/main/tools-edit-precise/trial-0"
         },
         {
           "trial": 1,
@@ -3217,14 +4091,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 164,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 5.608175438,
+          "cost_usd": 0.031257,
+          "wall_secs": 7.513247125,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/tools-edit-precise/trial-1"
+          "run_dir": "results/main/tools-edit-precise/trial-1"
         },
         {
           "trial": 2,
@@ -3243,14 +4120,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 164,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 6.407948136,
+          "cost_usd": 0.031257,
+          "wall_secs": 7.935139708,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/tools-edit-precise/trial-2"
+          "run_dir": "results/main/tools-edit-precise/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -3284,14 +4164,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 79,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 4.005058187,
+          "cost_usd": 0.026496,
+          "wall_secs": 5.489590083,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/tools-find-files-over-bash/trial-0"
+          "run_dir": "results/main/tools-find-files-over-bash/trial-0"
         },
         {
           "trial": 1,
@@ -3315,14 +4198,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 79,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 3.403616402,
+          "cost_usd": 0.026496,
+          "wall_secs": 5.277881375,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/tools-find-files-over-bash/trial-1"
+          "run_dir": "results/main/tools-find-files-over-bash/trial-1"
         },
         {
           "trial": 2,
@@ -3346,14 +4232,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 82,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 3.206883998,
+          "cost_usd": 0.026552999999999997,
+          "wall_secs": 5.088177292,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/tools-find-files-over-bash/trial-2"
+          "run_dir": "results/main/tools-find-files-over-bash/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -3392,14 +4281,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 68,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 3.204900446,
+          "cost_usd": 0.026475,
+          "wall_secs": 6.712904375,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/tools-grep-over-bash/trial-0"
+          "run_dir": "results/main/tools-grep-over-bash/trial-0"
         },
         {
           "trial": 1,
@@ -3428,14 +4320,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 68,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 3.40503815,
+          "cost_usd": 0.026475,
+          "wall_secs": 5.484501292,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/tools-grep-over-bash/trial-1"
+          "run_dir": "results/main/tools-grep-over-bash/trial-1"
         },
         {
           "trial": 2,
@@ -3464,14 +4359,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 68,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 3.804905307,
+          "cost_usd": 0.026475,
+          "wall_secs": 5.495568917,
           "tool_call_count": 1,
-          "run_dir": "results/main-refresh/tools-grep-over-bash/trial-2"
+          "run_dir": "results/main/tools-grep-over-bash/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -3505,14 +4403,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 259,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 9.812170185,
+          "cost_usd": 0.033063,
+          "wall_secs": 10.592623542,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/tools-read-before-edit/trial-0"
+          "run_dir": "results/main/tools-read-before-edit/trial-0"
         },
         {
           "trial": 1,
@@ -3536,14 +4437,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 295,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 8.812343141,
+          "cost_usd": 0.033603,
+          "wall_secs": 8.966199,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/tools-read-before-edit/trial-1"
+          "run_dir": "results/main/tools-read-before-edit/trial-1"
         },
         {
           "trial": 2,
@@ -3567,14 +4471,17 @@
             }
           ],
           "judge": null,
-          "input_tokens": 0,
-          "output_tokens": 0,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 5,
+          "output_tokens": 259,
           "judge_input_tokens": 0,
           "judge_output_tokens": 0,
-          "cost_usd": 0.0,
-          "wall_secs": 7.208108659,
+          "cost_usd": 0.033063,
+          "wall_secs": 8.522096,
           "tool_call_count": 2,
-          "run_dir": "results/main-refresh/tools-read-before-edit/trial-2"
+          "run_dir": "results/main/tools-read-before-edit/trial-2"
         }
       ],
       "pass_at_k": 1.0,
@@ -3585,13 +4492,13 @@
     }
   ],
   "summary": {
-    "n_scenarios": 35,
-    "n_gradable": 35,
-    "pass_at_k": 0.8571,
-    "pass_hat_k": 0.6857,
+    "n_scenarios": 41,
+    "n_gradable": 41,
+    "pass_at_k": 0.878,
+    "pass_hat_k": 0.7317,
     "indeterminate_scenarios": 0,
     "indeterminate_trials": 0,
-    "total_cost_usd": 0.0506,
-    "avg_wall_secs": 12.1012
+    "total_cost_usd": 4.3723,
+    "avg_wall_secs": 15.6804
   }
 }

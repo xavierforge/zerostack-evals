@@ -1,0 +1,106 @@
+## ADDED Requirements
+
+### Requirement: matrix renders reports without side effects
+The `matrix` subcommand SHALL accept one or more `report.json` paths and render a scenario x target table. It SHALL make no API calls and SHALL write nothing to disk.
+
+#### Scenario: Rendering creates no files
+- **WHEN** `matrix` is given a set of report files
+- **THEN** it prints a table and creates or modifies no files on disk
+
+### Requirement: matrix supports --json and --markdown
+`matrix` SHALL emit its output to stdout: the fixed-width table by default, structured JSON under `--json`, and markdown under `--markdown`. This preserves the invariant that every subcommand takes `--json`.
+
+#### Scenario: JSON output on stdout
+- **WHEN** `matrix ... --json` is invoked
+- **THEN** structured JSON is written to stdout
+
+### Requirement: Cells are the trial pass rate, holes are dashes
+Each cell SHALL be the scenario's `trial_pass_rate` for that column. A scenario a column did not run, or ran but could not grade (no graded trials), SHALL render as `-`, kept distinct from a graded `0.000`.
+
+#### Scenario: All graded trials failed shows a real zero
+- **WHEN** a column graded a scenario and every graded trial failed
+- **THEN** the cell shows `0.000`
+
+#### Scenario: Ungradable shows a dash
+- **WHEN** a column has no graded trial for a scenario, because it did not run it or every trial was indeterminate
+- **THEN** the cell shows `-`
+
+### Requirement: The footer is recomputed over the common scenario set
+The footer (pass@k, pass^k, total cost) SHALL be computed over the scenarios present and gradable in every column, so columns are compared on the same denominator. WHEN the common set is smaller than some column's own set, the table SHALL note which scenarios were excluded from the footer.
+
+#### Scenario: Different scenario sets use the intersection
+- **WHEN** two columns ran different scenario sets
+- **THEN** the footer is computed over their common gradable scenarios and the excluded scenarios are listed
+
+#### Scenario: Identical suites match each report's own summary
+- **WHEN** all columns ran the same suite
+- **THEN** the footer equals each column's own report summary and nothing is excluded
+
+### Requirement: SPREAD marks scenarios where targets genuinely disagree
+A row SHALL be marked SPREAD when `max(row) - min(row)` over its gradable cells exceeds `1 / min(n_graded_trials of those cells)`, a threshold derived from the data rather than a fixed constant. Ungradable (`-`) cells SHALL be excluded from the max, the min, and the threshold. SPREAD is a display heuristic, not a statistical claim, and SHALL be labelled as such.
+
+#### Scenario: A gap beyond one trial's resolution is marked
+- **WHEN** a scenario's pass rates differ across targets by more than one trial's resolution
+- **THEN** the row is marked SPREAD
+
+#### Scenario: A gap within one trial's resolution is not marked
+- **WHEN** the difference across targets is within one trial's resolution
+- **THEN** the row is not marked SPREAD
+
+### Requirement: DRIFT marks columns measured by a changed ruler
+The matrix has no baseline, so DRIFT SHALL mark, never adjudicate. WHEN a scenario's `content_hash` differs across the cells of a row, that row SHALL be marked DRIFT and the differing columns listed. WHEN columns were graded by different rulers (`judge_hash` differs, or a column's judge is unknown), the affected column(s) SHALL be marked DRIFT. DRIFT SHALL be phrased as "may not be comparable, look", not a verdict, and SHALL NOT pick any column as the correct one.
+
+#### Scenario: A scenario redefined between columns is a per-row DRIFT
+- **WHEN** one scenario's `content_hash` is not the same in all columns
+- **THEN** that row is marked DRIFT and the differing columns are listed
+
+#### Scenario: A column judged by a different ruler is a per-column DRIFT
+- **WHEN** a column's `judge_hash` differs from the others, or its judge is unknown
+- **THEN** that column is marked DRIFT
+
+### Requirement: Column identity and the legend
+A column SHALL be labelled in the header by its target stem. The full provider/model, the target path, and the judge tri-state (unknown / nothing-graded / the listed rulers) SHALL appear in the legend rather than the header. A report that carries no target identity SHALL NOT be a column: `matrix` SHALL exit 2 naming it.
+
+#### Scenario: The header is the stem, the legend has the rest
+- **WHEN** a report with target `targets/opus.toml` is a column
+- **THEN** the header shows `opus` and the legend shows its full provider/model, path, and judge tri-state
+
+#### Scenario: A report without a target identity is rejected
+- **WHEN** a report has no target identity
+- **THEN** `matrix` exits 2 naming that report as one it cannot render as a column
+
+### Requirement: Duplicate columns for one target across time are allowed
+Two columns with the same stem (the same target evaluated at different times) SHALL be allowed, so a target can be compared against its own past. Same-stem columns SHALL be disambiguated in the header, for example by tag or timestamp.
+
+#### Scenario: Same target twice is disambiguated, not rejected
+- **WHEN** two reports for the same target from different runs are given as columns
+- **THEN** both render, disambiguated in the header, rather than colliding or erroring
+
+### Requirement: Incomparability is layered
+Partial scenario overlap between columns SHALL surface as `-` cells, not an error. A changed ruler SHALL surface as DRIFT, not an error. Only when two reports share no scenario at all SHALL `matrix` hard-error, naming the report that cannot join the table.
+
+#### Scenario: Partial overlap leaves dashes
+- **WHEN** one column ran a scenario another column did not
+- **THEN** the missing cell is `-` and no error is raised
+
+#### Scenario: Zero overlap is a hard error
+- **WHEN** a report shares no scenario id with the rest of the table
+- **THEN** `matrix` exits 2 naming that report
+
+### Requirement: matrix exit codes
+`matrix` SHALL exit 0 when a table rendered and 2 when it could not render or when any column is fully ungradable. `matrix` SHALL have no exit 1: it is a view, not a gate, so low scores alone never produce a nonzero exit.
+
+#### Scenario: A rendered table exits 0
+- **WHEN** the table renders, whatever the scores
+- **THEN** the command exits 0
+
+#### Scenario: A fully-ungradable column exits 2
+- **WHEN** any column has no gradable scenario at all
+- **THEN** the command exits 2
+
+### Requirement: Two renderers, shared with run
+`matrix` SHALL provide a fixed-width terminal renderer and a markdown renderer (for records, no width limit). The `run` subcommand SHALL reuse the same renderer function for its stderr table.
+
+#### Scenario: Markdown on request, fixed-width by default
+- **WHEN** `matrix` is invoked with `--markdown`
+- **THEN** it emits markdown; without it, it emits the fixed-width table
