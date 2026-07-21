@@ -88,7 +88,7 @@ sections only, and none may overlap another.
 
 ## 11. Regenerate the baseline under the current schema [dispatch: main, parallel: no, reason: spends real API budget and needs the user's go-ahead, so it cannot run unattended]
 
-- [ ] 11.1 Run the ship gate: `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`. Verify: all three exit 0; paste the tail of each
-- [ ] 11.2 Drive the CLI end to end with the mock backend to confirm the N=1 path is unchanged and an N>1 table renders. Verify: paste both invocations and their output
-- [ ] 11.3 With the user's explicit approval to spend, run a full-coverage suite under the current schema to produce a replacement baseline, and retire the legacy schema-2 `baselines/main.json`. Verify: the new baseline's `target` is non-empty and covers every scenario `zseval list` reports; paste both counts
-- [ ] 11.4 Compose the new baseline as one column of a matrix table, as an end-to-end check of cross-time composition. Verify: paste the rendered table showing the baseline column labelled, with any DRIFT marks explained
+- [x] 11.1 Run the ship gate: `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`. Verify: all three exit 0; paste the tail of each
+- [x] 11.2 Drive the CLI end to end with the mock backend to confirm the N=1 path is unchanged and an N>1 table renders. Verify: paste both invocations and their output
+- [x] 11.3 With the user's explicit approval to spend, run a full-coverage suite under the current schema to produce a replacement baseline, and retire the legacy schema-2 `baselines/main.json`. Verify: the new baseline's `target` is non-empty and covers every scenario `zseval list` reports; paste both counts
+- [x] 11.4 Compose the new baseline as one column of a matrix table, as an end-to-end check of cross-time composition. Verify: paste the rendered table showing the baseline column labelled, with any DRIFT marks explained
