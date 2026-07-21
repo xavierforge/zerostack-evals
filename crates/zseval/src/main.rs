@@ -475,6 +475,12 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         print_run_report_summaries(&reports, &targets, multi, &cfg, &mut std::io::stderr())?;
     }
 
+    // Most severe across columns, via each report's own `exit_code`. Note this
+    // scores an *empty* (budget-truncated-to-zero) column 0, not 2: a budget cut
+    // is a recorded fact (`budget_truncated`), not a harness error, so it must
+    // not fail the run. `matrix` deliberately differs (an all-holes column exits
+    // 2 there) — see design.md, "`run` and `matrix` diverge on a zero-scenario
+    // column, deliberately".
     Ok(ExitCode::from(
         reports.iter().map(Report::exit_code).max().unwrap_or(0),
     ))

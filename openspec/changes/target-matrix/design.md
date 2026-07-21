@@ -128,6 +128,21 @@ smaller suite in full (a shorter committed baseline reached completely), and mar
 latter incomplete would be a false alarm. A column's missing scenarios render as `-`
 holes regardless; the incomplete `*` is reserved for a real truncation.
 
+**`run` and `matrix` diverge on a zero-scenario column, deliberately.** Both
+honour "a fully ungradable column exits 2", but they realise it differently and
+the difference is intended, not an oversight to reconcile later. `run`'s
+aggregate is `max` over each report's `Report::exit_code`, which scores an
+*empty* (zero-scenario) report `0`: a budget cut that shuts a target out before
+its first scenario is already a recorded fact (`budget_truncated`, marked in the
+table), not a harness error, so it must not turn the whole invocation's exit code
+red. `matrix` instead reads its exit code off the rendered table and treats an
+all-holes column as ungradable (`2`), because at render time an empty column is
+indistinguishable from a genuinely ungradable one, and a viewer asking "can these
+compare?" should hear "no". So `run --target a --target b` with `b` budget-starved
+can exit `0` while `matrix` over those same two reports exits `2`. This is not
+collapsed to one rule on purpose: `run` answers "did the suite pass", `matrix`
+answers "is this table trustworthy", and those are different questions.
+
 **mock records `"mock"`.** With `--target` mandatory for zs and rejected for mock,
 `describe(None)` / `"provider-default"` is unreachable and is deleted. A mock run's
 model is `"mock"`, set on the mock path rather than derived from an absent target.
@@ -178,6 +193,9 @@ that records it.
   sequentially; `--jobs` stays trial-level"
 - A mock run records `"mock"`; `"provider-default"` is deleted as unreachable ->
   Decisions, "mock records `\"mock\"`"
+- `run` and `matrix` intentionally differ on a zero-scenario column (`run` scores
+  it 0, `matrix` scores it 2), and this is left un-reconciled on purpose ->
+  Decisions, "`run` and `matrix` diverge on a zero-scenario column, deliberately"
 - No legacy-schema roadblock: never gate on `schema_version`, freeze it at 1, and
   regenerate baselines rather than migrate them -> Decisions, "`Report.target` is
   new; normalise via the existing `record_path`"; Migration Plan
