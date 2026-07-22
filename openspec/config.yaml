@@ -1,6 +1,6 @@
 # Instantiated from: skills/openspec-rules/config.template.yaml
-# Template sha256: 373feb5975ffb3e3f80f5974bb7e22b76fb97a35dafa624bc928b853694dcbc3
-# Instantiated: 2026-07-18
+# Template sha256: dcec3a8c913ffe96197f1f82a24a575cd8a65c77f5b2f885dc84775c42b04c3c
+# Instantiated: 2026-07-22
 schema: spec-driven
 
 # Project context (optional)
@@ -33,11 +33,11 @@ rules:
       - [ ] Every section is a vertical slice: it contains its own failing tests AND the implementation that turns them green. Horizontal layers ("all tests", "all types", "all plumbing") are forbidden as sections.
       - [ ] One section = one TDD cycle = one working session = exactly one commit. A section a reviewer cannot describe in a single Conventional Commit subject line without "and" is too big and MUST be split.
       - [ ] Sections are independently verifiable and ordered so each depends only on earlier sections.
-      - [ ] Each section header carries an inline dispatch annotation in this exact format: `[dispatch: mech-executor|executor|main, parallel: yes|no, reason: <one-line grading rationale>]`. Grade the dispatch by the section's spec completeness, not by its size:
-        - If the section's spec is complete (explicit file paths, verification steps, and expected tests all present) and carries no design judgment, mark `mech-executor`.
-        - Only mark `executor` when the section carries design judgment (interface trade-offs, error-handling strategy, ambiguous requirements).
-        - Use `main` for work needing conversation context.
-        Every annotation ends with a one-line `reason:` grading rationale beside the dispatch tag, e.g. `[dispatch: mech-executor, parallel: no, reason: tests-only backfill, spec carries paths and assertions]`. (A later /section tool parses this line, so keep the format exact.)
+      - [ ] Each section header carries an inline dispatch annotation in this exact format: `[dispatch: too-te|sai-hu|main, parallel: yes|no, reason: <one-line grading rationale>]`. Grade the dispatch by the section's spec completeness, not by its size, and write the reason for a reader who does not know the agent roster, since the names alone carry no meaning:
+        - `too-te` marks a section whose spec is already complete and carries no design judgment: it can be typed straight from the spec (a template-shaped change, tests or docs added by an established convention, anything where the spec already states file paths, verification steps, and expected tests).
+        - `sai-hu` marks a section that carries real design judgment: the spec leaves a choice open (an implementation approach, a naming or structural decision, an error-handling shape) that must be settled, not just transcribed.
+        - `main` marks a section that must stay in the main session: it needs live interaction with the user, or a judgment call that integrates across sections rather than resolving inside this one.
+        Every annotation ends with a one-line `reason:` grading rationale beside the dispatch tag, e.g. `[dispatch: too-te, parallel: no, reason: tests-only backfill, spec carries paths and assertions]`. (A later /section tool parses this line, so keep the format exact.)
       - [ ] Target 3-7 tasks per section.
     - |
       **Plan lint (mandatory final step, before presenting the change to the user)**
@@ -46,7 +46,7 @@ rules:
       - [ ] (b) `proposal.md` states non-goals.
       - [ ] (c) Every section satisfies the tasks.md contract above (vertical, one-commit-sized, dispatch-annotated).
       - [ ] (d) No section exists whose only content is tests, or whose only content is verification.
-      - [ ] (e) Every dispatch annotation carries a `reason:` grading rationale; an `executor` annotation with no reason line is a lint failure.
+      - [ ] (e) Every dispatch annotation carries a `reason:` grading rationale; a `sai-hu` annotation with no reason line is a lint failure.
 
       If any check fails, fix `tasks.md` and re-lint. Present nothing to the user until all checks pass.
     # Background (2026-07-17): opsx:verify reported 0 CRITICAL and let a diff through; a later spec-comparison review caught task 4.4 whose verification was only half-done. This entry demands execution evidence, not checkmarks, so that gap closes at tasks-authoring time.
