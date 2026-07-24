@@ -2809,3 +2809,163 @@ fn matrix_over_a_zero_scenario_report_exits_2() {
         "a zero-scenario column is ungradable"
     );
 }
+
+/// A prompt pack directory for the `--prompts` CLI tests: one `code.md`, plus
+/// whatever extra entries a case needs to make illegal.
+fn prompt_pack_dir(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "zseval-test-prompt-pack-{name}-{}",
+        std::process::id()
+    ));
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("code.md"), "# code\nemit MARKER on line one.\n").unwrap();
+    dir
+}
+
+/// prompts-pack 1.4 (spec `prompts-pack-run`, "run accepts a single prompt
+/// pack"): `--prompts` is single-arity, the opposite of `--target`. A run
+/// evaluates exactly one pack; two packs is two runs joined by `matrix`. The
+/// gate fires before anything reads the directories, so the paths given here
+/// need not exist.
+#[test]
+fn run_with_two_prompts_flags_exits_2_naming_the_single_arity_rule() {
+    let dir = no_rubric_scenario_dir("two-prompts");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--prompts",
+            "packs/a",
+            "--prompts",
+            "packs/b",
+        ])
+        .env_remove("ZS_BIN")
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("--prompts"), "stderr: {stderr}");
+    assert!(stderr.contains("at most once"), "stderr: {stderr}");
+    assert!(stderr.contains("matrix"), "stderr: {stderr}");
+}
+
+/// prompts-pack 1.4 (spec `prompts-pack-run`, "--prompts is rejected under
+/// the mock backend"): mock replays canned artifacts and never constructs a
+/// zerostack invocation, so a pack could not possibly be read — accepting the
+/// flag would produce a report advertising a pack nothing loaded. Mirrors the
+/// existing `--target` rejection under mock.
+#[test]
+fn run_with_mock_backend_and_prompts_exits_2() {
+    let dir = no_rubric_scenario_dir("mock-with-prompts");
+    let pack = prompt_pack_dir("mock");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--backend",
+            &format!("mock={}", fixture("session-ask-readonly.json").display()),
+            "--prompts",
+            pack.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::remove_dir_all(&pack).ok();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("--prompts"), "stderr: {stderr}");
+    assert!(stderr.contains("mock"), "stderr: {stderr}");
+}
+
+/// prompts-pack 1.4 (spec `prompts-pack-run`, "a pack contains only files
+/// zerostack will read"): a malformed pack is a usage error before any trial
+/// spends money. No `--zs-bin`/`ZS_BIN` is given, so if the pack were
+/// validated after backend setup this would fail for the wrong reason — the
+/// message assertion is what tells the two apart.
+#[test]
+fn run_with_a_pack_containing_a_subdirectory_exits_2_before_any_trial() {
+    let dir = no_rubric_scenario_dir("pack-subdir");
+    let pack = prompt_pack_dir("subdir");
+    std::fs::create_dir_all(pack.join("nested")).unwrap();
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--target",
+            "targets/anthropic.toml",
+            "--prompts",
+            pack.to_str().unwrap(),
+        ])
+        .env_remove("ZS_BIN")
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::remove_dir_all(&pack).ok();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("nested"), "stderr: {stderr}");
+    assert!(stderr.contains("top-level *.md"), "stderr: {stderr}");
+    assert!(
+        !stderr.contains("--zs-bin"),
+        "the pack must be validated before backend setup; stderr: {stderr}"
+    );
+}
+
+/// prompts-pack 1.5, the control for the three rejections above: a *valid*
+/// pack passes validation and the run reaches the next check (no
+/// `--zs-bin`/`ZS_BIN`), so the exit-2s above are the pack gates firing
+/// rather than `--prompts` being rejected out of hand.
+#[test]
+fn run_with_a_valid_pack_passes_validation_and_reaches_the_next_check() {
+    let dir = no_rubric_scenario_dir("valid-pack");
+    let pack = prompt_pack_dir("valid");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--target",
+            "targets/anthropic.toml",
+            "--prompts",
+            pack.to_str().unwrap(),
+        ])
+        .env_remove("ZS_BIN")
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::remove_dir_all(&pack).ok();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("prompt pack"),
+        "a valid pack must not be rejected; stderr: {stderr}"
+    );
+    assert!(stderr.contains("--zs-bin"), "stderr: {stderr}");
+}
+
+/// prompts-pack 1.5, the second control: the same suite with no `--prompts`
+/// at all still runs to completion and exits 0, so "exit 2" above means the
+/// flag's own gates and not a suite that could never have passed.
+#[test]
+fn run_without_prompts_still_exits_0() {
+    let dir = no_rubric_scenario_dir("no-prompts-control");
+    let results = std::env::temp_dir().join(format!(
+        "zseval-test-no-prompts-control-results-{}",
+        std::process::id()
+    ));
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--backend",
+            &format!("mock={}", fixture("session-ask-readonly.json").display()),
+            "--results",
+            results.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    std::fs::remove_dir_all(&results).ok();
+    assert_eq!(out.status.code(), Some(0), "stderr: {stderr}");
+}
