@@ -33,6 +33,31 @@ pub enum Final {
     Indeterminate,
 }
 
+/// Which layer supplied a scenario's `prompt_name` — see
+/// `ScenarioResult::prompt_source` for the resolution order (implemented in
+/// section 6; this section only carries the type and its defaults).
+///
+/// `Unknown` is the `#[derive(Default)]` variant: it is what a report
+/// predating this field reads as, and what the run path writes for now,
+/// before section 6 fills in a real resolution. It is deliberately distinct
+/// from `Stock` — an unobserved prompt is not the same fact as a run that
+/// observably used zerostack's built-in prompts.
+///
+/// A value on the wire that is not one of these four names is a
+/// deserialization error, not a silent `Unknown`: `#[serde(default)]` on the
+/// *field* (see `ScenarioResult::prompt_source`) covers a *missing* field,
+/// never a garbled one, so an unrecognized value fails loudly rather than
+/// being misread as "we don't know".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum PromptSource {
+    #[default]
+    Unknown,
+    Stock,
+    Pack,
+    Scenario,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrialResult {
     pub trial: usize,
@@ -115,6 +140,24 @@ pub struct ScenarioResult {
     /// the check" rather than a false-positive warning on every scenario.
     #[serde(default)]
     pub content_hash: String,
+    /// The prompt name this scenario actually loaded — `""` when unresolved.
+    /// Scenario-level rather than trial-level: constant across a scenario's
+    /// trials (unlike `TrialResult::judge_file`, which varies because
+    /// `regrade --judge` can re-score one trial with a different ruler), so it
+    /// sits beside `content_hash` instead. `#[serde(default)]` so a
+    /// `ScenarioResult` predating this field deserializes as `""` rather than
+    /// failing to parse. Populated by the resolution added in a later section;
+    /// the run path writes `""` for now.
+    #[serde(default)]
+    pub prompt_name: String,
+    /// Which layer supplied `prompt_name` — see `PromptSource`.
+    /// `#[serde(default)]` so a `ScenarioResult` predating this field
+    /// deserializes as `Unknown`, never `Stock`: an older report's prompt was
+    /// never observed, which is not the same fact as a run that observably
+    /// used the built-in prompts. Populated by the resolution added in a
+    /// later section; the run path writes `Unknown` for now.
+    #[serde(default)]
+    pub prompt_source: PromptSource,
 }
 
 impl ScenarioResult {
@@ -142,6 +185,8 @@ impl ScenarioResult {
             indeterminate,
             total_tool_calls,
             content_hash,
+            prompt_name: String::new(),
+            prompt_source: PromptSource::default(),
             trials,
         }
     }
@@ -855,6 +900,84 @@ mod prompts_pack_field_tests {
         assert_eq!(report.prompts_pack, "");
         assert_eq!(report.prompts_hash, "");
         assert!(report.prompts_names.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod prompt_field_tests {
+    use super::*;
+
+    /// prompts-pack 5.1: `PromptSource` round-trips all four spec values
+    /// through serde exactly.
+    #[test]
+    fn prompt_source_round_trips_all_four_values() {
+        let round_trip = |s: PromptSource| {
+            let json = serde_json::to_string(&s).unwrap();
+            serde_json::from_str::<PromptSource>(&json).unwrap()
+        };
+        assert_eq!(round_trip(PromptSource::Pack), PromptSource::Pack);
+        assert_eq!(round_trip(PromptSource::Stock), PromptSource::Stock);
+        assert_eq!(round_trip(PromptSource::Scenario), PromptSource::Scenario);
+        assert_eq!(round_trip(PromptSource::Unknown), PromptSource::Unknown);
+    }
+
+    /// The wire values are exactly the spec's four names, lowercase.
+    #[test]
+    fn prompt_source_serializes_to_the_spec_named_lowercase_strings() {
+        assert_eq!(
+            serde_json::to_string(&PromptSource::Pack).unwrap(),
+            "\"pack\""
+        );
+        assert_eq!(
+            serde_json::to_string(&PromptSource::Stock).unwrap(),
+            "\"stock\""
+        );
+        assert_eq!(
+            serde_json::to_string(&PromptSource::Scenario).unwrap(),
+            "\"scenario\""
+        );
+        assert_eq!(
+            serde_json::to_string(&PromptSource::Unknown).unwrap(),
+            "\"unknown\""
+        );
+    }
+
+    /// prompts-pack 5.1: an unrecognized value must fail to deserialize
+    /// rather than silently reading as `unknown` — `#[serde(default)]` on the
+    /// *field* covers a missing field, not a garbled one, and the spec relies
+    /// on that distinction holding.
+    #[test]
+    fn an_unrecognized_prompt_source_value_is_a_deserialization_error() {
+        let err = serde_json::from_str::<PromptSource>("\"bogus\"");
+        assert!(
+            err.is_err(),
+            "a garbled value must not silently read as unknown"
+        );
+    }
+
+    /// prompts-pack 5.2: a `ScenarioResult` written before these fields
+    /// existed must still deserialize, same `#[serde(default)]` precedent as
+    /// `content_hash`, and its source must read as `unknown` rather than
+    /// `stock`: an older report's prompt was never observed, which is not the
+    /// same fact as a run that observably used the built-in prompts.
+    #[test]
+    fn a_scenario_result_predating_these_fields_deserializes_with_source_unknown() {
+        let old = r#"{
+            "id": "s",
+            "trials": [],
+            "pass_at_k": 0.0,
+            "pass_hat_k": 0.0,
+            "indeterminate": 0
+        }"#;
+        let sc: ScenarioResult = serde_json::from_str(old).unwrap();
+        assert_eq!(sc.prompt_name, "");
+        assert_eq!(sc.prompt_source, PromptSource::Unknown);
+        assert_ne!(
+            sc.prompt_source,
+            PromptSource::Stock,
+            "an older report's prompt was never observed, distinct from a run \
+             that observably used the built-in prompts"
+        );
     }
 }
 
