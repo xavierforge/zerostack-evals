@@ -3337,3 +3337,138 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
         std::fs::remove_dir_all(d).ok();
     }
 }
+
+// ---------------------------------------------------------------------------
+// prompts-pack 7: warn when a seeded pack was never loaded
+// ---------------------------------------------------------------------------
+
+/// A minimal target config for the section 7 CLI runs: an absolute path so it
+/// resolves regardless of the test binary's own working directory (unlike
+/// `targets/anthropic.toml`, which the section 1 gate tests reference only
+/// because they exit before it is ever read).
+fn scratch_target_toml(name: &str) -> PathBuf {
+    let dir = scratch_dir(&format!("s7-target-{name}"));
+    let path = dir.join("target.toml");
+    std::fs::write(&path, "provider = \"anthropic\"\nmodel = \"claude-sonnet-4-6\"\n").unwrap();
+    path
+}
+
+/// prompts-pack 7.1 (spec `prompts-pack-identity`, "A pack that never loads
+/// is reported"): a pack whose only name (`my-code`) no scenario resolves to
+/// leaves every scenario at `stock`/`scenario`/`unknown`, never `pack` — the
+/// run must warn on its own output rather than let the report advertise a
+/// pack the built-in prompts actually answered for. Driven through the real
+/// CLI (not `run_suite` in-process) so the warning can be read off the
+/// child's own captured stderr, the same way every other CLI-level assertion
+/// in this file works.
+#[test]
+fn a_pack_no_scenario_calls_warns_it_was_never_loaded() {
+    let dir = scratch_dir("s7-never-loaded-sc");
+    std::fs::write(
+        dir.join("scenario.toml"),
+        "id = \"declares-ask\"\nprompt = \"ask\"\ntask = \"say hi\"\n\
+         expect = [\"tool_not_called write\"]\n",
+    )
+    .unwrap();
+
+    let pack = scratch_dir("s7-never-loaded-pack");
+    std::fs::write(pack.join("my-code.md"), "pack body\n").unwrap();
+
+    let target = scratch_target_toml("never-loaded");
+
+    let stub = scratch_dir("s7-never-loaded-stub").join("fake-zs");
+    let listing_log = scratch_dir("s7-never-loaded-log").join("listing.log");
+    write_stub_zs_bin(&stub, &listing_log);
+
+    let results = scratch_dir("s7-never-loaded-results");
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--target",
+            target.to_str().unwrap(),
+            "--zs-bin",
+            stub.to_str().unwrap(),
+            "--prompts",
+            pack.to_str().unwrap(),
+            "--tag",
+            "s7-never-loaded",
+            "--results",
+            results.to_str().unwrap(),
+        ])
+        .env_remove("ZS_BIN")
+        .output()
+        .unwrap();
+
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::remove_dir_all(&pack).ok();
+    std::fs::remove_dir_all(&results).ok();
+
+    assert_eq!(out.status.code(), Some(0), "stderr: {stderr}");
+    assert!(stderr.contains("seeded"), "stderr: {stderr}");
+    assert!(stderr.contains("never loaded"), "stderr: {stderr}");
+}
+
+/// prompts-pack 7.2 (spec `prompts-pack-identity`, "A partially-used pack is
+/// visible per scenario"): when some scenarios resolve `pack` and others
+/// don't, the pack *was* loaded, so the never-loaded warning must not fire —
+/// the per-scenario `prompt_source` field is what stays honest about the
+/// partial case.
+#[test]
+fn a_partially_used_pack_emits_no_never_loaded_warning() {
+    let suite = scratch_dir("s7-partial-suite");
+    std::fs::create_dir_all(suite.join("a")).unwrap();
+    std::fs::write(
+        suite.join("a/scenario.toml"),
+        "id = \"declares-code\"\nprompt = \"code\"\ntask = \"say hi\"\n\
+         expect = [\"tool_not_called write\"]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(suite.join("b")).unwrap();
+    std::fs::write(
+        suite.join("b/scenario.toml"),
+        "id = \"declares-ask\"\nprompt = \"ask\"\ntask = \"say hi\"\n\
+         expect = [\"tool_not_called write\"]\n",
+    )
+    .unwrap();
+
+    let pack = scratch_dir("s7-partial-pack");
+    std::fs::write(pack.join("code.md"), "pack body\n").unwrap();
+
+    let target = scratch_target_toml("partial");
+
+    let stub = scratch_dir("s7-partial-stub").join("fake-zs");
+    let listing_log = scratch_dir("s7-partial-log").join("listing.log");
+    write_stub_zs_bin(&stub, &listing_log);
+
+    let results = scratch_dir("s7-partial-results");
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            suite.to_str().unwrap(),
+            "--target",
+            target.to_str().unwrap(),
+            "--zs-bin",
+            stub.to_str().unwrap(),
+            "--prompts",
+            pack.to_str().unwrap(),
+            "--tag",
+            "s7-partial",
+            "--results",
+            results.to_str().unwrap(),
+        ])
+        .env_remove("ZS_BIN")
+        .output()
+        .unwrap();
+
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    std::fs::remove_dir_all(&suite).ok();
+    std::fs::remove_dir_all(&pack).ok();
+    std::fs::remove_dir_all(&results).ok();
+
+    assert_eq!(out.status.code(), Some(0), "stderr: {stderr}");
+    assert!(!stderr.contains("never loaded"), "stderr: {stderr}");
+}

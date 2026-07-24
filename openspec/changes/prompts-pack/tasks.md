@@ -58,10 +58,10 @@ section may run alongside its siblings once its dependencies are met.
 
 ## 7. Warn when a seeded pack was never loaded [dispatch: too-te, depends: 6, parallel: yes, reason: one condition over data section 6 already records, with the message shape stated in the spec]
 
-- [ ] 7.1 Write a failing harness test: a run whose pack provides only names no scenario calls warns that the pack was seeded but never loaded.
-- [ ] 7.2 Write a failing harness test: a run where some scenarios resolve `pack` and others `stock` emits no never-loaded warning.
-- [ ] 7.3 Implement the run-level check and its message. Evidence: tests from 7.1-7.2 green.
-- [ ] 7.4 Verify at the CLI: run the suite with a deliberately mis-named pack against a stub bin. Evidence: the warning text as printed.
+- [x] 7.1 Write a failing harness test: a run whose pack provides only names no scenario calls warns that the pack was seeded but never loaded.
+- [x] 7.2 Write a failing harness test: a run where some scenarios resolve `pack` and others `stock` emits no never-loaded warning.
+- [x] 7.3 Implement the run-level check and its message. Evidence: tests from 7.1-7.2 green.
+- [x] 7.4 Verify at the CLI: run the suite with a deliberately mis-named pack against a stub bin. Evidence: the warning text as printed.
 
 ## 8. Show the pack in compare and note a prompt A/B [dispatch: too-te, depends: 4, parallel: yes, reason: mirrors the existing `target_mismatch` note in shape, placement, and exit-code neutrality; the spec fixes when it fires]
 
