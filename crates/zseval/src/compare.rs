@@ -63,9 +63,12 @@ pub struct Comparison {
     pub base_prompts_hash: String,
     pub cand_prompts_pack: String,
     pub cand_prompts_hash: String,
-    /// Whether baseline and candidate recorded different pack identities
-    /// (path plus hash) — includes one side having a pack and the other
-    /// none. `compare`'s premise is a rebuilt zerostack with nothing else
+    /// Whether baseline and candidate recorded different pack fingerprints —
+    /// the hash alone, never the pack path (`PromptPack::fingerprint`
+    /// deliberately excludes the directory, so a moved-but-identical pack is
+    /// one identity). Includes one side having a pack and the other none, an
+    /// empty hash differing from any real one. `compare`'s premise is a
+    /// rebuilt zerostack with nothing else
     /// moved, but no report yet records a build identity, so a pack
     /// difference is conservatively treated as a second moved variable (see
     /// design.md, "compare treats the build as always moved, for now").
@@ -175,7 +178,11 @@ pub fn compare(base: &Report, cand: &Report, threshold: f64) -> Comparison {
         base_prompts_hash: base.prompts_hash.clone(),
         cand_prompts_pack: cand.prompts_pack.clone(),
         cand_prompts_hash: cand.prompts_hash.clone(),
-        pack_mismatch: (&base.prompts_pack, &base.prompts_hash) != (&cand.prompts_pack, &cand.prompts_hash),
+        // Identity is the fingerprint hash alone, never the pack path:
+        // `PromptPack::fingerprint` deliberately excludes the directory, so a
+        // byte-identical pack that merely moved between runs stays one identity
+        // and is not flagged as a different pack.
+        pack_mismatch: base.prompts_hash != cand.prompts_hash,
         summary_base_pass_hat_k: base.summary.pass_hat_k,
         summary_cand_pass_hat_k: cand.summary.pass_hat_k,
         summary_base_cost: base.summary.total_cost_usd,
@@ -405,6 +412,16 @@ mod pack_identity_tests {
         let none_a = report_with_pack("", "");
         let none_b = report_with_pack("", "");
         assert!(!compare(&none_a, &none_b, 0.05).pack_mismatch);
+    }
+
+    // Identity is the fingerprint hash, never the path: a byte-identical pack
+    // that merely moved between runs (same hash, different path) is one pack,
+    // not a different one, so a legitimate regression comparison is not flagged.
+    #[test]
+    fn pack_mismatch_false_when_same_hash_moved_path() {
+        let base = report_with_pack("my-pack", "aaaaaaaaaaaaaaaa");
+        let cand = report_with_pack("packs/my-pack", "aaaaaaaaaaaaaaaa");
+        assert!(!compare(&base, &cand, 0.05).pack_mismatch);
     }
 
     // 8.3 — the note must never move the exit code: a pack difference with

@@ -399,21 +399,20 @@ fn judge_drift_flags(reports: &[&Report]) -> Vec<bool> {
 }
 
 /// Per-column `multi_variable` mark: this column's target AND pack identity
-/// (path + hash) both differ from some *other* column's — see
-/// `Column::multi_variable`. Unlike `judge_drift_flags`, there is no
-/// unknown-vs-known special case: every column's target is always known, and
-/// an empty pack (`("", "")`, i.e. no pack) is itself a valid, comparable
-/// identity rather than an absence to skip.
+/// both differ from some *other* column's — see `Column::multi_variable`. Pack
+/// identity is the fingerprint hash alone, never the pack path (which
+/// `PromptPack::fingerprint` deliberately excludes), so a byte-identical pack
+/// supplied from two different paths does not count as a second moved variable.
+/// Unlike `judge_drift_flags`, there is no unknown-vs-known special case: every
+/// column's target is always known, and an empty pack (`""` hash, i.e. no pack)
+/// is itself a valid, comparable identity rather than an absence to skip.
 fn multi_variable_flags(reports: &[&Report]) -> Vec<bool> {
     reports
         .iter()
         .enumerate()
         .map(|(i, r)| {
             reports.iter().enumerate().any(|(j, other)| {
-                j != i
-                    && r.target != other.target
-                    && (r.prompts_pack.as_str(), r.prompts_hash.as_str())
-                        != (other.prompts_pack.as_str(), other.prompts_hash.as_str())
+                j != i && r.target != other.target && r.prompts_hash != other.prompts_hash
             })
         })
         .collect()
@@ -638,7 +637,11 @@ pub fn render_markdown(m: &Matrix) -> String {
             crate::compare::pack_identity(&col.prompts_pack, &col.prompts_hash),
             if col.incomplete { ", incomplete" } else { "" },
             if col.judge_drift { ", judge-drift" } else { "" },
-            if col.multi_variable { ", MULTI-VAR" } else { "" },
+            if col.multi_variable {
+                ", MULTI-VAR"
+            } else {
+                ""
+            },
         ));
     }
     out.push_str(
@@ -1337,7 +1340,12 @@ mod tests {
     #[test]
     fn different_target_and_pack_is_marked_and_distinct_from_drift() {
         let a = report_with_pack("targets/opus.toml", "run-a", "packs/a", "aaaaaaaaaaaaaaaa");
-        let b = report_with_pack("targets/sonnet.toml", "run-b", "packs/b", "bbbbbbbbbbbbbbbb");
+        let b = report_with_pack(
+            "targets/sonnet.toml",
+            "run-b",
+            "packs/b",
+            "bbbbbbbbbbbbbbbb",
+        );
         let m = build(&[&a, &b]);
         assert!(m.columns[0].multi_variable);
         assert!(m.columns[1].multi_variable);
@@ -1352,10 +1360,35 @@ mod tests {
     // are not marked: only one subject variable moved.
     #[test]
     fn different_target_shared_pack_is_not_marked() {
-        let a =
-            report_with_pack("targets/opus.toml", "run-a", "packs/shared", "aaaaaaaaaaaaaaaa");
-        let b =
-            report_with_pack("targets/sonnet.toml", "run-b", "packs/shared", "aaaaaaaaaaaaaaaa");
+        let a = report_with_pack(
+            "targets/opus.toml",
+            "run-a",
+            "packs/shared",
+            "aaaaaaaaaaaaaaaa",
+        );
+        let b = report_with_pack(
+            "targets/sonnet.toml",
+            "run-b",
+            "packs/shared",
+            "aaaaaaaaaaaaaaaa",
+        );
+        let m = build(&[&a, &b]);
+        assert!(!m.columns[0].multi_variable);
+        assert!(!m.columns[1].multi_variable);
+    }
+
+    // 9.4b — identity is the fingerprint hash, never the path: a byte-identical
+    // pack supplied from two different paths is one pack, so a target-only
+    // difference stays a clean single-variable comparison, not MULTI-VAR.
+    #[test]
+    fn different_target_same_hash_moved_path_is_not_marked() {
+        let a = report_with_pack("targets/opus.toml", "run-a", "my-pack", "aaaaaaaaaaaaaaaa");
+        let b = report_with_pack(
+            "targets/sonnet.toml",
+            "run-b",
+            "packs/my-pack",
+            "aaaaaaaaaaaaaaaa",
+        );
         let m = build(&[&a, &b]);
         assert!(!m.columns[0].multi_variable);
         assert!(!m.columns[1].multi_variable);
@@ -1369,7 +1402,10 @@ mod tests {
         let m = build(&[&a]);
         let legend = render_legend_fixed_width(&m);
         assert!(legend.contains("MULTI-VAR"), "legend: {legend}");
-        assert!(legend.to_lowercase().contains("heuristic"), "legend: {legend}");
+        assert!(
+            legend.to_lowercase().contains("heuristic"),
+            "legend: {legend}"
+        );
     }
 
     // 9.5 — the markdown renderer carries the same pack identity and mark as
@@ -1377,7 +1413,12 @@ mod tests {
     #[test]
     fn markdown_legend_carries_pack_identity_and_multi_variable_mark() {
         let a = report_with_pack("targets/opus.toml", "run-a", "packs/a", "aaaaaaaaaaaaaaaa");
-        let b = report_with_pack("targets/sonnet.toml", "run-b", "packs/b", "bbbbbbbbbbbbbbbb");
+        let b = report_with_pack(
+            "targets/sonnet.toml",
+            "run-b",
+            "packs/b",
+            "bbbbbbbbbbbbbbbb",
+        );
         let m = build(&[&a, &b]);
         let md = render_markdown(&m);
         assert!(md.contains("prompts=packs/a#aaaa"), "markdown: {md}");
