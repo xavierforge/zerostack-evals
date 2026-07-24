@@ -7,9 +7,12 @@ use anyhow::{Context, Result};
 
 use crate::backend::AgentBackend;
 use crate::judge::{Judge, JudgeVerdict};
+use crate::prompts::PromptPack;
 use crate::scenario::Scenario;
 use crate::transcript::Transcript;
-use crate::verdict::{Final, JudgeFileRef, Report, ReportMeta, ScenarioResult, TrialResult};
+use crate::verdict::{
+    Final, JudgeFileRef, PromptSource, Report, ReportMeta, ScenarioResult, TrialResult,
+};
 
 pub struct RunOptions {
     /// The target config.toml seeded into each run (see `backend::ZsCli`) —
@@ -101,6 +104,88 @@ pub fn run_root(
     }
 }
 
+/// zerostack's own hardcoded prompt when a config sets no `default_prompt`: it
+/// loads `code` (verified against zerostack v1.6.1, `src/config/startup.rs`).
+/// Pinned here the same way `LoopCfg` pins the loop invariants it copied from
+/// upstream, so a drift in that default is a one-line fix with a version to
+/// check it against, rather than a value the harness silently mis-records.
+const DEFAULT_PROMPT_FALLBACK: &str = "code";
+
+/// Does this scenario's own file placements target the effective config,
+/// making the harness's seeded copy no longer the last word on it? True when a
+/// declared `[[files]]` lands in the run's config directory (`config:…`) or at
+/// the project-local `work:.zerostack/config.toml` that zerostack merges over
+/// the base config. Domain sugar (`[seed.memory]`, `[seed.mcp]`) is not
+/// counted: memory seeds under `config/agent/memory/` (data, not the config
+/// file) and mcp rewrites the seeded `config.toml` in place without touching
+/// `default_prompt`, so neither moves the derived default out from under us.
+fn seeds_effective_config(sc: &Scenario) -> bool {
+    sc.files.iter().any(|f| match f.dest.split_once(':') {
+        Some(("config", _)) => true,
+        Some(("work", rel)) => rel_components(rel) == [".zerostack", "config.toml"],
+        _ => false,
+    })
+}
+
+/// Split a seed-dest relative path into its components, dropping any `.`
+/// segments, so `.zerostack/config.toml` and `./.zerostack/config.toml`
+/// compare equal.
+fn rel_components(rel: &str) -> Vec<&str> {
+    rel.split('/').filter(|c| !c.is_empty() && *c != ".").collect()
+}
+
+/// Does this scenario seed its own file for prompt `name` into
+/// `work:.zerostack/prompts/<name>.md`, the top layer of zerostack's override
+/// chain? When it does, that file (not the pack's, and not the built-in) is
+/// what loads — the pack was copied before `seed::apply`, so the scenario's
+/// placement lands last.
+fn scenario_seeds_prompt(sc: &Scenario, name: &str) -> bool {
+    let want = [".zerostack", "prompts", &format!("{name}.md")];
+    sc.files.iter().any(|f| match f.dest.split_once(':') {
+        Some(("work", rel)) => rel_components(rel) == want,
+        _ => false,
+    })
+}
+
+/// Resolve which prompt a scenario actually loaded and from which layer, given
+/// the run's pack and the `default_prompt` read off the target config.
+///
+/// The prompt *name* comes first: a scenario's own `prompt` field if set,
+/// otherwise the config's `default_prompt`, otherwise zerostack's `code`
+/// fallback. That derivation is abandoned — recording `unknown` with no name —
+/// when the scenario seeds the effective config out from under the harness's
+/// copy (`seeds_effective_config`), since the value read would be one that
+/// never took effect.
+///
+/// The *source* then answers which layer supplied that name: the scenario's
+/// own seed wins (it lands last), then the pack, then the built-in `stock`.
+fn resolve_prompt(
+    sc: &Scenario,
+    pack: Option<&PromptPack>,
+    config_default_prompt: Option<&str>,
+) -> (String, PromptSource) {
+    let name = match &sc.prompt {
+        Some(p) => p.clone(),
+        None => {
+            if seeds_effective_config(sc) {
+                return (String::new(), PromptSource::Unknown);
+            }
+            config_default_prompt
+                .filter(|s| !s.is_empty())
+                .unwrap_or(DEFAULT_PROMPT_FALLBACK)
+                .to_string()
+        }
+    };
+    let source = if scenario_seeds_prompt(sc, &name) {
+        PromptSource::Scenario
+    } else if pack.is_some_and(|p| p.names().iter().any(|n| *n == name)) {
+        PromptSource::Pack
+    } else {
+        PromptSource::Stock
+    };
+    (name, source)
+}
+
 pub fn run_suite(
     scenarios: &[Scenario],
     backend: &dyn AgentBackend,
@@ -140,6 +225,17 @@ pub fn run_suite(
             .with_context(|| format!("copy run-level target {}", target.display()))?;
     }
 
+    // Resolved once for the whole suite: the pack every trial is seeded with,
+    // and the `default_prompt` off the target config. The latter is read from
+    // `opts.target` (the run-level identity copy), which every trial's seeded
+    // config derives from — mcp's in-place rewrite adds `mcp_servers` but never
+    // `default_prompt`, so this value is still the effective one there.
+    let pack = backend.prompt_pack();
+    let config_default_prompt = opts
+        .target
+        .as_deref()
+        .and_then(crate::target::default_prompt);
+
     let mut budget_truncated = false;
     for sc in scenarios {
         // Check the cost cap once per scenario, so a scenario always runs its
@@ -160,11 +256,16 @@ pub fn run_suite(
         for tr in &trial_results {
             spent += tr.cost_usd;
         }
-        results.push(ScenarioResult::from_trials_with_hash(
+        let mut sr = ScenarioResult::from_trials_with_hash(
             sc.id.clone(),
             sc.content_hash.clone(),
             trial_results,
-        ));
+        );
+        let (prompt_name, prompt_source) =
+            resolve_prompt(sc, pack, config_default_prompt.as_deref());
+        sr.prompt_name = prompt_name;
+        sr.prompt_source = prompt_source;
+        results.push(sr);
     }
 
     // Two different facts, from two different places. The judge file is what
@@ -194,7 +295,7 @@ pub fn run_suite(
     // fields. Normalised through the same `record_path` rule as `target` and
     // `judge_file` so a report copied into `baselines/` names a relative pack,
     // never someone's absolute filesystem path.
-    let (prompts_pack, prompts_hash, prompts_names) = match backend.prompt_pack() {
+    let (prompts_pack, prompts_hash, prompts_names) = match pack {
         Some(pack) => (
             crate::verdict::record_path(pack.dir()),
             pack.fingerprint(),
@@ -643,4 +744,140 @@ fn print_trial_line(id: &str, tr: &TrialResult) {
             format!(" — {}", tr.reasons.join("; "))
         }
     );
+}
+
+#[cfg(test)]
+mod prompt_resolution_tests {
+    use super::*;
+    use crate::scenario::{FileSeed, Mode, Task};
+
+    /// A minimal scenario carrying only the two things resolution reads: its
+    /// `prompt` field and its `[[files]]` dests. Everything else is filler.
+    fn scenario(prompt: Option<&str>, dests: &[&str]) -> Scenario {
+        Scenario {
+            id: "t".into(),
+            prompt: prompt.map(String::from),
+            trials: 1,
+            mode: Mode::Print,
+            loop_cfg: None,
+            task: Task::Single("do it".into()),
+            expect: vec!["final_contains x".into()],
+            judge: None,
+            timeout_secs: 300,
+            max_cost_usd: None,
+            max_total_tokens: None,
+            files: dests
+                .iter()
+                .map(|d| FileSeed {
+                    src: PathBuf::from("_fixtures/x"),
+                    dest: (*d).to_string(),
+                })
+                .collect(),
+            seed: Default::default(),
+            domains: vec![],
+            dir: PathBuf::new(),
+            asserts: vec![],
+            content_hash: String::new(),
+        }
+    }
+
+    /// A validated pack over the given `<name>.md` files, in a fresh temp dir.
+    fn pack(test: &str, names: &[&str]) -> PromptPack {
+        let dir =
+            std::env::temp_dir().join(format!("zseval-resolve-{test}-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).unwrap();
+        for n in names {
+            std::fs::write(dir.join(format!("{n}.md")), format!("{n} body")).unwrap();
+        }
+        PromptPack::load(&dir).unwrap()
+    }
+
+    // 6.1: the four-value resolution order.
+
+    #[test]
+    fn declared_prompt_the_pack_provides_resolves_pack() {
+        let sc = scenario(Some("code"), &[]);
+        let p = pack("pack-provides", &["code", "review"]);
+        assert_eq!(
+            resolve_prompt(&sc, Some(&p), None),
+            ("code".into(), PromptSource::Pack)
+        );
+    }
+
+    #[test]
+    fn declared_prompt_the_pack_lacks_resolves_stock() {
+        let sc = scenario(Some("ask"), &[]);
+        let p = pack("pack-lacks", &["code"]);
+        assert_eq!(
+            resolve_prompt(&sc, Some(&p), None),
+            ("ask".into(), PromptSource::Stock)
+        );
+    }
+
+    #[test]
+    fn a_scenario_seeding_the_same_name_resolves_scenario() {
+        // The pack also provides `code`, but the scenario's own seed lands last
+        // and wins.
+        let sc = scenario(Some("code"), &["work:.zerostack/prompts/code.md"]);
+        let p = pack("scenario-seed", &["code"]);
+        assert_eq!(
+            resolve_prompt(&sc, Some(&p), None),
+            ("code".into(), PromptSource::Scenario)
+        );
+    }
+
+    // 6.2: the default-prompt derivation.
+
+    #[test]
+    fn no_prompt_and_no_config_default_resolves_to_code() {
+        // No pack provides `code`, so the derived name lands as `stock`.
+        let sc = scenario(None, &[]);
+        let p = pack("derive-code", &["review"]);
+        assert_eq!(
+            resolve_prompt(&sc, Some(&p), None),
+            ("code".into(), PromptSource::Stock)
+        );
+    }
+
+    #[test]
+    fn no_prompt_with_a_config_default_resolves_to_that_name() {
+        let sc = scenario(None, &[]);
+        let p = pack("derive-configured", &["code"]);
+        assert_eq!(
+            resolve_prompt(&sc, Some(&p), Some("review")),
+            ("review".into(), PromptSource::Stock)
+        );
+    }
+
+    // 6.3: the config-seeding guard abandons derivation.
+
+    #[test]
+    fn no_prompt_seeding_the_config_directory_resolves_unknown() {
+        let sc = scenario(None, &["config:config.toml"]);
+        assert_eq!(
+            resolve_prompt(&sc, None, Some("review")),
+            (String::new(), PromptSource::Unknown)
+        );
+    }
+
+    #[test]
+    fn no_prompt_seeding_work_zerostack_config_resolves_unknown() {
+        let sc = scenario(None, &["work:.zerostack/config.toml"]);
+        assert_eq!(
+            resolve_prompt(&sc, None, Some("review")),
+            (String::new(), PromptSource::Unknown)
+        );
+    }
+
+    #[test]
+    fn a_declared_prompt_survives_a_config_seed() {
+        // The guard only abandons *derivation*; an explicitly declared prompt
+        // needs no config default, so a config seed does not blind it.
+        let sc = scenario(Some("ask"), &["config:config.toml"]);
+        assert_eq!(
+            resolve_prompt(&sc, None, None),
+            ("ask".into(), PromptSource::Stock)
+        );
+    }
 }
