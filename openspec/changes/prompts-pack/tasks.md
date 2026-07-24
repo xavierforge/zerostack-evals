@@ -19,11 +19,11 @@ section may run alongside its siblings once its dependencies are met.
 
 ## 2. Seed the pack into every trial, behind the scenario's own seeds [dispatch: too-te, depends: 1, parallel: no, reason: spec names the destination, the ordering, and the precedent; design names the exact insertion point in ZsCli::run]
 
-- [ ] 2.1 Write a failing harness test using a stub `--zs-bin` script (per `.claude/skills/verify/SKILL.md`) that records the contents of `.zerostack/prompts/` from its own working directory, asserting every pack file lands there for every trial.
-- [ ] 2.2 Write a failing harness test for precedence: a scenario seeding `work:.zerostack/prompts/<name>.md` while the pack provides the same name leaves the scenario's bytes in place, not the pack's.
-- [ ] 2.3 Write a failing harness test that without `--prompts`, no `.zerostack/prompts/` directory is created by the harness.
-- [ ] 2.4 Implement seeding in `ZsCli::run`, copying the pack's `*.md` into `work/.zerostack/prompts/` before `seed::apply` so scenario placements land last. Evidence: tests from 2.1-2.3 green.
-- [ ] 2.5 Verify by hand with a stub bin: run one scenario with a two-file pack and `cat` the stub's recorded listing. Evidence: pasted listing showing both files under the trial's working directory.
+- [x] 2.1 Write a failing harness test using a stub `--zs-bin` script (per `.claude/skills/verify/SKILL.md`) that records the contents of `.zerostack/prompts/` from its own working directory, asserting every pack file lands there for every trial.
+- [x] 2.2 Write a failing harness test for precedence: a scenario seeding `work:.zerostack/prompts/<name>.md` while the pack provides the same name leaves the scenario's bytes in place, not the pack's.
+- [x] 2.3 Write a failing harness test that without `--prompts`, no `.zerostack/prompts/` directory is created by the harness.
+- [x] 2.4 Implement seeding in `ZsCli::run`, copying the pack's `*.md` into `work/.zerostack/prompts/` before `seed::apply` so scenario placements land last. Evidence: tests from 2.1-2.3 green.
+- [x] 2.5 Verify by hand with a stub bin: run one scenario with a two-file pack and `cat` the stub's recorded listing. Evidence: pasted listing showing both files under the trial's working directory.
 
 ## 3. Name the pack in the auto-generated run tag [dispatch: too-te, depends: 1, parallel: yes, reason: one function, `auto_tag`, with the expected string shape stated in the spec]
 
