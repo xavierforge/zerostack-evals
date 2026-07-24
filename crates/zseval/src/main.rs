@@ -438,7 +438,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         tag: f
             .get("tag")
             .map(String::from)
-            .unwrap_or_else(|| auto_tag(path, f.get("target"), multi)),
+            .unwrap_or_else(|| auto_tag(path, f.get("target"), multi, f.get("prompts"))),
         no_judge,
         results_root: f
             .get("results")
@@ -654,17 +654,20 @@ fn run_over_targets(
     Ok(reports)
 }
 
-/// Build a human-identifiable run tag: which scenarios, against what
+/// Build a human-identifiable run tag: which scenarios, against what pack and
 /// provider+model, and when — e.g.
-/// `prompts_anthropic-claude-sonnet-4-6_20260706-091936`. Semantic tags like
-/// `main` are left to an explicit `--tag`; the auto name is always descriptive.
+/// `prompts_my-pack_anthropic-claude-sonnet-4-6_20260706-091936`. Semantic
+/// tags like `main` are left to an explicit `--tag`; the auto name is always
+/// descriptive.
 ///
 /// `multi` is true when this invocation covers more than one `--target`: the
 /// tag is then shared by every target (the results layout tells them apart
 /// by stem instead — see `RunOptions::multi_target`), so the provider-model
 /// segment is dropped here rather than appearing once in the tag and once
-/// more as the stem.
-fn auto_tag(scenario_path: &str, target: Option<&str>, multi: bool) -> String {
+/// more as the stem. `pack`, by contrast, is held fixed across every target
+/// in a multi-target run, so it stays in the tag even when `multi` is true —
+/// it is what distinguishes one multi-target run from the next.
+fn auto_tag(scenario_path: &str, target: Option<&str>, multi: bool, pack: Option<&str>) -> String {
     let suite = Path::new(scenario_path)
         .file_name()
         .and_then(|s| s.to_str())
@@ -682,12 +685,19 @@ fn auto_tag(scenario_path: &str, target: Option<&str>, multi: bool) -> String {
         .flatten()
         .map(|s| sanitize(&s))
         .collect();
+    let pack_name = pack
+        .and_then(|p| Path::new(p).file_name())
+        .and_then(|s| s.to_str())
+        .map(sanitize);
     let ts = zseval::util::compact_timestamp();
-    if target_group.is_empty() {
-        format!("{}_{ts}", sanitize(suite))
-    } else {
-        format!("{}_{}_{ts}", sanitize(suite), target_group.join("-"))
+
+    let mut segments = vec![sanitize(suite)];
+    segments.extend(pack_name);
+    if !target_group.is_empty() {
+        segments.push(target_group.join("-"));
     }
+    segments.push(ts);
+    segments.join("_")
 }
 
 /// Keep only filesystem-friendly characters for a tag segment.
@@ -1078,11 +1088,100 @@ mod judge_flag_tests {
         .unwrap();
         let target_str = target_path.display().to_string();
 
-        let single = auto_tag("scenarios", Some(&target_str), false);
+        let single = auto_tag("scenarios", Some(&target_str), false, None);
         assert!(single.contains("anthropic"), "{single}");
         assert!(single.contains("claude-opus-4-8"), "{single}");
 
-        let multi = auto_tag("scenarios", Some(&target_str), true);
+        let multi = auto_tag("scenarios", Some(&target_str), true, None);
+        assert!(!multi.contains("anthropic"), "{multi}");
+        assert!(!multi.contains("claude-opus-4-8"), "{multi}");
+        assert!(multi.starts_with("scenarios_"), "{multi}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// prompts-pack 3.1: with a pack and no explicit `--tag`, the auto tag
+    /// carries the pack directory's name alongside the existing suite and
+    /// provider/model segments — two runs differing only by pack must be
+    /// distinguishable by results directory name, not only by timestamp.
+    #[test]
+    fn auto_tag_includes_the_pack_directory_name() {
+        let dir = std::env::temp_dir().join(format!(
+            "zseval-autotag-pack-test-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let target_path = dir.join("opus.toml");
+        std::fs::write(
+            &target_path,
+            "provider = \"anthropic\"\nmodel = \"claude-opus-4-8\"\n",
+        )
+        .unwrap();
+        let target_str = target_path.display().to_string();
+        let pack_dir = dir.join("my-pack");
+        std::fs::create_dir_all(&pack_dir).unwrap();
+        let pack_str = pack_dir.display().to_string();
+
+        let tag = auto_tag("scenarios", Some(&target_str), false, Some(&pack_str));
+        assert!(tag.contains("my-pack"), "{tag}");
+        assert!(tag.contains("anthropic"), "{tag}");
+        assert!(tag.contains("claude-opus-4-8"), "{tag}");
+        assert!(tag.starts_with("scenarios_"), "{tag}");
+
+        let without_pack = auto_tag("scenarios", Some(&target_str), false, None);
+        assert!(!without_pack.contains("my-pack"), "{without_pack}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// An explicit `--tag` is never touched by the pack: it is used exactly
+    /// as passed, whether or not `--prompts` is also given. `auto_tag` is
+    /// only ever consulted when no explicit tag exists (`cmd_run`'s
+    /// `unwrap_or_else`), so this pins that short-circuit directly rather
+    /// than asserting a negative about `auto_tag`'s own output.
+    #[test]
+    fn explicit_tag_is_used_verbatim_even_with_a_pack() {
+        let f = parse_flags(
+            ["--tag", "stock", "--prompts", "my-pack/"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+            &["tag", "prompts"],
+            &[],
+        )
+        .unwrap();
+        let tag = f
+            .get("tag")
+            .map(String::from)
+            .unwrap_or_else(|| auto_tag("scenarios", None, false, f.get("prompts")));
+        assert_eq!(tag, "stock");
+    }
+
+    /// prompts-pack 3.2: `multi` already drops the provider/model segment
+    /// (target-matrix 3.6) since the results layout tells targets apart by
+    /// stem instead. The pack segment must survive that drop: it is held
+    /// fixed across every target in a multi-target run and is exactly what
+    /// distinguishes one multi-target run from the next.
+    #[test]
+    fn auto_tag_keeps_the_pack_segment_when_multi() {
+        let dir = std::env::temp_dir().join(format!(
+            "zseval-autotag-pack-multi-test-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let target_path = dir.join("opus.toml");
+        std::fs::write(
+            &target_path,
+            "provider = \"anthropic\"\nmodel = \"claude-opus-4-8\"\n",
+        )
+        .unwrap();
+        let target_str = target_path.display().to_string();
+        let pack_dir = dir.join("my-pack");
+        std::fs::create_dir_all(&pack_dir).unwrap();
+        let pack_str = pack_dir.display().to_string();
+
+        let multi = auto_tag("scenarios", Some(&target_str), true, Some(&pack_str));
+        assert!(multi.contains("my-pack"), "{multi}");
         assert!(!multi.contains("anthropic"), "{multi}");
         assert!(!multi.contains("claude-opus-4-8"), "{multi}");
         assert!(multi.starts_with("scenarios_"), "{multi}");
