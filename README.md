@@ -262,16 +262,57 @@ feature (in `default` features as of this writing).
 
 The CLI is the whole interface; exit codes are the contract (0 = pass / no
 regression, 1 = fail / regression, 2 = harness error) and every subcommand
-takes `--json`. A typical loop:
+takes `--json`.
 
-    zseval run scenarios/prompts --target targets/anthropic.toml --tag baseline --trials 3 --judge judges/sonnet.toml --json
-    # edit prompts in the zerostack checkout, rebuild
-    zseval run scenarios/prompts --target targets/anthropic.toml --tag attempt-1 --trials 3 --judge judges/sonnet.toml --json
-    zseval compare results/baseline/report.json results/attempt-1/report.json
-    # regression? zseval explain results/attempt-1/<scenario>/trial-0/
+Changing a prompt no longer means editing zerostack's own checkout and
+rebuilding it. `run --prompts <dir>` seeds a directory of your own prompt
+files into every trial's isolated `.zerostack/prompts/` — zerostack's own top
+override layer — with no recompile. Comparing a pack against the built-ins is
+two tagged runs plus `matrix`:
+
+    zseval run examples/prompt-pack/scenario --target targets/anthropic.toml \
+      --tag stock --results results/prompt-pack-example
+    zseval run examples/prompt-pack/scenario --target targets/anthropic.toml \
+      --prompts examples/prompt-pack/pack --tag my-pack \
+      --results results/prompt-pack-example
+    zseval matrix results/prompt-pack-example/stock/report.json \
+      results/prompt-pack-example/my-pack/report.json --markdown
+
+Use short, explicit tags (`--tag stock`, `--tag my-pack`) rather than the
+auto-generated one: `matrix` labels same-target columns by tag, and the auto
+tag (suite, provider/model, pack directory name, and timestamp, all
+concatenated) is wide enough to break the table's fixed-width columns.
+`compare` takes the same two reports too, and now warns when the two sides'
+packs differ instead of quietly mixing a prompt change into a pass-rate diff:
+"comparing different prompt packs ... a prompt A/B, not a regression check."
 
 When a run reports indeterminate scenarios, fix the environment/schema first —
 those are excluded from the pass rates and never counted as regressions.
+
+### What a pack may contain
+
+`--prompts <dir>` reads only the directory's top-level `*.md` files, taking
+each file's stem as the prompt name it overrides — the same rule zerostack
+itself applies. A subdirectory or a non-`.md` entry is a load-time error
+naming it, before any trial spends money, and so is a directory that does not
+exist or holds no `*.md` file. `--prompts` is single-arity (unlike `--target`,
+which is repeatable) and rejected under `--backend mock`, which never
+constructs a zerostack invocation for a pack to be loaded into.
+
+A name your pack does not provide falls through to zerostack's built-in
+prompt of that name, so a one-file pack overrides only that one prompt. A
+pack that ships `code.md` reaches further than the scenarios that declare
+`prompt = "code"`, though: a scenario that declares no prompt at all falls
+back to the target's `default_prompt`, or to `code` when that's unset too, so
+it changes as well. `report.json` records each scenario's `prompt_source`
+(`pack` / `stock` / `scenario` / `unknown`), so which prompt actually applied
+is never a guess.
+
+`examples/prompt-pack/` is a minimal pack plus a scenario that only passes
+when the pack, not the built-in `code` prompt, is what the model loaded —
+copy it as a starting point. Its own README covers running it against a real
+zerostack build, and how to tell "the pack never reached the model" apart
+from "the model didn't obey the marker instruction."
 
 Deciding between N targets instead of gating a migration is a different
 question, so it gets a different command. Give `run` repeated `--target` to

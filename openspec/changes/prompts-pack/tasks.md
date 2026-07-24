@@ -89,11 +89,11 @@ section may run alongside its siblings once its dependencies are met.
 
 ## 11. Document --prompts in the README [dispatch: too-te, depends: 8, 9, 10, parallel: no, reason: one new section replacing existing prose, with the commands and caveats already fixed by the specs and design]
 
-- [ ] 11.1 Replace the README's "Iterating on prompts" advice to edit the zerostack checkout and rebuild with the `--prompts` flow.
-- [ ] 11.2 Document the two-run plus `matrix` shape, with short explicit tags (`--tag stock`, `--tag my-pack`) and a sentence saying why: `matrix` labels same-target columns by tag, and an auto tag is wide enough to break the table.
-- [ ] 11.3 Document what a pack may contain (top-level `*.md` only), that a name not in the pack falls through to the built-in prompt, and that a pack shipping `code.md` also affects scenarios that declare no prompt.
-- [ ] 11.4 Point at `examples/prompt-pack/` as the copy-paste starting point.
-- [ ] 11.5 Verify every command in the new section runs as written against a stub bin. Evidence: each command with its exit code.
+- [x] 11.1 Replace the README's "Iterating on prompts" advice to edit the zerostack checkout and rebuild with the `--prompts` flow.
+- [x] 11.2 Document the two-run plus `matrix` shape, with short explicit tags (`--tag stock`, `--tag my-pack`) and a sentence saying why: `matrix` labels same-target columns by tag, and an auto tag is wide enough to break the table.
+- [x] 11.3 Document what a pack may contain (top-level `*.md` only), that a name not in the pack falls through to the built-in prompt, and that a pack shipping `code.md` also affects scenarios that declare no prompt.
+- [x] 11.4 Point at `examples/prompt-pack/` as the copy-paste starting point.
+- [x] 11.5 Verify every command in the new section runs as written against a stub bin. Evidence: each command with its exit code.
 
 ## 12. Live acceptance: the pack reaches the model [dispatch: main, depends: 10, 11, parallel: no, reason: needs a real ZS_BIN, an API key, and the user's judgment on whether the marker actually landed; it cannot be verified inside an agent without spending the user's money, so it is a human gate rather than a dispatchable section]
 
