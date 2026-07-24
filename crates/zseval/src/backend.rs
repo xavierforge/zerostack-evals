@@ -337,9 +337,8 @@ impl AgentBackend for ZsCli {
             let prompts_dir = work.join(".zerostack").join("prompts");
             std::fs::create_dir_all(&prompts_dir)?;
             for file in pack.files() {
-                std::fs::write(prompts_dir.join(&file.file_name), &file.bytes).with_context(
-                    || format!("seed prompt pack file {}", file.file_name),
-                )?;
+                std::fs::write(prompts_dir.join(&file.file_name), &file.bytes)
+                    .with_context(|| format!("seed prompt pack file {}", file.file_name))?;
             }
         }
 

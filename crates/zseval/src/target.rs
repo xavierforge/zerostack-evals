@@ -130,7 +130,10 @@ mod tests {
         let dir =
             std::env::temp_dir().join(format!("zseval-default-prompt-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let with = write_target(&dir, "provider = \"anthropic\"\ndefault_prompt = \"review\"\n");
+        let with = write_target(
+            &dir,
+            "provider = \"anthropic\"\ndefault_prompt = \"review\"\n",
+        );
         assert_eq!(default_prompt(&with).as_deref(), Some("review"));
         let without = dir.join("bare.toml");
         std::fs::write(&without, "provider = \"anthropic\"\n").unwrap();
