@@ -113,15 +113,18 @@ const DEFAULT_PROMPT_FALLBACK: &str = "code";
 
 /// Does this scenario's own file placements target the effective config,
 /// making the harness's seeded copy no longer the last word on it? True when a
-/// declared `[[files]]` lands in the run's config directory (`config:…`) or at
-/// the project-local `work:.zerostack/config.toml` that zerostack merges over
-/// the base config. Domain sugar (`[seed.memory]`, `[seed.mcp]`) is not
-/// counted: memory seeds under `config/agent/memory/` (data, not the config
-/// file) and mcp rewrites the seeded `config.toml` in place without touching
-/// `default_prompt`, so neither moves the derived default out from under us.
+/// declared `[[files]]` overwrites the config file itself, `config:config.toml`
+/// (the `config:` root that `backend::ZsCli` copies the target onto), or the
+/// project-local `work:.zerostack/config.toml` that zerostack merges over the
+/// base config. Any *other* `config:` seed (a memory file, an agent doc) leaves
+/// `default_prompt` untouched, so it must not blind derivation. Domain sugar
+/// (`[seed.memory]`, `[seed.mcp]`) is likewise not counted: memory seeds under
+/// `config/agent/memory/` (data, not the config file) and mcp rewrites the
+/// seeded `config.toml` in place without touching `default_prompt`, so neither
+/// moves the derived default out from under us.
 fn seeds_effective_config(sc: &Scenario) -> bool {
     sc.files.iter().any(|f| match f.dest.split_once(':') {
-        Some(("config", _)) => true,
+        Some(("config", rel)) => rel_components(rel) == ["config.toml"],
         Some(("work", rel)) => rel_components(rel) == [".zerostack", "config.toml"],
         _ => false,
     })
@@ -131,7 +134,9 @@ fn seeds_effective_config(sc: &Scenario) -> bool {
 /// segments, so `.zerostack/config.toml` and `./.zerostack/config.toml`
 /// compare equal.
 fn rel_components(rel: &str) -> Vec<&str> {
-    rel.split('/').filter(|c| !c.is_empty() && *c != ".").collect()
+    rel.split('/')
+        .filter(|c| !c.is_empty() && *c != ".")
+        .collect()
 }
 
 /// Does this scenario seed its own file for prompt `name` into
@@ -879,6 +884,18 @@ mod prompt_resolution_tests {
         assert_eq!(
             resolve_prompt(&sc, None, Some("review")),
             (String::new(), PromptSource::Unknown)
+        );
+    }
+
+    #[test]
+    fn no_prompt_seeding_a_non_config_file_under_config_still_derives() {
+        // A `config:` seed that is *not* the config.toml (an agent doc, a
+        // memory file) leaves `default_prompt` untouched, so derivation must
+        // proceed rather than blanking the prompt to Unknown.
+        let sc = scenario(None, &["config:agent/instructions.md"]);
+        assert_eq!(
+            resolve_prompt(&sc, None, Some("review")),
+            ("review".into(), PromptSource::Stock)
         );
     }
 
