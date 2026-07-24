@@ -97,5 +97,5 @@ section may run alongside its siblings once its dependencies are met.
 
 ## 12. Live acceptance: the pack reaches the model [dispatch: main, depends: 10, 11, parallel: no, reason: needs a real ZS_BIN, an API key, and the user's judgment on whether the marker actually landed; it cannot be verified inside an agent without spending the user's money, so it is a human gate rather than a dispatchable section]
 
-- [ ] 12.1 Run `examples/prompt-pack/` once with a real `ZS_BIN` and the sonnet judge, per the project's real-run setup. Evidence: the trial's final message showing the marker, plus the scenario's recorded `prompt_source = "pack"`.
-- [ ] 12.2 If the marker is absent, record which of the two causes it was (the pack did not reach the model, or the model disobeyed the formatting instruction) before treating it as a defect. Evidence: the trial's transcript and the seeded `.zerostack/prompts/` listing, which separate the two.
+- [x] 12.1 Run `examples/prompt-pack/` once with a real `ZS_BIN` and the sonnet judge, per the project's real-run setup. Evidence: the trial's final message showing the marker, plus the scenario's recorded `prompt_source = "pack"`.
+- [x] 12.2 If the marker is absent, record which of the two causes it was (the pack did not reach the model, or the model disobeyed the formatting instruction) before treating it as a defect. Evidence: the trial's transcript and the seeded `.zerostack/prompts/` listing, which separate the two.
