@@ -5,8 +5,9 @@
 use std::path::{Path, PathBuf};
 
 use zseval::asserts::Assert;
-use zseval::backend::{Mock, RunRoots};
+use zseval::backend::{AgentBackend, Mock, RunRoots, ZsCli};
 use zseval::judge::{JudgeConfig, JudgeProvider, LlmJudge};
+use zseval::prompts::PromptPack;
 use zseval::runner::{regrade, run_suite, RunOptions};
 use zseval::scenario::{discover, Scenario};
 use zseval::seed;
@@ -2968,4 +2969,144 @@ fn run_without_prompts_still_exits_0() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     std::fs::remove_dir_all(&results).ok();
     assert_eq!(out.status.code(), Some(0), "stderr: {stderr}");
+}
+
+// ---------------------------------------------------------------------------
+// prompts-pack 2: seeding the pack into every trial
+// ---------------------------------------------------------------------------
+
+/// Write an executable stub `--zs-bin` script (`.claude/skills/verify/SKILL.md`)
+/// that, on every invocation, appends a listing of `.zerostack/prompts/` as
+/// seen from its own working directory — the same directory `ZsCli::run`
+/// sets via `cmd.current_dir` — to `listing_log`, then completes the call
+/// with a canned session file so `run_print` doesn't error on a missing one.
+fn write_stub_zs_bin(bin: &Path, listing_log: &Path) {
+    let script = format!(
+        "#!/usr/bin/env bash\nset -euo pipefail\n{{\n  if [ -d .zerostack/prompts ]; then\n    ls .zerostack/prompts | sort | paste -sd, -\n  else\n    echo '(none)'\n  fi\n}} >> \"{log}\"\nmkdir -p \"$ZS_DATA_DIR/sessions\"\ncp \"{fixture}\" \"$ZS_DATA_DIR/sessions/s.json\"\n",
+        log = listing_log.display(),
+        fixture = fixture("session-ask-readonly.json").display(),
+    );
+    std::fs::write(bin, script).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+}
+
+/// A scratch dir for a `ZsCli` test, named after the test so parallel runs
+/// don't collide.
+fn scratch_dir(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("zseval-test-zscli-{name}-{}", std::process::id()));
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+/// prompts-pack 2.1 (spec `prompts-pack-run`, "The pack is seeded into every
+/// trial"): every trial gets its own `ZsCli::run` call with a fresh run_dir
+/// (the trial loop lives in `runner::run_trials_for_scenario`, outside
+/// `ZsCli` itself), so calling `run` twice with two run_dirs stands in for
+/// two trials. The stub records what its own cwd looked like, proving the
+/// pack lands where the child process actually looks, not merely somewhere
+/// under the run_dir.
+#[test]
+fn zscli_seeds_the_pack_into_every_trial() {
+    let pack_dir = scratch_dir("seed-pack-src");
+    std::fs::write(pack_dir.join("code.md"), "code body\n").unwrap();
+    std::fs::write(pack_dir.join("review.md"), "review body\n").unwrap();
+    let pack = PromptPack::load(&pack_dir).unwrap();
+
+    let stub = scratch_dir("seed-stub").join("fake-zs");
+    let listing_log = scratch_dir("seed-log").join("listing.log");
+    write_stub_zs_bin(&stub, &listing_log);
+
+    let sc_dir = no_rubric_scenario_dir("seed-every-trial");
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let backend = ZsCli {
+        bin: stub,
+        target: None,
+        prompts: Some(std::sync::Arc::new(pack)),
+    };
+
+    for trial in 0..2 {
+        let run_dir = scratch_dir(&format!("seed-run-{trial}"));
+        backend.run(&sc, &run_dir).unwrap();
+    }
+
+    let listing = std::fs::read_to_string(&listing_log).unwrap();
+    let lines: Vec<&str> = listing.lines().collect();
+    assert_eq!(lines.len(), 2, "listing: {listing}");
+    for line in lines {
+        assert_eq!(line, "code.md,review.md", "listing: {listing}");
+    }
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// prompts-pack 2.2 (spec `prompts-pack-run`, "A scenario's own prompt seed
+/// wins over the pack"): the pack is copied before `seed::apply`, so a
+/// scenario placement with the same destination lands last and wins.
+#[test]
+fn scenario_seeded_prompt_overrides_the_pack() {
+    let pack_dir = scratch_dir("precedence-pack-src");
+    std::fs::write(pack_dir.join("code.md"), "pack body\n").unwrap();
+    let pack = PromptPack::load(&pack_dir).unwrap();
+
+    let sc_dir = scratch_dir("precedence-sc");
+    std::fs::write(sc_dir.join("scenario-code.md"), "scenario body\n").unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        "id = \"precedence\"\ntask = \"say hi\"\nexpect = [\"tool_not_called write\"]\n\n\
+         [[files]]\nsrc = \"scenario-code.md\"\ndest = \"work:.zerostack/prompts/code.md\"\n",
+    )
+    .unwrap();
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let stub = scratch_dir("precedence-stub").join("fake-zs");
+    let listing_log = scratch_dir("precedence-log").join("listing.log");
+    write_stub_zs_bin(&stub, &listing_log);
+
+    let backend = ZsCli {
+        bin: stub,
+        target: None,
+        prompts: Some(std::sync::Arc::new(pack)),
+    };
+
+    let run_dir = scratch_dir("precedence-run");
+    backend.run(&sc, &run_dir).unwrap();
+
+    let content =
+        std::fs::read_to_string(run_dir.join("work/.zerostack/prompts/code.md")).unwrap();
+    assert_eq!(content, "scenario body\n");
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// prompts-pack 2.3 (spec `prompts-pack-run`, "Without the flag nothing is
+/// seeded"): with no pack, `ZsCli::run` must not create
+/// `work:.zerostack/prompts/` at all — a scenario placing its own file there
+/// still can (that's a scenario concern, not the harness's).
+#[test]
+fn zscli_without_a_pack_creates_no_prompts_dir() {
+    let sc_dir = no_rubric_scenario_dir("no-pack-no-dir");
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let stub = scratch_dir("no-pack-stub").join("fake-zs");
+    let listing_log = scratch_dir("no-pack-log").join("listing.log");
+    write_stub_zs_bin(&stub, &listing_log);
+
+    let backend = ZsCli {
+        bin: stub,
+        target: None,
+        prompts: None,
+    };
+
+    let run_dir = scratch_dir("no-pack-run");
+    backend.run(&sc, &run_dir).unwrap();
+
+    assert!(!run_dir.join("work/.zerostack/prompts").exists());
+
+    std::fs::remove_dir_all(&sc_dir).ok();
 }

@@ -405,12 +405,16 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         );
     }
 
-    // Validate the pack before any backend, budget, or trial setup: a
-    // directory zerostack could never read must fail here, not after a suite
-    // has already spent money.
-    if let Some(dir) = f.get("prompts") {
-        zseval::prompts::PromptPack::load(Path::new(dir))?;
-    }
+    // Validate (and keep) the pack before any backend, budget, or trial
+    // setup: a directory zerostack could never read must fail here, not
+    // after a suite has already spent money. `Arc` so the one loaded pack is
+    // shared, not reloaded, across every target in `run_over_targets`' loop.
+    let prompt_pack: Option<std::sync::Arc<zseval::prompts::PromptPack>> = match f.get("prompts") {
+        Some(dir) => Some(std::sync::Arc::new(zseval::prompts::PromptPack::load(
+            Path::new(dir),
+        )?)),
+        None => None,
+    };
 
     // N reports have no single JSON form (design.md: "`run --json` at N>1 is
     // a usage error"). Checked before backend/budget setup, so this is a
@@ -500,6 +504,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
                     Box::new(ZsCli {
                         bin: bin.clone(),
                         target: Some(t.to_path_buf()),
+                        prompts: prompt_pack.clone(),
                     })
                 },
                 judge.as_ref(),

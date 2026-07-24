@@ -30,10 +30,12 @@ use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
 
+use crate::prompts::PromptPack;
 use crate::scenario::Scenario;
 use crate::seed;
 use crate::util::tail_of;
@@ -279,6 +281,12 @@ pub struct ZsCli {
     /// out of it: reference an env var (`api_key_env`, or the provider's
     /// standard `*_API_KEY`), which the harness passes through to zerostack.
     pub target: Option<PathBuf>,
+    /// A prompt pack (`--prompts`) seeded into every trial's
+    /// `work:.zerostack/prompts/`, ahead of the scenario's own placements so
+    /// a scenario seeding the same name still wins. `Arc` because one loaded
+    /// pack is shared across every target in a multi-target run
+    /// (`run_over_targets`' `make_backend` closure), not reloaded per target.
+    pub prompts: Option<Arc<PromptPack>>,
 }
 
 impl AgentBackend for ZsCli {
@@ -306,6 +314,20 @@ impl AgentBackend for ZsCli {
         if let Some(target) = &self.target {
             std::fs::copy(target, config.join("config.toml"))
                 .with_context(|| format!("seed target {}", target.display()))?;
+        }
+
+        // Seed the pack before the scenario's own placements, so a scenario
+        // that seeds a same-named `work:.zerostack/prompts/*.md` overrides
+        // it (`prompts-pack-run` spec, "A scenario's own prompt seed wins
+        // over the pack") rather than the pack silently winning last.
+        if let Some(pack) = &self.prompts {
+            let prompts_dir = work.join(".zerostack").join("prompts");
+            std::fs::create_dir_all(&prompts_dir)?;
+            for file in pack.files() {
+                std::fs::write(prompts_dir.join(&file.file_name), &file.bytes).with_context(
+                    || format!("seed prompt pack file {}", file.file_name),
+                )?;
+            }
         }
 
         seed::apply(
