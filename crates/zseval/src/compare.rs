@@ -57,6 +57,20 @@ pub struct Comparison {
     pub target_mismatch: bool,
     pub base_model: String,
     pub cand_model: String,
+    /// See `Report::prompts_pack` / `Report::prompts_hash`. Empty when that
+    /// side used no pack.
+    pub base_prompts_pack: String,
+    pub base_prompts_hash: String,
+    pub cand_prompts_pack: String,
+    pub cand_prompts_hash: String,
+    /// Whether baseline and candidate recorded different pack identities
+    /// (path plus hash) — includes one side having a pack and the other
+    /// none. `compare`'s premise is a rebuilt zerostack with nothing else
+    /// moved, but no report yet records a build identity, so a pack
+    /// difference is conservatively treated as a second moved variable (see
+    /// design.md, "compare treats the build as always moved, for now").
+    /// Never affects `exit_code`, same as `target_mismatch`.
+    pub pack_mismatch: bool,
     pub summary_base_pass_hat_k: f64,
     pub summary_cand_pass_hat_k: f64,
     pub summary_base_cost: f64,
@@ -157,6 +171,11 @@ pub fn compare(base: &Report, cand: &Report, threshold: f64) -> Comparison {
         target_mismatch: base.model != cand.model,
         base_model: base.model.clone(),
         cand_model: cand.model.clone(),
+        base_prompts_pack: base.prompts_pack.clone(),
+        base_prompts_hash: base.prompts_hash.clone(),
+        cand_prompts_pack: cand.prompts_pack.clone(),
+        cand_prompts_hash: cand.prompts_hash.clone(),
+        pack_mismatch: (&base.prompts_pack, &base.prompts_hash) != (&cand.prompts_pack, &cand.prompts_hash),
         summary_base_pass_hat_k: base.summary.pass_hat_k,
         summary_cand_pass_hat_k: cand.summary.pass_hat_k,
         summary_base_cost: base.summary.total_cost_usd,
@@ -184,11 +203,45 @@ impl Comparison {
     }
 }
 
+/// `path#hash` display for one side's pack identity (`prompts-pack-identity`
+/// spec: "Pack identity is displayed wherever it can differ", example
+/// `prompts=my-pack#a3f1`), or the plain `none` marker when that side used no
+/// pack — shown rather than omitted, so a packless side reads as a fact, not
+/// a blank.
+fn pack_identity(pack: &str, hash: &str) -> String {
+    if pack.is_empty() {
+        "none".to_string()
+    } else {
+        format!("{pack}#{}", short_hash(hash))
+    }
+}
+
+/// First 4 hex chars of a `util::fnv1a_hex` fingerprint (16 chars) — enough
+/// to distinguish by eye without printing the full hash on every comparison
+/// line, matching the length used in the spec's own example.
+fn short_hash(hash: &str) -> &str {
+    &hash[..hash.len().min(4)]
+}
+
 pub fn print_human(c: &Comparison) {
     println!(
         "baseline : {} ({})    candidate: {} ({})",
         c.baseline_tag, c.base_model, c.candidate_tag, c.cand_model
     );
+    println!(
+        "prompts  : baseline={}    candidate={}",
+        pack_identity(&c.base_prompts_pack, &c.base_prompts_hash),
+        pack_identity(&c.cand_prompts_pack, &c.cand_prompts_hash)
+    );
+    if c.pack_mismatch {
+        println!(
+            "⚠ comparing different prompt packs — baseline used '{}', \
+             candidate used '{}'. A pass-rate diff here is a prompt A/B, not \
+             a regression check.",
+            pack_identity(&c.base_prompts_pack, &c.base_prompts_hash),
+            pack_identity(&c.cand_prompts_pack, &c.cand_prompts_hash)
+        );
+    }
     if c.target_mismatch {
         println!(
             "⚠ comparing different targets — baseline was evaluated against \
@@ -265,6 +318,104 @@ pub fn print_human(c: &Comparison) {
         for id in &c.regressions {
             println!("  {id}");
         }
+    }
+}
+
+#[cfg(test)]
+mod pack_identity_tests {
+    use super::*;
+    use crate::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
+
+    fn trial() -> TrialResult {
+        TrialResult {
+            trial: 0,
+            outcome: Final::Pass,
+            reasons: vec![],
+            asserts: vec![],
+            judge: None,
+            judge_file: String::new(),
+            judge_hash: None,
+            judge_model: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            judge_input_tokens: 0,
+            judge_output_tokens: 0,
+            cost_usd: 0.0,
+            wall_secs: 0.0,
+            tool_call_count: 0,
+            run_dir: String::new(),
+        }
+    }
+
+    fn report_with_pack(pack: &str, hash: &str) -> Report {
+        Report::build(
+            ReportMeta {
+                tag: "t".into(),
+                model: "m".into(),
+                backend: "b".into(),
+                trials: 1,
+                prompts_pack: pack.into(),
+                prompts_hash: hash.into(),
+                ..Default::default()
+            },
+            vec![ScenarioResult::from_trials("s".into(), vec![trial()])],
+        )
+    }
+
+    // 8.1 — compare's header line carries each side's pack identity as path
+    // plus short hash, mirroring how `target_mismatch` carries `base_model`
+    // / `cand_model` as raw fields for `print_human` to format.
+    #[test]
+    fn compare_carries_each_sides_pack_identity_fields() {
+        let base = report_with_pack("packs/a", "aaaaaaaaaaaaaaaa");
+        let cand = report_with_pack("packs/b", "bbbbbbbbbbbbbbbb");
+        let c = compare(&base, &cand, 0.05);
+        assert_eq!(c.base_prompts_pack, "packs/a");
+        assert_eq!(c.base_prompts_hash, "aaaaaaaaaaaaaaaa");
+        assert_eq!(c.cand_prompts_pack, "packs/b");
+        assert_eq!(c.cand_prompts_hash, "bbbbbbbbbbbbbbbb");
+    }
+
+    #[test]
+    fn pack_identity_shows_path_and_short_hash() {
+        assert_eq!(pack_identity("my-pack", "a3f1000000000000"), "my-pack#a3f1");
+    }
+
+    #[test]
+    fn pack_identity_shows_plain_marker_when_no_pack() {
+        assert_eq!(pack_identity("", ""), "none");
+    }
+
+    // 8.2 — the note fires exactly when the two sides' pack identities
+    // differ, following the `target_mismatch` precedent of a boolean field
+    // `print_human` reads rather than asserting on printed text.
+    #[test]
+    fn pack_mismatch_true_when_pack_identities_differ() {
+        let base = report_with_pack("packs/a", "aaaaaaaaaaaaaaaa");
+        let cand = report_with_pack("packs/b", "bbbbbbbbbbbbbbbb");
+        assert!(compare(&base, &cand, 0.05).pack_mismatch);
+    }
+
+    #[test]
+    fn pack_mismatch_false_when_identical_or_both_packless() {
+        let same_a = report_with_pack("packs/a", "aaaaaaaaaaaaaaaa");
+        let same_b = report_with_pack("packs/a", "aaaaaaaaaaaaaaaa");
+        assert!(!compare(&same_a, &same_b, 0.05).pack_mismatch);
+
+        let none_a = report_with_pack("", "");
+        let none_b = report_with_pack("", "");
+        assert!(!compare(&none_a, &none_b, 0.05).pack_mismatch);
+    }
+
+    // 8.3 — the note must never move the exit code: a pack difference with
+    // no regression still exits 0.
+    #[test]
+    fn pack_mismatch_does_not_change_exit_code() {
+        let base = report_with_pack("packs/a", "aaaaaaaaaaaaaaaa");
+        let cand = report_with_pack("packs/b", "bbbbbbbbbbbbbbbb");
+        let c = compare(&base, &cand, 0.05);
+        assert!(c.pack_mismatch);
+        assert_eq!(c.exit_code(), 0);
     }
 }
 

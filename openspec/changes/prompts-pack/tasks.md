@@ -65,11 +65,11 @@ section may run alongside its siblings once its dependencies are met.
 
 ## 8. Show the pack in compare and note a prompt A/B [dispatch: too-te, depends: 4, parallel: yes, reason: mirrors the existing `target_mismatch` note in shape, placement, and exit-code neutrality; the spec fixes when it fires]
 
-- [ ] 8.1 Write a failing test that `compare`'s header line carries each side's pack identity as path plus short hash beside the existing tags and models, and a plain no-pack marker when a side used none.
-- [ ] 8.2 Write failing tests for the note: comparing two reports whose pack identities differ prints a note that the diff is a prompt change, not a regression check; identical pack identities, and both sides packless, print nothing.
-- [ ] 8.3 Write a failing test that the note does not change the exit code: a pack difference with no regression still exits 0.
-- [ ] 8.4 Implement the header field and the note. Evidence: tests from 8.1-8.3 green.
-- [ ] 8.5 Verify at the CLI: `$BIN compare <a>/report.json <b>/report.json` over two stub-bin runs differing only by pack. Evidence: pasted output and exit code.
+- [x] 8.1 Write a failing test that `compare`'s header line carries each side's pack identity as path plus short hash beside the existing tags and models, and a plain no-pack marker when a side used none.
+- [x] 8.2 Write failing tests for the note: comparing two reports whose pack identities differ prints a note that the diff is a prompt change, not a regression check; identical pack identities, and both sides packless, print nothing.
+- [x] 8.3 Write a failing test that the note does not change the exit code: a pack difference with no regression still exits 0.
+- [x] 8.4 Implement the header field and the note. Evidence: tests from 8.1-8.3 green.
+- [x] 8.5 Verify at the CLI: `$BIN compare <a>/report.json <b>/report.json` over two stub-bin runs differing only by pack. Evidence: pasted output and exit code.
 
 ## 9. Show the pack in matrix and mark a two-variable table [dispatch: too-te, depends: 4, parallel: yes, reason: follows the per-column `judge-drift` mechanism and legend layout already in `matrix.rs`; the spec states exactly when the mark fires and that it is not DRIFT]
 
