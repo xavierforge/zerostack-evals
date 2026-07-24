@@ -268,6 +268,27 @@ pub fn run_suite(
         results.push(sr);
     }
 
+    // A pack seeded into every trial but resolved by none is inert: the
+    // report's headline number is entirely the built-ins' score, not the
+    // pack's, and nothing about the report itself says so — `prompts_pack`
+    // is populated either way. Checked once, over every scenario this run
+    // actually produced, rather than per scenario: a partial hit (some
+    // `pack`, some not) is real signal and stays visible only in each
+    // scenario's own `prompt_source` (design.md, "Record which prompt each
+    // scenario loaded, not merely which names intersect").
+    if let Some(pack) = pack {
+        let loaded = results
+            .iter()
+            .any(|sr| sr.prompt_source == PromptSource::Pack);
+        if !loaded {
+            eprintln!(
+                "prompts pack {} was seeded but never loaded: no scenario resolved a prompt \
+                 from it, so this report reflects zerostack's built-in prompts, not the pack",
+                pack.dir().display()
+            );
+        }
+    }
+
     // Two different facts, from two different places. The judge file is what
     // the run was configured with; it holds whether or not the judge was ever
     // called. `judge_model` is what actually graded, so it can only come from
