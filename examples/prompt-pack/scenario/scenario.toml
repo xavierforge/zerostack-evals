@@ -1,0 +1,18 @@
+id = "prompt-pack-example-marker"
+prompt = "code"
+trials = 1
+
+# Trivial, tool-free task: the only thing under test is whether the pack's
+# code.md (../pack/code.md) beat zerostack's built-in `code` prompt, not
+# coding ability. trials = 1 to keep the one live run (tasks.md section 12)
+# cheap — this scenario is never part of the default suite, so it does not
+# need the usual N=3 signal.
+task = "Reply with a one-sentence greeting. No files or tools are needed."
+
+# The marker is defined in ../pack/code.md. This assert is the whole point
+# of the example: it only passes if the pack's code.md, not the built-in
+# one, is what the model actually loaded. See ../README.md for what a
+# failure here can and cannot tell you.
+expect = [
+  "final_contains ZSEVAL-PROMPT-PACK-MARKER",
+]
