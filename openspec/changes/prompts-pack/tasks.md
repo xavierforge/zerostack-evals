@@ -50,11 +50,11 @@ section may run alongside its siblings once its dependencies are met.
 
 ## 6. Resolve which prompt each scenario actually loaded [dispatch: sai-hu, depends: 2, 5, parallel: no, reason: the four-value resolution and the derivation guard need a home and a shape; deciding where the name is resolved and how a config-seeding scenario is detected is a real design call]
 
-- [ ] 6.1 Write failing tests for the resolution order: a declared prompt the pack provides resolves `pack`; a declared prompt the pack lacks resolves `stock`; a scenario seeding the same name resolves `scenario`.
-- [ ] 6.2 Write failing tests for the default-prompt derivation: a scenario declaring no prompt with a target config setting no `default_prompt` resolves to `code`; the same with `default_prompt` set in the target resolves to that name. Read the value by extending `target::peek`'s `Peek` struct, which already parses the target config for provider and model.
-- [ ] 6.3 Write a failing test for the guard: a scenario placing a file into the config directory or `work:.zerostack/config.toml` resolves `unknown` rather than a derived name.
-- [ ] 6.4 Implement the resolution in the run path and populate the section 5 fields, pinning the `code` fallback with a comment naming the verified zerostack version (matching how `LoopCfg` documents its upstream verification). Evidence: tests from 6.1-6.3 green.
-- [ ] 6.5 Verify at the CLI against a stub bin: run a mixed set of scenarios with a one-prompt pack. Evidence: the per-scenario `prompt_name` / `prompt_source` values in the emitted report, showing at least two distinct sources.
+- [x] 6.1 Write failing tests for the resolution order: a declared prompt the pack provides resolves `pack`; a declared prompt the pack lacks resolves `stock`; a scenario seeding the same name resolves `scenario`.
+- [x] 6.2 Write failing tests for the default-prompt derivation: a scenario declaring no prompt with a target config setting no `default_prompt` resolves to `code`; the same with `default_prompt` set in the target resolves to that name. Read the value by extending `target::peek`'s `Peek` struct, which already parses the target config for provider and model.
+- [x] 6.3 Write a failing test for the guard: a scenario placing a file into the config directory or `work:.zerostack/config.toml` resolves `unknown` rather than a derived name.
+- [x] 6.4 Implement the resolution in the run path and populate the section 5 fields, pinning the `code` fallback with a comment naming the verified zerostack version (matching how `LoopCfg` documents its upstream verification). Evidence: tests from 6.1-6.3 green.
+- [x] 6.5 Verify at the CLI against a stub bin: run a mixed set of scenarios with a one-prompt pack. Evidence: the per-scenario `prompt_name` / `prompt_source` values in the emitted report, showing at least two distinct sources.
 
 ## 7. Warn when a seeded pack was never loaded [dispatch: too-te, depends: 6, parallel: yes, reason: one condition over data section 6 already records, with the message shape stated in the spec]
 

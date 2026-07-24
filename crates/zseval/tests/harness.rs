@@ -3238,3 +3238,102 @@ fn a_run_without_a_pack_records_empty_pack_identity() {
     std::fs::remove_dir_all(&sc_dir).ok();
     std::fs::remove_dir_all(&results_root).ok();
 }
+
+// ---------------------------------------------------------------------------
+// prompts-pack 6: resolve which prompt each scenario actually loaded
+// ---------------------------------------------------------------------------
+
+/// prompts-pack 6.5 (spec `prompts-pack-identity`, "Each scenario records the
+/// prompt it actually loaded"): drive a mixed suite through a stub bin with a
+/// one-prompt pack (`code.md`) and read the per-scenario `prompt_name` /
+/// `prompt_source` back off the emitted report. Four scenarios span three
+/// sources, so the fields are shown to discriminate rather than print one
+/// constant: a declared name the pack provides (`pack`), a declared name it
+/// lacks (`stock`), a scenario seeding its own same-named file (`scenario`),
+/// and a no-prompt scenario whose derived `code` default the pack provides
+/// (`pack`).
+#[test]
+fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
+    use zseval::verdict::PromptSource;
+
+    let pack_dir = scratch_dir("s6-pack-src");
+    std::fs::write(pack_dir.join("code.md"), "pack code body\n").unwrap();
+    let pack = PromptPack::load(&pack_dir).unwrap();
+
+    let stub = scratch_dir("s6-stub").join("fake-zs");
+    let listing_log = scratch_dir("s6-log").join("listing.log");
+    write_stub_zs_bin(&stub, &listing_log);
+
+    // A: declares `code`, which the pack provides -> pack.
+    let a_dir = scratch_dir("s6-a");
+    std::fs::write(
+        a_dir.join("scenario.toml"),
+        "id = \"declares-code\"\nprompt = \"code\"\ntask = \"say hi\"\n\
+         expect = [\"tool_not_called write\"]\n",
+    )
+    .unwrap();
+
+    // B: declares `ask`, which the pack lacks -> stock.
+    let b_dir = scratch_dir("s6-b");
+    std::fs::write(
+        b_dir.join("scenario.toml"),
+        "id = \"declares-ask\"\nprompt = \"ask\"\ntask = \"say hi\"\n\
+         expect = [\"tool_not_called write\"]\n",
+    )
+    .unwrap();
+
+    // C: declares `code` but seeds its own file for it -> scenario.
+    let c_dir = scratch_dir("s6-c");
+    std::fs::write(c_dir.join("scenario-code.md"), "scenario code body\n").unwrap();
+    std::fs::write(
+        c_dir.join("scenario.toml"),
+        "id = \"seeds-own-code\"\nprompt = \"code\"\ntask = \"say hi\"\n\
+         expect = [\"tool_not_called write\"]\n\n\
+         [[files]]\nsrc = \"scenario-code.md\"\ndest = \"work:.zerostack/prompts/code.md\"\n",
+    )
+    .unwrap();
+
+    // D: no prompt, no target -> derives `code`, which the pack provides -> pack.
+    let d_dir = scratch_dir("s6-d");
+    std::fs::write(
+        d_dir.join("scenario.toml"),
+        "id = \"no-prompt\"\ntask = \"say hi\"\nexpect = [\"tool_not_called write\"]\n",
+    )
+    .unwrap();
+
+    let scenarios: Vec<Scenario> = [&a_dir, &b_dir, &c_dir, &d_dir]
+        .iter()
+        .map(|d| Scenario::load(d).unwrap())
+        .collect();
+
+    let results_root = scratch_dir("s6-results");
+    let backend = ZsCli {
+        bin: stub,
+        target: None,
+        prompts: Some(std::sync::Arc::new(pack)),
+    };
+    let opts = pack_run_opts("s6", results_root.clone());
+    let report = run_suite(&scenarios, &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+
+    let got = |id: &str| {
+        let r = report.scenarios.iter().find(|r| r.id == id).unwrap();
+        (r.prompt_name.clone(), r.prompt_source)
+    };
+    assert_eq!(got("declares-code"), ("code".into(), PromptSource::Pack));
+    assert_eq!(got("declares-ask"), ("ask".into(), PromptSource::Stock));
+    assert_eq!(got("seeds-own-code"), ("code".into(), PromptSource::Scenario));
+    assert_eq!(got("no-prompt"), ("code".into(), PromptSource::Pack));
+
+    let mut sources: Vec<String> = report
+        .scenarios
+        .iter()
+        .map(|r| format!("{:?}", r.prompt_source))
+        .collect();
+    sources.sort();
+    sources.dedup();
+    assert!(sources.len() >= 2, "expected >=2 distinct sources: {sources:?}");
+
+    for d in [&pack_dir, &a_dir, &b_dir, &c_dir, &d_dir, &results_root] {
+        std::fs::remove_dir_all(d).ok();
+    }
+}

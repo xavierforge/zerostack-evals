@@ -11,6 +11,12 @@ use serde::Deserialize;
 struct Peek {
     provider: Option<String>,
     model: Option<String>,
+    /// zerostack's `default_prompt` config key: the prompt a session loads
+    /// when a scenario names none. Read here so the harness can derive which
+    /// prompt those scenarios actually loaded (prompts-pack section 6), rather
+    /// than leaving them blank — the group most exposed to a `code.md`
+    /// override is exactly the one that declares no prompt.
+    default_prompt: Option<String>,
 }
 
 /// Read `provider`/`model` out of a target config.toml. A missing file or
@@ -25,6 +31,16 @@ pub fn peek(path: &Path) -> (Option<String>, Option<String>) {
         return (None, None);
     };
     (p.provider, p.model)
+}
+
+/// Read `default_prompt` out of a target config.toml. `None` when the file is
+/// missing or unparseable (same degradation as `peek`) or simply sets no such
+/// key. The harness derives the prompt a no-`prompt` scenario loads from this,
+/// falling back to zerostack's own `code` default when it is `None` (see
+/// `runner::resolve_prompt`).
+pub fn default_prompt(path: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(path).ok()?;
+    toml::from_str::<Peek>(&text).ok()?.default_prompt
 }
 
 /// Human-identifiable label for what a run evaluates against:
@@ -106,6 +122,20 @@ mod tests {
             peek(&p),
             (Some("anthropic".into()), Some("claude-sonnet-4-6".into()))
         );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn default_prompt_reads_the_config_key_and_degrades_to_none() {
+        let dir =
+            std::env::temp_dir().join(format!("zseval-default-prompt-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let with = write_target(&dir, "provider = \"anthropic\"\ndefault_prompt = \"review\"\n");
+        assert_eq!(default_prompt(&with).as_deref(), Some("review"));
+        let without = dir.join("bare.toml");
+        std::fs::write(&without, "provider = \"anthropic\"\n").unwrap();
+        assert_eq!(default_prompt(&without), None);
+        assert_eq!(default_prompt(Path::new("/no/such/config.toml")), None);
         std::fs::remove_dir_all(&dir).ok();
     }
 
