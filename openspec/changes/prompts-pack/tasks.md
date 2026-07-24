@@ -82,10 +82,10 @@ section may run alongside its siblings once its dependencies are met.
 
 ## 10. Ship the example pack and prove it offline [dispatch: too-te, depends: 6, parallel: no, reason: the pack, the scenario, and the README's content are all fixed by the design; the live run this example exists for is section 12]
 
-- [ ] 10.1 Create `examples/prompt-pack/` containing a pack that overrides `code.md` with an instruction to emit a fixed marker string on the first line, and a scenario asserting the marker with `final_contains`. Keep it outside `scenarios/` so the default suite is unaffected.
-- [ ] 10.2 Write the example's own README: how to run it, why it lives outside `scenarios/`, and that the assert rides on model obedience, so a disobedient model reads as "not loaded".
-- [ ] 10.3 Verify offline that the scenario loads and the pack validates: `$BIN list examples/prompt-pack`, and a stub-bin run showing the pack files reaching the trial's working directory and the scenario recording `prompt_source = "pack"`. Evidence: both command outputs.
-- [ ] 10.4 Verify that `zseval run` over `scenarios/` is unaffected by the example's existence. Evidence: scenario count from `$BIN list scenarios/` unchanged at 41.
+- [x] 10.1 Create `examples/prompt-pack/` containing a pack that overrides `code.md` with an instruction to emit a fixed marker string on the first line, and a scenario asserting the marker with `final_contains`. Keep it outside `scenarios/` so the default suite is unaffected.
+- [x] 10.2 Write the example's own README: how to run it, why it lives outside `scenarios/`, and that the assert rides on model obedience, so a disobedient model reads as "not loaded".
+- [x] 10.3 Verify offline that the scenario loads and the pack validates: `$BIN list examples/prompt-pack`, and a stub-bin run showing the pack files reaching the trial's working directory and the scenario recording `prompt_source = "pack"`. Evidence: both command outputs.
+- [x] 10.4 Verify that `zseval run` over `scenarios/` is unaffected by the example's existence. Evidence: scenario count from `$BIN list scenarios/` unchanged at 41.
 
 ## 11. Document --prompts in the README [dispatch: too-te, depends: 8, 9, 10, parallel: no, reason: one new section replacing existing prose, with the commands and caveats already fixed by the specs and design]
 
