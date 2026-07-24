@@ -55,7 +55,7 @@ USAGE:
   zseval run <scenario-path> [--target config.toml]... [--trials N]
              [--tag T] [--zs-bin PATH] [--backend zs|mock=<session.json>]
              [--judge judges/opus.toml] [--no-judge] [--max-total-usd X]
-             [--results DIR] [--jobs N] [--json] [--verbose]
+             [--prompts DIR] [--results DIR] [--jobs N] [--json] [--verbose]
   zseval compare <baseline.json> <candidate.json> [--threshold 0.05] [--json]
   zseval explain <trial-dir>
   zseval list [scenarios-root]
@@ -98,6 +98,16 @@ USAGE:
   that actually graded as the judge's own responses reported them ([] if
   nothing was graded, absent if unknown — never the configured model echoed
   back as if it were a fact).
+
+  --prompts is a directory of zerostack prompt files to evaluate against — a
+  prompt pack. A pack holds top-level *.md files only, each file's stem being
+  the prompt name it overrides; a subdirectory or a non-.md entry is a usage
+  error naming it, since zerostack reads neither, and so is a directory with
+  no *.md file at all. The whole pack is validated before any trial spends
+  money. Unlike --target it may be given at most once: a run evaluates exactly
+  one pack, and two packs are compared by two runs plus `zseval matrix` over
+  their reports. Rejected for --backend mock, which replays canned artifacts
+  and never constructs a zerostack invocation, so it could not load a pack.
 
   --backend mock=<path> replays canned artifacts instead of a live zerostack
   build: a single session JSON file, or a directory shaped like a captured
@@ -340,6 +350,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
             "target",
             "jobs",
             "judge",
+            "prompts",
         ],
         &["no-judge", "json", "verbose"],
     )?;
@@ -369,6 +380,36 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
             "--target is rejected for --backend mock: mock replays canned artifacts \
              and never reads a target config.toml"
         );
+    }
+
+    // `--prompts` is single-arity, the opposite of `--target`: a run evaluates
+    // exactly one pack, so that a report's pack identity names one thing. Two
+    // packs is two runs joined by `matrix` — which is also the only shape whose
+    // columns this change's own one-variable rule can read.
+    if f.count("prompts") > 1 {
+        anyhow::bail!(
+            "--prompts may be given at most once (unlike --target): a run evaluates exactly \
+             one prompt pack; compare two packs with two runs and `zseval matrix` over their \
+             reports"
+        );
+    }
+
+    // mock replays canned artifacts and never constructs a zerostack
+    // invocation or seeds a run directory, so a pack could not reach it —
+    // accepting the flag would produce a report advertising a pack nothing
+    // could have loaded. Same reasoning as the `--target` rejection above.
+    if matches!(f.get("backend"), Some(b) if b.starts_with("mock=")) && f.get("prompts").is_some() {
+        anyhow::bail!(
+            "--prompts is rejected for --backend mock: mock replays canned artifacts and never \
+             constructs a zerostack invocation, so it cannot load a pack"
+        );
+    }
+
+    // Validate the pack before any backend, budget, or trial setup: a
+    // directory zerostack could never read must fail here, not after a suite
+    // has already spent money.
+    if let Some(dir) = f.get("prompts") {
+        zseval::prompts::PromptPack::load(Path::new(dir))?;
     }
 
     // N reports have no single JSON form (design.md: "`run --json` at N>1 is
