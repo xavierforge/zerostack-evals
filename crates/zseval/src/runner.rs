@@ -189,6 +189,19 @@ pub fn run_suite(
         // Empty here is "nothing was graded", which every trial agreed on.
         Some(served)
     };
+    // Pack identity is recorded from the backend, which is what actually
+    // seeds the pack (`ZsCli::run`); `mock` and any packless run report empty
+    // fields. Normalised through the same `record_path` rule as `target` and
+    // `judge_file` so a report copied into `baselines/` names a relative pack,
+    // never someone's absolute filesystem path.
+    let (prompts_pack, prompts_hash, prompts_names) = match backend.prompt_pack() {
+        Some(pack) => (
+            crate::verdict::record_path(pack.dir()),
+            pack.fingerprint(),
+            pack.names().into_iter().map(String::from).collect(),
+        ),
+        None => (String::new(), String::new(), Vec::new()),
+    };
     let report = Report::build(
         ReportMeta {
             tag: opts.tag.clone(),
@@ -212,6 +225,9 @@ pub fn run_suite(
                 .map(crate::verdict::record_path)
                 .unwrap_or_default(),
             budget_truncated,
+            prompts_pack,
+            prompts_hash,
+            prompts_names,
         },
         results,
     );

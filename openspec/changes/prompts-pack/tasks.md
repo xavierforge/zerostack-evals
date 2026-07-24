@@ -34,12 +34,12 @@ section may run alongside its siblings once its dependencies are met.
 
 ## 4. Record the pack's identity on the report [dispatch: too-te, depends: 1, parallel: yes, reason: three fields following the `judge_file` / `judge_hash` / `target` precedent exactly, including the path-normalization rule and serde defaults]
 
-- [ ] 4.1 Write failing tests: a run with a pack records the relative, forward-slashed path, the fingerprint, and the sorted prompt names; a pack outside the working directory records its bare name, never an absolute path.
-- [ ] 4.2 Write a failing test that a run without a pack records empty values for all three fields.
-- [ ] 4.3 Write a failing round-trip test that a report JSON predating these fields still deserializes, following the existing older-report test precedent in `verdict.rs`.
-- [ ] 4.4 Add `prompts_pack`, `prompts_hash`, and `prompts_names` to `Report` with `#[serde(default)]` and doc comments stating why each exists, and populate them in the run path. Evidence: tests from 4.1-4.3 green.
-- [ ] 4.5 Confirm `REPORT_SCHEMA_VERSION` is unchanged and no code branches on it. Evidence: `grep -n schema_version crates/zseval/src/` output.
-- [ ] 4.6 Verify at the CLI: run with a pack against a stub bin and inspect the report. Evidence: the three fields as they appear in the emitted `report.json`.
+- [x] 4.1 Write failing tests: a run with a pack records the relative, forward-slashed path, the fingerprint, and the sorted prompt names; a pack outside the working directory records its bare name, never an absolute path.
+- [x] 4.2 Write a failing test that a run without a pack records empty values for all three fields.
+- [x] 4.3 Write a failing round-trip test that a report JSON predating these fields still deserializes, following the existing older-report test precedent in `verdict.rs`.
+- [x] 4.4 Add `prompts_pack`, `prompts_hash`, and `prompts_names` to `Report` with `#[serde(default)]` and doc comments stating why each exists, and populate them in the run path. Evidence: tests from 4.1-4.3 green.
+- [x] 4.5 Confirm `REPORT_SCHEMA_VERSION` is unchanged and no code branches on it. Evidence: `grep -n schema_version crates/zseval/src/` output.
+- [x] 4.6 Verify at the CLI: run with a pack against a stub bin and inspect the report. Evidence: the three fields as they appear in the emitted `report.json`.
 
 ## 5. Give `ScenarioResult` a place to record its prompt [dispatch: too-te, depends: 4, parallel: no, reason: two fields and a four-value enum whose values, defaults, and doc obligations are fixed by the spec; the resolution that fills them is section 6]
 

@@ -267,6 +267,15 @@ pub trait AgentBackend: Sync {
     /// The backend must not force a model: what a run evaluates against comes
     /// from the backend's own configuration, not from the caller.
     fn run(&self, sc: &Scenario, run_dir: &Path) -> Result<RunArtifacts>;
+    /// The prompt pack this backend seeds into every trial, if any. The
+    /// backend is the authority on which pack was actually used (it is what
+    /// seeds it), so `run_suite` reads the pack's identity for the report from
+    /// here rather than threading it separately through `RunOptions`. Default
+    /// `None`: only `ZsCli` seeds a pack, and `--prompts` is rejected for
+    /// `mock`.
+    fn prompt_pack(&self) -> Option<&PromptPack> {
+        None
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -292,6 +301,10 @@ pub struct ZsCli {
 impl AgentBackend for ZsCli {
     fn name(&self) -> &str {
         "zs-cli"
+    }
+
+    fn prompt_pack(&self) -> Option<&PromptPack> {
+        self.prompts.as_deref()
     }
 
     fn run(&self, sc: &Scenario, run_dir: &Path) -> Result<RunArtifacts> {

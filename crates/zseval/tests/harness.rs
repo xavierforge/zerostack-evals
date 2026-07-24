@@ -3110,3 +3110,131 @@ fn zscli_without_a_pack_creates_no_prompts_dir() {
 
     std::fs::remove_dir_all(&sc_dir).ok();
 }
+
+// ---------------------------------------------------------------------------
+// prompts-pack 4: the pack's identity on the report
+// ---------------------------------------------------------------------------
+
+/// A `RunOptions` for a stub-`ZsCli` run: single trial, no judge (the
+/// scenario's deterministic assert is the only ruler), scratch results dir.
+fn pack_run_opts(tag: &str, results_root: PathBuf) -> RunOptions {
+    RunOptions {
+        target: None,
+        trials_override: Some(1),
+        tag: tag.into(),
+        no_judge: true,
+        results_root,
+        max_total_usd: None,
+        jobs: 1,
+        judge_file: None,
+        multi_target: false,
+    }
+}
+
+/// prompts-pack 4.1 (spec `prompts-pack-identity`, "Report carries the pack's
+/// identity"): a run with a pack records the working-directory-relative,
+/// forward-slashed path, the fingerprint, and the sorted prompt names. The
+/// identity comes from the backend that actually seeded the pack, derived
+/// inside `run_suite`, so this drives a real `run_suite` against a stub bin
+/// rather than building a `Report` by hand.
+#[test]
+fn a_pack_run_records_its_relative_path_hash_and_sorted_names() {
+    // Under the working directory, so the recorded path is relative.
+    let cwd = std::env::current_dir().unwrap();
+    let pack_dir = cwd.join(format!("zseval-test-pack-identity-{}", std::process::id()));
+    std::fs::remove_dir_all(&pack_dir).ok();
+    std::fs::create_dir_all(&pack_dir).unwrap();
+    std::fs::write(pack_dir.join("review.md"), "review body\n").unwrap();
+    std::fs::write(pack_dir.join("code.md"), "code body\n").unwrap();
+    let pack = PromptPack::load(&pack_dir).unwrap();
+    let expected_hash = pack.fingerprint();
+
+    let stub = scratch_dir("pack-id-stub").join("fake-zs");
+    let listing_log = scratch_dir("pack-id-log").join("listing.log");
+    write_stub_zs_bin(&stub, &listing_log);
+
+    let sc_dir = no_rubric_scenario_dir("pack-identity");
+    let sc = Scenario::load(&sc_dir).unwrap();
+    let results_root = scratch_dir("pack-id-results");
+
+    let backend = ZsCli {
+        bin: stub,
+        target: None,
+        prompts: Some(std::sync::Arc::new(pack)),
+    };
+    let opts = pack_run_opts("pack-id", results_root.clone());
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+
+    let expected_path = format!("zseval-test-pack-identity-{}", std::process::id());
+    assert_eq!(report.prompts_pack, expected_path);
+    assert!(!report.prompts_pack.starts_with('/'), "{}", report.prompts_pack);
+    assert_eq!(report.prompts_hash, expected_hash);
+    assert_eq!(report.prompts_names, vec!["code", "review"]);
+
+    std::fs::remove_dir_all(&pack_dir).ok();
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// prompts-pack 4.1 (spec `prompts-pack-identity`, the path rule): a pack
+/// outside the working directory records its bare directory name, never an
+/// absolute path — a report is meant to be committed into `baselines/`, so it
+/// must not become a map of someone's filesystem.
+#[test]
+fn a_pack_outside_the_working_directory_records_its_bare_name() {
+    let pack_dir = std::env::temp_dir().join(format!(
+        "zseval-test-pack-outside-{}",
+        std::process::id()
+    ));
+    std::fs::remove_dir_all(&pack_dir).ok();
+    std::fs::create_dir_all(&pack_dir).unwrap();
+    std::fs::write(pack_dir.join("code.md"), "code body\n").unwrap();
+    let pack = PromptPack::load(&pack_dir).unwrap();
+
+    let stub = scratch_dir("pack-out-stub").join("fake-zs");
+    let listing_log = scratch_dir("pack-out-log").join("listing.log");
+    write_stub_zs_bin(&stub, &listing_log);
+
+    let sc_dir = no_rubric_scenario_dir("pack-outside");
+    let sc = Scenario::load(&sc_dir).unwrap();
+    let results_root = scratch_dir("pack-out-results");
+
+    let backend = ZsCli {
+        bin: stub,
+        target: None,
+        prompts: Some(std::sync::Arc::new(pack)),
+    };
+    let opts = pack_run_opts("pack-out", results_root.clone());
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+
+    let expected_name = format!("zseval-test-pack-outside-{}", std::process::id());
+    assert_eq!(report.prompts_pack, expected_name);
+    assert!(!report.prompts_pack.starts_with('/'), "{}", report.prompts_pack);
+
+    std::fs::remove_dir_all(&pack_dir).ok();
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
+
+/// prompts-pack 4.2 (spec `prompts-pack-identity`, "A run without a pack
+/// records empties"): a `mock` run (which never carries a pack) records the
+/// three fields empty on its report.
+#[test]
+fn a_run_without_a_pack_records_empty_pack_identity() {
+    let sc_dir = no_rubric_scenario_dir("no-pack-identity");
+    let sc = Scenario::load(&sc_dir).unwrap();
+    let results_root = scratch_dir("no-pack-id-results");
+
+    let backend = Mock {
+        fixture: fixture("session-ask-readonly.json"),
+    };
+    let opts = pack_run_opts("no-pack-id", results_root.clone());
+    let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+
+    assert_eq!(report.prompts_pack, "");
+    assert_eq!(report.prompts_hash, "");
+    assert!(report.prompts_names.is_empty());
+
+    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&results_root).ok();
+}
