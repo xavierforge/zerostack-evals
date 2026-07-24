@@ -241,6 +241,31 @@ pub struct Report {
     /// written before this field existed still loads, as `false`.
     #[serde(default)]
     pub budget_truncated: bool,
+    /// The prompt pack this run evaluated (`--prompts`), `""` when none was
+    /// given. Recorded because a pack is a subject variable of the experiment:
+    /// two runs are only a clean prompt comparison if this is what moved
+    /// between them, and that fact has to survive the run. Normalised through
+    /// the same `record_path` rule as `judge_file` and `target`
+    /// (working-directory-relative, forward-slashed, never absolute; reduced to
+    /// a bare directory name when the pack lives outside the working
+    /// directory), so a report copied into `baselines/` is not a map of
+    /// someone's filesystem. `#[serde(default)]` so a report written before
+    /// this field existed still loads, as an empty pack.
+    #[serde(default)]
+    pub prompts_pack: String,
+    /// Fingerprint of the pack's contents and names (`PromptPack::fingerprint`),
+    /// `""` when no pack was given. The path alone cannot pin the pack down: a
+    /// pack's files change under a stable path, the same reason `judge_hash`
+    /// and `ScenarioResult::content_hash` exist. A moved-but-unchanged pack
+    /// keeps this hash, so identity survives relocation.
+    #[serde(default)]
+    pub prompts_hash: String,
+    /// The sorted prompt names the pack provides (file stems), `[]` when no
+    /// pack was given. Recorded alongside the hash so "why did every scenario
+    /// resolve `stock`" is answerable from the report alone: a pack whose names
+    /// no scenario calls is visible here without re-reading the pack directory.
+    #[serde(default)]
+    pub prompts_names: Vec<String>,
     pub scenarios: Vec<ScenarioResult>,
     pub summary: Summary,
 }
@@ -358,6 +383,13 @@ pub struct ReportMeta {
     /// See `Report::budget_truncated`. Set by `run_suite` when the cost cap
     /// stopped the run before a declared scenario.
     pub budget_truncated: bool,
+    /// See `Report::prompts_pack`. Already normalised (`record_path`) by the
+    /// caller; `Report::build` copies it through unchanged.
+    pub prompts_pack: String,
+    /// See `Report::prompts_hash`. Empty when no pack was evaluated.
+    pub prompts_hash: String,
+    /// See `Report::prompts_names`. Empty when no pack was evaluated.
+    pub prompts_names: Vec<String>,
 }
 
 impl Report {
@@ -390,6 +422,9 @@ impl Report {
             judge_model: meta.judge_model,
             target: meta.target,
             budget_truncated: meta.budget_truncated,
+            prompts_pack: meta.prompts_pack,
+            prompts_hash: meta.prompts_hash,
+            prompts_names: meta.prompts_names,
             summary: Summary {
                 n_scenarios: scenarios.len(),
                 n_gradable: gradable.len(),
@@ -750,6 +785,76 @@ mod target_field_tests {
         }"#;
         let report: Report = serde_json::from_str(old).unwrap();
         assert_eq!(report.target, "");
+    }
+}
+
+#[cfg(test)]
+mod prompts_pack_field_tests {
+    use super::*;
+
+    fn meta() -> ReportMeta {
+        ReportMeta {
+            tag: "t".into(),
+            model: "m".into(),
+            backend: "b".into(),
+            trials: 1,
+            ..Default::default()
+        }
+    }
+
+    /// prompts-pack 4.4: a run given a pack records its identity on the report.
+    /// Path normalisation is `record_path`'s job (already covered by the
+    /// target and judge-file tests); this pins that `Report::build` carries the
+    /// three fields through from `ReportMeta`.
+    #[test]
+    fn build_carries_the_pack_identity_through() {
+        let report = Report::build(
+            ReportMeta {
+                prompts_pack: "packs/my-pack".into(),
+                prompts_hash: "deadbeef".into(),
+                prompts_names: vec!["code".into(), "review".into()],
+                ..meta()
+            },
+            vec![],
+        );
+        assert_eq!(report.prompts_pack, "packs/my-pack");
+        assert_eq!(report.prompts_hash, "deadbeef");
+        assert_eq!(report.prompts_names, vec!["code", "review"]);
+    }
+
+    /// prompts-pack 4.2: a run with no pack records the three fields empty,
+    /// never absent-but-guessed.
+    #[test]
+    fn a_run_without_a_pack_records_empty_fields() {
+        let report = Report::build(meta(), vec![]);
+        assert_eq!(report.prompts_pack, "");
+        assert_eq!(report.prompts_hash, "");
+        assert!(report.prompts_names.is_empty());
+    }
+
+    /// prompts-pack 4.3: a report written before these fields existed still
+    /// deserialises, as an empty pack rather than a parse error — same
+    /// `#[serde(default)]` precedent as `target` and `judge_file`.
+    #[test]
+    fn a_report_json_predating_the_pack_fields_deserialises_to_empties() {
+        let old = r#"{
+            "schema_version": 1,
+            "tag": "main",
+            "model": "anthropic/claude-sonnet-4-6",
+            "backend": "zs",
+            "timestamp": "2026-07-01T00:00:00Z",
+            "trials": 3,
+            "scenarios": [],
+            "summary": {
+                "n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0,
+                "indeterminate_scenarios": 0, "indeterminate_trials": 0,
+                "total_cost_usd": 0.0, "avg_wall_secs": 0.0
+            }
+        }"#;
+        let report: Report = serde_json::from_str(old).unwrap();
+        assert_eq!(report.prompts_pack, "");
+        assert_eq!(report.prompts_hash, "");
+        assert!(report.prompts_names.is_empty());
     }
 }
 
