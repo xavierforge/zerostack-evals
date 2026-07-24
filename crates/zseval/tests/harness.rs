@@ -3077,8 +3077,7 @@ fn scenario_seeded_prompt_overrides_the_pack() {
     let run_dir = scratch_dir("precedence-run");
     backend.run(&sc, &run_dir).unwrap();
 
-    let content =
-        std::fs::read_to_string(run_dir.join("work/.zerostack/prompts/code.md")).unwrap();
+    let content = std::fs::read_to_string(run_dir.join("work/.zerostack/prompts/code.md")).unwrap();
     assert_eq!(content, "scenario body\n");
 
     std::fs::remove_dir_all(&sc_dir).ok();
@@ -3167,7 +3166,11 @@ fn a_pack_run_records_its_relative_path_hash_and_sorted_names() {
 
     let expected_path = format!("zseval-test-pack-identity-{}", std::process::id());
     assert_eq!(report.prompts_pack, expected_path);
-    assert!(!report.prompts_pack.starts_with('/'), "{}", report.prompts_pack);
+    assert!(
+        !report.prompts_pack.starts_with('/'),
+        "{}",
+        report.prompts_pack
+    );
     assert_eq!(report.prompts_hash, expected_hash);
     assert_eq!(report.prompts_names, vec!["code", "review"]);
 
@@ -3182,10 +3185,8 @@ fn a_pack_run_records_its_relative_path_hash_and_sorted_names() {
 /// must not become a map of someone's filesystem.
 #[test]
 fn a_pack_outside_the_working_directory_records_its_bare_name() {
-    let pack_dir = std::env::temp_dir().join(format!(
-        "zseval-test-pack-outside-{}",
-        std::process::id()
-    ));
+    let pack_dir =
+        std::env::temp_dir().join(format!("zseval-test-pack-outside-{}", std::process::id()));
     std::fs::remove_dir_all(&pack_dir).ok();
     std::fs::create_dir_all(&pack_dir).unwrap();
     std::fs::write(pack_dir.join("code.md"), "code body\n").unwrap();
@@ -3209,7 +3210,11 @@ fn a_pack_outside_the_working_directory_records_its_bare_name() {
 
     let expected_name = format!("zseval-test-pack-outside-{}", std::process::id());
     assert_eq!(report.prompts_pack, expected_name);
-    assert!(!report.prompts_pack.starts_with('/'), "{}", report.prompts_pack);
+    assert!(
+        !report.prompts_pack.starts_with('/'),
+        "{}",
+        report.prompts_pack
+    );
 
     std::fs::remove_dir_all(&pack_dir).ok();
     std::fs::remove_dir_all(&sc_dir).ok();
@@ -3313,7 +3318,13 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
         prompts: Some(std::sync::Arc::new(pack)),
     };
     let opts = pack_run_opts("s6", results_root.clone());
-    let report = run_suite(&scenarios, &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
+    let report = run_suite(
+        &scenarios,
+        &backend,
+        &LlmJudge::new(test_judge_cfg()),
+        &opts,
+    )
+    .unwrap();
 
     let got = |id: &str| {
         let r = report.scenarios.iter().find(|r| r.id == id).unwrap();
@@ -3321,7 +3332,10 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
     };
     assert_eq!(got("declares-code"), ("code".into(), PromptSource::Pack));
     assert_eq!(got("declares-ask"), ("ask".into(), PromptSource::Stock));
-    assert_eq!(got("seeds-own-code"), ("code".into(), PromptSource::Scenario));
+    assert_eq!(
+        got("seeds-own-code"),
+        ("code".into(), PromptSource::Scenario)
+    );
     assert_eq!(got("no-prompt"), ("code".into(), PromptSource::Pack));
 
     let mut sources: Vec<String> = report
@@ -3331,7 +3345,10 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
         .collect();
     sources.sort();
     sources.dedup();
-    assert!(sources.len() >= 2, "expected >=2 distinct sources: {sources:?}");
+    assert!(
+        sources.len() >= 2,
+        "expected >=2 distinct sources: {sources:?}"
+    );
 
     for d in [&pack_dir, &a_dir, &b_dir, &c_dir, &d_dir, &results_root] {
         std::fs::remove_dir_all(d).ok();
@@ -3349,7 +3366,11 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
 fn scratch_target_toml(name: &str) -> PathBuf {
     let dir = scratch_dir(&format!("s7-target-{name}"));
     let path = dir.join("target.toml");
-    std::fs::write(&path, "provider = \"anthropic\"\nmodel = \"claude-sonnet-4-6\"\n").unwrap();
+    std::fs::write(
+        &path,
+        "provider = \"anthropic\"\nmodel = \"claude-sonnet-4-6\"\n",
+    )
+    .unwrap();
     path
 }
 

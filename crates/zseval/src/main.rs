@@ -1106,10 +1106,8 @@ mod judge_flag_tests {
     /// distinguishable by results directory name, not only by timestamp.
     #[test]
     fn auto_tag_includes_the_pack_directory_name() {
-        let dir = std::env::temp_dir().join(format!(
-            "zseval-autotag-pack-test-{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("zseval-autotag-pack-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let target_path = dir.join("opus.toml");
         std::fs::write(
