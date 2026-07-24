@@ -64,6 +64,15 @@ pub struct Column {
     pub tag: String,
     pub timestamp: String,
     pub judge: JudgeState,
+    /// `Report::prompts_pack`, legend-only. Empty when the run used no pack —
+    /// rendered as its own plain marker (`compare::pack_identity`), never
+    /// omitted, so a packless column reads as a fact rather than a blank.
+    pub prompts_pack: String,
+    /// `Report::prompts_hash`, legend-only. Displayed as a short form
+    /// alongside `prompts_pack` so two columns of the same pack path with
+    /// different contents are distinguishable by eye (design.md, "Display
+    /// the fingerprint, so 'invisible difference' needs no special rule").
+    pub prompts_hash: String,
     /// Footer figures over the scenarios gradable in *every* column. `None`
     /// when that intersection is empty: there is no shared gradable basis, so
     /// the footer is honestly a hole rather than a real-looking `0.000`.
@@ -82,6 +91,17 @@ pub struct Column {
     /// display heuristics, not statistical or authoritative claims (design.md,
     /// "DRIFT marks, never adjudicates").
     pub judge_drift: bool,
+    /// This column's target AND pack identity both differ from some other
+    /// column's in this table — no cell difference between the two can be
+    /// attributed to either variable alone (`controlled-variables` spec;
+    /// design.md, "One independent variable, derived rather than asserted").
+    /// Distinct from `judge_drift`/row DRIFT, which flag a moved ruler
+    /// (`judge_hash`/`content_hash`); this flags two *subject* variables
+    /// (target, pack) moving together. A display heuristic like SPREAD/DRIFT
+    /// — it says "look here", never which column is correct. Columns sharing
+    /// a target and differing only by pack are the flagship clean experiment
+    /// and are never marked by this.
+    pub multi_variable: bool,
 }
 
 /// One `content_hash` grouping within a row's DRIFT mark: the columns (and
@@ -147,11 +167,13 @@ pub fn build(reports: &[&Report]) -> Matrix {
 
     let labels = disambiguate_labels(reports);
     let judge_drift_flags = judge_drift_flags(reports);
+    let multi_variable_flags = multi_variable_flags(reports);
     let columns = reports
         .iter()
         .zip(&labels)
         .zip(judge_drift_flags)
-        .map(|((r, label), judge_drift)| Column {
+        .zip(multi_variable_flags)
+        .map(|(((r, label), judge_drift), multi_variable)| Column {
             stem: crate::target::stem(Path::new(&r.target)),
             label: label.clone(),
             model: r.model.clone(),
@@ -159,9 +181,12 @@ pub fn build(reports: &[&Report]) -> Matrix {
             tag: r.tag.clone(),
             timestamp: r.timestamp.clone(),
             judge: judge_state(r),
+            prompts_pack: r.prompts_pack.clone(),
+            prompts_hash: r.prompts_hash.clone(),
             footer: column_footer(r, &intersection),
             incomplete: r.budget_truncated,
             judge_drift,
+            multi_variable,
         })
         .collect();
 
@@ -373,6 +398,27 @@ fn judge_drift_flags(reports: &[&Report]) -> Vec<bool> {
         .collect()
 }
 
+/// Per-column `multi_variable` mark: this column's target AND pack identity
+/// (path + hash) both differ from some *other* column's — see
+/// `Column::multi_variable`. Unlike `judge_drift_flags`, there is no
+/// unknown-vs-known special case: every column's target is always known, and
+/// an empty pack (`("", "")`, i.e. no pack) is itself a valid, comparable
+/// identity rather than an absence to skip.
+fn multi_variable_flags(reports: &[&Report]) -> Vec<bool> {
+    reports
+        .iter()
+        .enumerate()
+        .map(|(i, r)| {
+            reports.iter().enumerate().any(|(j, other)| {
+                j != i
+                    && r.target != other.target
+                    && (r.prompts_pack.as_str(), r.prompts_hash.as_str())
+                        != (other.prompts_pack.as_str(), other.prompts_hash.as_str())
+            })
+        })
+        .collect()
+}
+
 fn round4(x: f64) -> f64 {
     (x * 10_000.0).round() / 10_000.0
 }
@@ -492,25 +538,28 @@ fn render_legend_fixed_width(m: &Matrix) -> String {
     let mut out = String::from("\nlegend:\n");
     for col in &m.columns {
         out.push_str(&format!(
-            "  {:<16} model={:<32} target={:<28} judge={:<20}{}{}\n",
+            "  {:<16} model={:<32} target={:<28} judge={:<20} prompts={:<20}{}{}{}\n",
             col.label,
             col.model,
             col.target,
             format_judge(&col.judge),
+            crate::compare::pack_identity(&col.prompts_pack, &col.prompts_hash),
             if col.incomplete { " incomplete" } else { "" },
             if col.judge_drift { " judge-drift" } else { "" },
+            if col.multi_variable { " MULTI-VAR" } else { "" },
         ));
     }
     out.push_str(LEGEND_CAVEAT);
     out
 }
 
-/// SPREAD and DRIFT are display heuristics that flag "look here", not a
-/// statistical test or an authoritative verdict about which column is right
-/// (design.md, "SPREAD is data-derived and hole-safe"; "DRIFT marks, never
-/// adjudicates").
+/// SPREAD, DRIFT, and MULTI-VAR are display heuristics that flag "look here",
+/// not a statistical test or an authoritative verdict about which column is
+/// right (design.md, "SPREAD is data-derived and hole-safe"; "DRIFT marks,
+/// never adjudicates"; "One independent variable, derived rather than
+/// asserted").
 const LEGEND_CAVEAT: &str =
-    "\nSPREAD and DRIFT are display heuristics, not statistical or authoritative claims.\n";
+    "\nSPREAD, DRIFT, and MULTI-VAR are display heuristics, not statistical or authoritative claims.\n";
 
 /// Markdown table: for `matrix --markdown` and `experiments/` snapshots (no
 /// width limit, unlike the fixed-width renderer).
@@ -581,17 +630,19 @@ pub fn render_markdown(m: &Matrix) -> String {
     out.push_str("\n**Legend**\n\n");
     for col in &m.columns {
         out.push_str(&format!(
-            "- `{}`: model={}, target={}, judge={}{}{}\n",
+            "- `{}`: model={}, target={}, judge={}, prompts={}{}{}{}\n",
             col.label,
             col.model,
             col.target,
             format_judge(&col.judge),
+            crate::compare::pack_identity(&col.prompts_pack, &col.prompts_hash),
             if col.incomplete { ", incomplete" } else { "" },
             if col.judge_drift { ", judge-drift" } else { "" },
+            if col.multi_variable { ", MULTI-VAR" } else { "" },
         ));
     }
     out.push_str(
-        "\n_SPREAD and DRIFT are display heuristics, not statistical or authoritative claims._\n",
+        "\n_SPREAD, DRIFT, and MULTI-VAR are display heuristics, not statistical or authoritative claims._\n",
     );
     out
 }
@@ -665,6 +716,25 @@ mod tests {
                 trials: 1,
                 target: target.into(),
                 judge_hash,
+                ..Default::default()
+            },
+            vec![],
+        )
+    }
+
+    // Mirrors `compare.rs`'s `report_with_pack` test helper (section 8) —
+    // same field wiring, so the pack-identity convention stays one shape
+    // across subcommands.
+    fn report_with_pack(target: &str, tag: &str, pack: &str, hash: &str) -> Report {
+        Report::build(
+            ReportMeta {
+                tag: tag.into(),
+                model: format!("anthropic/{tag}"),
+                backend: "zs".into(),
+                trials: 1,
+                target: target.into(),
+                prompts_pack: pack.into(),
+                prompts_hash: hash.into(),
                 ..Default::default()
             },
             vec![],
@@ -1230,5 +1300,87 @@ mod tests {
         assert!(md.contains("0.500"));
         assert!(md.contains("**Legend**"));
         assert_ne!(fixed, md);
+    }
+
+    // 9.1 — each column's legend line carries its pack identity as path plus
+    // short hash (mirroring `compare::pack_identity`), and a plain marker
+    // when the column used no pack.
+    #[test]
+    fn legend_carries_each_columns_pack_identity() {
+        let with_pack =
+            report_with_pack("targets/opus.toml", "run-a", "packs/a", "aaaaaaaaaaaaaaaa");
+        let without_pack = report_with_pack("targets/sonnet.toml", "run-b", "", "");
+        let m = build(&[&with_pack, &without_pack]);
+        let legend = render_legend_fixed_width(&m);
+        assert!(legend.contains("prompts=packs/a#aaaa"), "legend: {legend}");
+        assert!(legend.contains("prompts=none"), "legend: {legend}");
+    }
+
+    // 9.2 — two columns sharing a target and differing only by pack are a
+    // clean single-variable comparison: not marked, but their legend lines
+    // are still distinguishable by pack identity.
+    #[test]
+    fn same_target_different_pack_is_not_marked_but_legend_lines_differ() {
+        let a = report_with_pack("targets/opus.toml", "run-a", "packs/a", "aaaaaaaaaaaaaaaa");
+        let b = report_with_pack("targets/opus.toml", "run-b", "packs/b", "bbbbbbbbbbbbbbbb");
+        let m = build(&[&a, &b]);
+        assert!(!m.columns[0].multi_variable);
+        assert!(!m.columns[1].multi_variable);
+        let legend = render_legend_fixed_width(&m);
+        assert!(legend.contains("prompts=packs/a#aaaa"), "legend: {legend}");
+        assert!(legend.contains("prompts=packs/b#bbbb"), "legend: {legend}");
+    }
+
+    // 9.3 — columns differing in both target and pack identity are marked,
+    // and that mark is a separate mechanism from judge-drift/DRIFT: neither
+    // side here carries a judge hash at all.
+    #[test]
+    fn different_target_and_pack_is_marked_and_distinct_from_drift() {
+        let a = report_with_pack("targets/opus.toml", "run-a", "packs/a", "aaaaaaaaaaaaaaaa");
+        let b = report_with_pack("targets/sonnet.toml", "run-b", "packs/b", "bbbbbbbbbbbbbbbb");
+        let m = build(&[&a, &b]);
+        assert!(m.columns[0].multi_variable);
+        assert!(m.columns[1].multi_variable);
+        assert!(!m.columns[0].judge_drift, "no judge hash on either side");
+        assert!(!m.columns[1].judge_drift, "no judge hash on either side");
+        let legend = render_legend_fixed_width(&m);
+        assert!(legend.contains("MULTI-VAR"), "legend: {legend}");
+        assert!(!legend.contains("judge-drift"), "legend: {legend}");
+    }
+
+    // 9.4 — columns differing by target but recording the same pack identity
+    // are not marked: only one subject variable moved.
+    #[test]
+    fn different_target_shared_pack_is_not_marked() {
+        let a =
+            report_with_pack("targets/opus.toml", "run-a", "packs/shared", "aaaaaaaaaaaaaaaa");
+        let b =
+            report_with_pack("targets/sonnet.toml", "run-b", "packs/shared", "aaaaaaaaaaaaaaaa");
+        let m = build(&[&a, &b]);
+        assert!(!m.columns[0].multi_variable);
+        assert!(!m.columns[1].multi_variable);
+    }
+
+    // 9.5 — the new mark is documented in the legend caveat alongside SPREAD
+    // and DRIFT as a display heuristic, never a verdict.
+    #[test]
+    fn legend_caveat_labels_multi_variable_as_a_display_heuristic() {
+        let a = report_with_pack("targets/opus.toml", "run-a", "packs/a", "aaaaaaaaaaaaaaaa");
+        let m = build(&[&a]);
+        let legend = render_legend_fixed_width(&m);
+        assert!(legend.contains("MULTI-VAR"), "legend: {legend}");
+        assert!(legend.to_lowercase().contains("heuristic"), "legend: {legend}");
+    }
+
+    // 9.5 — the markdown renderer carries the same pack identity and mark as
+    // the fixed-width one; both go through the same `Column` model.
+    #[test]
+    fn markdown_legend_carries_pack_identity_and_multi_variable_mark() {
+        let a = report_with_pack("targets/opus.toml", "run-a", "packs/a", "aaaaaaaaaaaaaaaa");
+        let b = report_with_pack("targets/sonnet.toml", "run-b", "packs/b", "bbbbbbbbbbbbbbbb");
+        let m = build(&[&a, &b]);
+        let md = render_markdown(&m);
+        assert!(md.contains("prompts=packs/a#aaaa"), "markdown: {md}");
+        assert!(md.contains("MULTI-VAR"), "markdown: {md}");
     }
 }

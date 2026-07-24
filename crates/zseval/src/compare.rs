@@ -208,7 +208,7 @@ impl Comparison {
 /// `prompts=my-pack#a3f1`), or the plain `none` marker when that side used no
 /// pack — shown rather than omitted, so a packless side reads as a fact, not
 /// a blank.
-fn pack_identity(pack: &str, hash: &str) -> String {
+pub(crate) fn pack_identity(pack: &str, hash: &str) -> String {
     if pack.is_empty() {
         "none".to_string()
     } else {
