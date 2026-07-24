@@ -73,12 +73,12 @@ section may run alongside its siblings once its dependencies are met.
 
 ## 9. Show the pack in matrix and mark a two-variable table [dispatch: too-te, depends: 4, parallel: yes, reason: follows the per-column `judge-drift` mechanism and legend layout already in `matrix.rs`; the spec states exactly when the mark fires and that it is not DRIFT]
 
-- [ ] 9.1 Write a failing test that each column's legend line carries its pack identity as path plus short hash, and a plain marker when a column used no pack.
-- [ ] 9.2 Write a failing test that two columns sharing a target and differing only by pack are not marked, and that their legend lines differ.
-- [ ] 9.3 Write a failing test that columns differing in both target and pack are marked, with the mark distinct from DRIFT.
-- [ ] 9.4 Write a failing test that columns differing by target with one shared pack are not marked.
-- [ ] 9.5 Implement the legend field and the per-column mark, and add it to the legend caveat that labels these as display heuristics. Evidence: tests from 9.1-9.4 green.
-- [ ] 9.6 Verify at the CLI: `$BIN matrix` over two stub-bin reports sharing a target with different packs, then over two with different targets and packs. Evidence: both rendered tables.
+- [x] 9.1 Write a failing test that each column's legend line carries its pack identity as path plus short hash, and a plain marker when a column used no pack.
+- [x] 9.2 Write a failing test that two columns sharing a target and differing only by pack are not marked, and that their legend lines differ.
+- [x] 9.3 Write a failing test that columns differing in both target and pack are marked, with the mark distinct from DRIFT.
+- [x] 9.4 Write a failing test that columns differing by target with one shared pack are not marked.
+- [x] 9.5 Implement the legend field and the per-column mark, and add it to the legend caveat that labels these as display heuristics. Evidence: tests from 9.1-9.4 green.
+- [x] 9.6 Verify at the CLI: `$BIN matrix` over two stub-bin reports sharing a target with different packs, then over two with different targets and packs. Evidence: both rendered tables.
 
 ## 10. Ship the example pack and prove it offline [dispatch: too-te, depends: 6, parallel: no, reason: the pack, the scenario, and the README's content are all fixed by the design; the live run this example exists for is section 12]
 

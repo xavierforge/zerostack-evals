@@ -1495,7 +1495,7 @@ mod multi_target_tests {
         // (which also happen to mention the stems in their report: paths).
         assert!(err_text.contains("legend:"), "err: {err_text}");
         assert!(
-            err_text.contains("SPREAD and DRIFT are display heuristics"),
+            err_text.contains("SPREAD, DRIFT, and MULTI-VAR are display heuristics"),
             "err: {err_text}"
         );
         assert!(err_text.contains("table-a"), "err: {err_text}");
