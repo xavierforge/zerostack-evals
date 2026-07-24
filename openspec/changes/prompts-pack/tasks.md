@@ -43,10 +43,10 @@ section may run alongside its siblings once its dependencies are met.
 
 ## 5. Give `ScenarioResult` a place to record its prompt [dispatch: too-te, depends: 4, parallel: no, reason: two fields and a four-value enum whose values, defaults, and doc obligations are fixed by the spec; the resolution that fills them is section 6]
 
-- [ ] 5.1 Write failing tests for the source type: it round-trips all four values (`pack`, `stock`, `scenario`, `unknown`) through serde, and an unrecognized value is a deserialization error rather than a silent `unknown`.
-- [ ] 5.2 Write a failing round-trip test that a `ScenarioResult` predating these fields deserializes with source `unknown`, and assert `unknown != stock` so the three-state honesty the design calls for is pinned by a test rather than a comment.
-- [ ] 5.3 Add `prompt_name` and `prompt_source` to `ScenarioResult` with `#[serde(default)]`, beside `content_hash`, with doc comments stating why they are scenario-level and not trial-level, and leave them written as empty/`unknown` by the run path for now. Evidence: tests from 5.1-5.2 green.
-- [ ] 5.4 Verify at the CLI: a stub-bin run emits both fields on every scenario with their default values. Evidence: one scenario's object from the emitted `report.json`.
+- [x] 5.1 Write failing tests for the source type: it round-trips all four values (`pack`, `stock`, `scenario`, `unknown`) through serde, and an unrecognized value is a deserialization error rather than a silent `unknown`.
+- [x] 5.2 Write a failing round-trip test that a `ScenarioResult` predating these fields deserializes with source `unknown`, and assert `unknown != stock` so the three-state honesty the design calls for is pinned by a test rather than a comment.
+- [x] 5.3 Add `prompt_name` and `prompt_source` to `ScenarioResult` with `#[serde(default)]`, beside `content_hash`, with doc comments stating why they are scenario-level and not trial-level, and leave them written as empty/`unknown` by the run path for now. Evidence: tests from 5.1-5.2 green.
+- [x] 5.4 Verify at the CLI: a stub-bin run emits both fields on every scenario with their default values. Evidence: one scenario's object from the emitted `report.json`.
 
 ## 6. Resolve which prompt each scenario actually loaded [dispatch: sai-hu, depends: 2, 5, parallel: no, reason: the four-value resolution and the derivation guard need a home and a shape; deciding where the name is resolved and how a config-seeding scenario is detected is a real design call]
 
