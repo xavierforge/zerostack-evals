@@ -27,10 +27,10 @@ section may run alongside its siblings once its dependencies are met.
 
 ## 3. Name the pack in the auto-generated run tag [dispatch: too-te, depends: 1, parallel: yes, reason: one function, `auto_tag`, with the expected string shape stated in the spec]
 
-- [ ] 3.1 Write failing unit tests for `auto_tag`: with a pack and no explicit tag, the tag contains the pack directory name alongside suite, provider/model, and timestamp; with an explicit `--tag`, the tag is exactly what was passed.
-- [ ] 3.2 Write a failing unit test for the multi-target path: with `multi = true` (which already drops the provider/model segment, `main.rs:1023`), the pack segment is still present, since the pack is held fixed across targets and is what distinguishes one multi-target run from the next.
-- [ ] 3.3 Thread the pack name into `auto_tag` and its call sites in `main.rs`. Evidence: tests from 3.1-3.2 green.
-- [ ] 3.4 Verify at the CLI: run a scenario with `--prompts` and no `--tag` against a stub bin and `--results` a scratch dir. Evidence: the produced results directory name, showing the pack segment.
+- [x] 3.1 Write failing unit tests for `auto_tag`: with a pack and no explicit tag, the tag contains the pack directory name alongside suite, provider/model, and timestamp; with an explicit `--tag`, the tag is exactly what was passed.
+- [x] 3.2 Write a failing unit test for the multi-target path: with `multi = true` (which already drops the provider/model segment, `main.rs:1023`), the pack segment is still present, since the pack is held fixed across targets and is what distinguishes one multi-target run from the next.
+- [x] 3.3 Thread the pack name into `auto_tag` and its call sites in `main.rs`. Evidence: tests from 3.1-3.2 green.
+- [x] 3.4 Verify at the CLI: run a scenario with `--prompts` and no `--tag` against a stub bin and `--results` a scratch dir. Evidence: the produced results directory name, showing the pack segment.
 
 ## 4. Record the pack's identity on the report [dispatch: too-te, depends: 1, parallel: yes, reason: three fields following the `judge_file` / `judge_hash` / `target` precedent exactly, including the path-normalization rule and serde defaults]
 
