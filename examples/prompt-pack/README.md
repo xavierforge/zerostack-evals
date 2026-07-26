@@ -11,8 +11,8 @@ zerostack's built-in prompt rather than merely sitting on disk next to it.
 
 Every scenario under `scenarios/` is expected to pass with no flags beyond
 `--target`, because that is the suite CI and `zseval list scenarios/` count
-on. This scenario fails without `--prompts examples/prompt-pack/pack` — its
-whole point is to only pass when a pack is loaded — so it cannot live inside
+on. This scenario fails without `--prompts examples/prompt-pack/pack`: its
+whole point is to only pass when a pack is loaded, so it cannot live inside
 `scenarios/` without either changing the default suite's count or silently
 never being run. Keeping it in `examples/` keeps `scenarios/` at its
 documented count and keeps this one runnable on demand.
@@ -47,8 +47,8 @@ starts with `ZSEVAL-PROMPT-PACK-MARKER`.
 
 ## What a failure here can and cannot tell you
 
-The assert rides on the model *obeying a formatting instruction* — put this
-exact string on the first line of your reply — not on zerostack reporting
+The assert rides on the model *obeying a formatting instruction* (put this
+exact string on the first line of your reply), not on zerostack reporting
 which prompt it loaded (it doesn't; see `prompts-pack-identity`'s design
 notes). That means a failed marker check has two possible causes, and this
 scenario alone cannot distinguish them:
@@ -63,9 +63,9 @@ without relying on model behavior:
 
 - The report's `prompt_source` for `prompt-pack-example-marker`: `"pack"`
   means the harness resolved this scenario's `code` to the pack's file by
-  construction (scenario seed, then pack, then stock — see
+  construction (scenario seed, then pack, then stock: see
   `prompts-pack-identity`), independent of whether the model obeyed anything.
-  If it reads `"pack"`, cause 1 is ruled out — the disobedience is on the
+  If it reads `"pack"`, cause 1 is ruled out: the disobedience is on the
   model, not the harness.
 - The trial's `.zerostack/prompts/` listing (seeded fresh per trial;
   reproduce with `--zs-bin` per `.claude/skills/verify/SKILL.md` to inspect
@@ -74,4 +74,4 @@ without relying on model behavior:
 
 In short: a disobedient model reads exactly like "the pack wasn't loaded" in
 the scenario's pass/fail column alone. `prompt_source` is what separates the
-two — read it before concluding the feature is broken.
+two: read it before concluding the feature is broken.
