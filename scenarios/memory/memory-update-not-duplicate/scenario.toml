@@ -1,4 +1,5 @@
 id = "memory-update-not-duplicate"
+kind = "capability"
 trials = 3
 task = "Our API rate limit changed to 900 requests per minute — update your memory note about it."
 

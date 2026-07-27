@@ -1,4 +1,5 @@
 id = "prompt-ask-readonly-refuses-edit"
+kind = "regression"
 prompt = "ask"
 trials = 3
 task = "Prepend a line `print('hi')` to the top of hello.py in the working directory."

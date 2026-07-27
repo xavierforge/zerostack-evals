@@ -15,16 +15,22 @@
 //!   transcript_contains <needle...>
 //!   transcript_not_contains <needle...>
 //!   tokens_under <n>
-//!   file_contains <path> <needle...>       # outcome check
-//!   file_not_contains <path> <needle...>   # supports one *
+//!   file_contains <path> <needle...>       # outcome check; fails if nothing matches
+//!   file_not_contains <path> <needle...>   # supports one *; fails if nothing matches
+//!   path_not_exists <path>                 # supports one *; dirs count as existing
 //!
-//! `file_*` grade the environment, not the transcript — an on-disk effect only
-//! counts if the bytes are there. Paths allow a single `*` path segment, e.g.
-//! `projects/*/OUT.md`. `<path>` is rooted at the run's throwaway `ZS_DATA_DIR`
-//! by default; prefix it with `config:` or `work:` to check the isolated
-//! config dir or working dir instead (e.g. `config:agent/memory/MEMORY.md`).
+//! `file_*`/`path_not_exists` grade the environment, not the transcript — an
+//! on-disk effect only counts if the bytes (or the path itself) are there.
+//! Paths allow a single `*` path segment, e.g. `projects/*/OUT.md`. `<path>`
+//! is rooted at the run's throwaway `ZS_DATA_DIR` by default; prefix it with
+//! `config:` or `work:` to check the isolated config dir or working dir
+//! instead (e.g. `config:agent/memory/MEMORY.md`). `file_contains`/
+//! `file_not_contains` read files only and fail when zero files match (a
+//! missing file or an empty/missing glob dir is not evidence either way);
+//! `path_not_exists` is the complement — it passes exactly when zero
+//! filesystem entries (files or directories) match.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
 
@@ -47,6 +53,7 @@ pub enum Assert {
     TokensUnder(u64),
     FileContains { path: String, needle: String },
     FileNotContains { path: String, needle: String },
+    PathNotExists(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -148,6 +155,16 @@ impl Assert {
             "file_not_contains" => {
                 let (path, needle) = split1(rest)?;
                 Assert::FileNotContains { path, needle }
+            }
+            "path_not_exists" => {
+                let path = rest.to_string();
+                let stars = path.matches('*').count();
+                if stars > 1 {
+                    bail!(
+                        "path_not_exists: at most one '*' path segment allowed, got {stars} in '{path}'"
+                    );
+                }
+                Assert::PathNotExists(path)
             }
             other => bail!("unknown assert op '{other}'"),
         })
@@ -251,9 +268,20 @@ impl Assert {
                         None => (true, format!("no '{path}' contains '{needle}'")),
                     }
                 }
-                // Missing files trivially don't contain the needle.
-                Err(_) => (true, format!("no files matched '{path}'")),
+                // Zero matches asserts nothing: the file existing (and being
+                // clean) is part of what this op claims, symmetric with
+                // `file_contains`'s own Err arm below.
+                Err(e) => (false, format!("file_not_contains '{path}': {e}")),
             },
+            Assert::PathNotExists(path) => {
+                let hits = glob_hits(roots, path);
+                if hits.is_empty() {
+                    (true, format!("nothing matches '{path}'"))
+                } else {
+                    let found: Vec<String> = hits.iter().map(|p| p.display().to_string()).collect();
+                    (false, format!("'{path}' exists: {}", found.join(", ")))
+                }
+            }
         };
         AssertResult {
             spec: self.spec(),
@@ -279,33 +307,59 @@ fn resolve_root<'a>(pattern: &'a str, roots: &RunRoots<'a>) -> (&'a Path, &'a st
     }
 }
 
-/// Read files under `root/pattern` where pattern may contain at most one `*`
-/// path segment (e.g. `agent/memory/projects/*/notes/foo.md`).
-fn read_glob(roots: &RunRoots, pattern: &str) -> Result<Vec<(String, String)>> {
+/// List every filesystem entry — file or directory — that `pattern` matches
+/// under its resolved root, as full paths. Pattern may contain at most one
+/// `*` path segment (e.g. `agent/memory/projects/*/notes/foo.md`); the
+/// two-or-more-stars case is rejected earlier, at parse time, for
+/// `path_not_exists` (see `Assert::parse`).
+///
+/// Never errors on "nothing matched": a missing single path, a missing glob
+/// directory, and an existing-but-empty glob directory all fold into an
+/// empty `Vec` — this is the one matcher both the content asserts
+/// (`file_contains`/`file_not_contains`, via `read_glob` below) and the
+/// existence assert (`path_not_exists`) share, and they disagree on what an
+/// empty result means, so the matcher itself stays neutral.
+fn glob_hits(roots: &RunRoots, pattern: &str) -> Vec<PathBuf> {
     let (root, pattern) = resolve_root(pattern, roots);
     let mut out = Vec::new();
     if let Some(star_pos) = pattern.find('*') {
         let (prefix, suffix) = pattern.split_at(star_pos);
         let suffix = suffix.trim_start_matches('*').trim_start_matches('/');
         let prefix_dir = root.join(prefix.trim_end_matches('/'));
-        let entries = std::fs::read_dir(&prefix_dir)
-            .map_err(|e| anyhow::anyhow!("{}: {e}", prefix_dir.display()))?;
-        for entry in entries.flatten() {
-            let candidate = if suffix.is_empty() {
-                entry.path()
-            } else {
-                entry.path().join(suffix)
-            };
-            if candidate.is_file() {
-                if let Ok(c) = std::fs::read_to_string(&candidate) {
-                    out.push((candidate.display().to_string(), c));
+        if let Ok(entries) = std::fs::read_dir(&prefix_dir) {
+            for entry in entries.flatten() {
+                let candidate = if suffix.is_empty() {
+                    entry.path()
+                } else {
+                    entry.path().join(suffix)
+                };
+                if candidate.exists() {
+                    out.push(candidate);
                 }
             }
         }
     } else {
         let p = root.join(pattern);
-        let c = std::fs::read_to_string(&p).map_err(|e| anyhow::anyhow!("{}: {e}", p.display()))?;
-        out.push((p.display().to_string(), c));
+        if p.exists() {
+            out.push(p);
+        }
+    }
+    out
+}
+
+/// Read files under `root/pattern` where pattern may contain at most one `*`
+/// path segment. Filters `glob_hits` down to files and reads their contents;
+/// zero matching files (missing path, empty/missing glob dir, or hits that
+/// were directories only) is an error — the content asserts have no
+/// evidence to grade in that case.
+fn read_glob(roots: &RunRoots, pattern: &str) -> Result<Vec<(String, String)>> {
+    let mut out = Vec::new();
+    for candidate in glob_hits(roots, pattern) {
+        if candidate.is_file() {
+            if let Ok(c) = std::fs::read_to_string(&candidate) {
+                out.push((candidate.display().to_string(), c));
+            }
+        }
     }
     if out.is_empty() {
         bail!("no files matched '{pattern}'");
@@ -318,4 +372,141 @@ pub struct AssertResult {
     pub spec: String,
     pub pass: bool,
     pub detail: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transcript::Transcript;
+
+    /// A fresh empty directory named after the test, so parallel tests in
+    /// this process never share one.
+    fn tmp(name: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("zseval-asserts-{name}-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// A `RunRoots` where all three roots are the same dir — these tests
+    /// only care about the matcher/assert logic, not root separation
+    /// (already covered in `tests/harness.rs`).
+    fn flat_roots(dir: &Path) -> RunRoots<'_> {
+        RunRoots {
+            data: dir,
+            config: dir,
+            work: dir,
+        }
+    }
+
+    #[test]
+    fn file_not_contains_fails_on_missing_file() {
+        let dir = tmp("fnc-missing-file");
+        let t = Transcript::default();
+        let roots = flat_roots(&dir);
+        let r = Assert::parse("file_not_contains missing.md needle")
+            .unwrap()
+            .eval(&t, &roots);
+        assert!(!r.pass, "{}", r.detail);
+        assert!(r.detail.contains("missing.md"), "{}", r.detail);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn file_not_contains_fails_on_zero_hit_glob() {
+        let dir = tmp("fnc-zero-hit-glob");
+        // `projects/` doesn't exist at all under this root.
+        let t = Transcript::default();
+        let roots = flat_roots(&dir);
+        let r = Assert::parse("file_not_contains projects/*/NOTES.md needle")
+            .unwrap()
+            .eval(&t, &roots);
+        assert!(!r.pass, "{}", r.detail);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn path_not_exists_passes_on_absent_path() {
+        let dir = tmp("pne-absent");
+        let t = Transcript::default();
+        let roots = flat_roots(&dir);
+        let r = Assert::parse("path_not_exists debug.log")
+            .unwrap()
+            .eval(&t, &roots);
+        assert!(r.pass, "{}", r.detail);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn path_not_exists_fails_on_existing_file() {
+        let dir = tmp("pne-file");
+        std::fs::write(dir.join("debug.log"), "x").unwrap();
+        let t = Transcript::default();
+        let roots = flat_roots(&dir);
+        let r = Assert::parse("path_not_exists debug.log")
+            .unwrap()
+            .eval(&t, &roots);
+        assert!(!r.pass, "{}", r.detail);
+        assert!(r.detail.contains("debug.log"), "{}", r.detail);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn path_not_exists_fails_on_existing_directory() {
+        let dir = tmp("pne-dir");
+        std::fs::create_dir_all(dir.join("sessions")).unwrap();
+        let t = Transcript::default();
+        let roots = flat_roots(&dir);
+        let r = Assert::parse("path_not_exists sessions")
+            .unwrap()
+            .eval(&t, &roots);
+        assert!(!r.pass, "{}", r.detail);
+        assert!(r.detail.contains("sessions"), "{}", r.detail);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn path_not_exists_passes_on_empty_or_missing_glob_dir() {
+        let dir = tmp("pne-glob-empty");
+        let t = Transcript::default();
+        let roots = flat_roots(&dir);
+        // Missing entirely.
+        let r = Assert::parse("path_not_exists sessions/*")
+            .unwrap()
+            .eval(&t, &roots);
+        assert!(r.pass, "{}", r.detail);
+        // Exists but empty.
+        std::fs::create_dir_all(dir.join("sessions")).unwrap();
+        let r = Assert::parse("path_not_exists sessions/*")
+            .unwrap()
+            .eval(&t, &roots);
+        assert!(r.pass, "{}", r.detail);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn path_not_exists_fails_on_populated_glob_naming_hits() {
+        let dir = tmp("pne-glob-populated");
+        std::fs::create_dir_all(dir.join("sessions")).unwrap();
+        std::fs::write(dir.join("sessions/a.json"), "x").unwrap();
+        let t = Transcript::default();
+        let roots = flat_roots(&dir);
+        let r = Assert::parse("path_not_exists sessions/*")
+            .unwrap()
+            .eval(&t, &roots);
+        assert!(!r.pass, "{}", r.detail);
+        assert!(r.detail.contains("a.json"), "{}", r.detail);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn path_not_exists_rejects_two_star_segments_at_parse_time() {
+        // Distinguish "rejected because of the star-count rule" from
+        // "rejected because the op doesn't exist at all": the real
+        // validation error names the offending character.
+        let err = Assert::parse("path_not_exists projects/*/notes/*").unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains('*'), "{msg}");
+    }
 }

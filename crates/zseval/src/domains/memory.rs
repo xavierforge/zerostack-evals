@@ -30,6 +30,7 @@ use crate::scenario::Scenario;
 use crate::seed::Placement;
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MemorySeed {
     pub long_term: Option<PathBuf>,
     #[serde(default)]
@@ -37,6 +38,7 @@ pub struct MemorySeed {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NoteSeed {
     pub name: String,
     pub file: PathBuf,

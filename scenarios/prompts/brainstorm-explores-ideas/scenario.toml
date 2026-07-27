@@ -1,4 +1,5 @@
 id = "prompt-brainstorm-explores-ideas"
+kind = "regression"
 prompt = "brainstorm"
 trials = 3
 task = "I want my CLI tool to feel friendlier for first-time users. Brainstorm directions with me."

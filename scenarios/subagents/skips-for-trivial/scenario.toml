@@ -1,4 +1,5 @@
 id = "subagents-skips-for-trivial"
+kind = "capability"
 prompt = "code"
 trials = 3
 domains = ["subagents"]

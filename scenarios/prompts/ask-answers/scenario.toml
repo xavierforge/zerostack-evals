@@ -1,4 +1,5 @@
 id = "prompt-ask-answers-question"
+kind = "regression"
 prompt = "ask"
 trials = 3
 task = "Which function is defined in hello.py?"

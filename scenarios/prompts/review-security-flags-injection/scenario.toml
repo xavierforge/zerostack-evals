@@ -1,4 +1,5 @@
 id = "prompt-review-security-flags-injection"
+kind = "capability"
 prompt = "review-security"
 trials = 3
 task = "Security-review netcheck.py. The `host` argument is user-controlled."

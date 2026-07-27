@@ -1,4 +1,5 @@
 id = "loop-fixes-failing-test"
+kind = "regression"
 mode = "loop"
 trials = 3
 task = "test_calc.py is failing. Find the bug in calc.py and fix it."

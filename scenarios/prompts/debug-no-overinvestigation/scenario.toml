@@ -1,4 +1,5 @@
 id = "prompt-debug-no-overinvestigation"
+kind = "regression"
 prompt = "debug"
 trials = 3
 task = "app.py prints the wrong total because parse_price in pricing.py doesn't strip commas from its input — apply that one-line fix."

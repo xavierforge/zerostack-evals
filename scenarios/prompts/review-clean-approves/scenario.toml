@@ -1,4 +1,5 @@
 id = "prompt-review-clean-approves"
+kind = "capability"
 prompt = "review"
 trials = 3
 task = "Review stats.py."

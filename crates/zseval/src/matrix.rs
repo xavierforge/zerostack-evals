@@ -16,6 +16,7 @@ use std::path::Path;
 
 use serde::Serialize;
 
+use crate::scenario::Kind;
 use crate::verdict::{Report, ScenarioResult};
 
 /// One scenario's outcome in one column. Never a bare `f64` — see the module
@@ -73,10 +74,30 @@ pub struct Column {
     /// different contents are distinguishable by eye (design.md, "Display
     /// the fingerprint, so 'invisible difference' needs no special rule").
     pub prompts_hash: String,
-    /// Footer figures over the scenarios gradable in *every* column. `None`
-    /// when that intersection is empty: there is no shared gradable basis, so
-    /// the footer is honestly a hole rather than a real-looking `0.000`.
+    /// `Report::zs_version`, legend-only. For `--backend mock`, the fixed
+    /// `"mock"` label (controlled-variables spec, "Mock columns are
+    /// identified as mock").
+    pub zs_version: String,
+    /// `Report::zs_bin_sha256`, legend-only. Displayed as a short form
+    /// alongside `zs_version` (`compare::zs_identity`), same shape as
+    /// `prompts_pack`/`prompts_hash`.
+    pub zs_bin_sha256: String,
+    /// Overall footer figures over the scenarios gradable in *every* column.
+    /// `None` when that intersection is empty: there is no shared gradable
+    /// basis, so the footer is honestly a hole (rendered `-`) rather than a
+    /// real-looking `0.000`. Unchanged in definition by the kind grouping
+    /// below (matrix-render spec, "overall over the whole common set,
+    /// unchanged in definition from before").
     pub footer: Option<ColumnFooter>,
+    /// The same footer figures, filtered to the common gradable set's
+    /// regression scenarios only. `None` when the common set has no
+    /// regression scenario — rendered `n/a` (not `-`), the same textual
+    /// convention as a report's own per-kind summary (matrix-render spec, "A
+    /// kind absent from the common set is n/a").
+    pub regression_footer: Option<ColumnFooter>,
+    /// The same footer figures, filtered to the common gradable set's
+    /// capability scenarios only. See `regression_footer`.
+    pub capability_footer: Option<ColumnFooter>,
     /// This column's run was cut short by the shared budget
     /// (`Report::budget_truncated`) — the visible trace of a budget-truncated
     /// run (design.md, "Budget is one shared total; truncation is marked").
@@ -120,6 +141,12 @@ pub struct DriftGroup {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Row {
     pub id: String,
+    /// This scenario's `kind`, read from the report rows that graded it
+    /// (never re-read from scenario.toml — matrix-render spec, "Rows are
+    /// grouped by kind"). Drives the two-section row grouping the fixed-width
+    /// and markdown renderers apply; the field itself keeps `Matrix::rows`
+    /// flat, since sectioning is a render-time concern, not a data shape one.
+    pub kind: Kind,
     pub cells: Vec<Cell>,
     /// The gradable cells' gap (max - min) exceeds one trial's resolution
     /// (`1 / min(n_graded_trials)`) over those cells — a display heuristic,
@@ -165,6 +192,21 @@ pub fn build(reports: &[&Report]) -> Matrix {
         .cloned()
         .collect();
 
+    // The common set, filtered to each kind — the footer's per-kind groups
+    // are computed over these, never over a kind's full (per-column) set, so
+    // a group's numbers stay on the same shared denominator the overall
+    // footer already uses (matrix-render spec).
+    let regression_ids: Vec<String> = intersection
+        .iter()
+        .filter(|id| row_kind(reports, id) == Kind::Regression)
+        .cloned()
+        .collect();
+    let capability_ids: Vec<String> = intersection
+        .iter()
+        .filter(|id| row_kind(reports, id) == Kind::Capability)
+        .cloned()
+        .collect();
+
     let labels = disambiguate_labels(reports);
     let judge_drift_flags = judge_drift_flags(reports);
     let multi_variable_flags = multi_variable_flags(reports);
@@ -183,7 +225,11 @@ pub fn build(reports: &[&Report]) -> Matrix {
             judge: judge_state(r),
             prompts_pack: r.prompts_pack.clone(),
             prompts_hash: r.prompts_hash.clone(),
+            zs_version: r.zs_version.clone(),
+            zs_bin_sha256: r.zs_bin_sha256.clone(),
             footer: column_footer(r, &intersection),
+            regression_footer: column_footer(r, &regression_ids),
+            capability_footer: column_footer(r, &capability_ids),
             incomplete: r.budget_truncated,
             judge_drift,
             multi_variable,
@@ -194,6 +240,7 @@ pub fn build(reports: &[&Report]) -> Matrix {
         .iter()
         .map(|id| Row {
             id: id.clone(),
+            kind: row_kind(reports, id),
             cells: reports.iter().map(|r| cell(r, id)).collect(),
             spread: spread_for_row(reports, id),
             drift: drift_for_row(reports, &labels, id),
@@ -222,6 +269,19 @@ fn gradable_scenario<'a>(report: &'a Report, id: &str) -> Option<&'a ScenarioRes
         .scenarios
         .iter()
         .find(|s| s.id == id && s.is_gradable())
+}
+
+/// A row's `kind`, read off whichever report actually declares this scenario
+/// id (its kind is intrinsic to the scenario, so any report that ran it
+/// agrees) — never re-read from scenario.toml (matrix-render spec, "Rows are
+/// grouped by kind"). Every id passed in comes from the union of these same
+/// reports' own scenario ids, so `find` always succeeds; the fallback is
+/// unreachable in practice, not a real default.
+fn row_kind(reports: &[&Report], id: &str) -> Kind {
+    reports
+        .iter()
+        .find_map(|r| r.scenarios.iter().find(|s| s.id == id).map(|s| s.kind))
+        .unwrap_or(Kind::Regression)
 }
 
 fn cell(report: &Report, id: &str) -> Cell {
@@ -447,6 +507,36 @@ fn footer_cell_markdown(v: Option<f64>) -> String {
     }
 }
 
+/// One footer figure for a per-kind group row (regression/capability), fixed
+/// width: `n/a`, not the bare `-` the overall group uses, when the common
+/// gradable set contains no scenario of this kind — the same textual
+/// convention `print_run_report_summaries` uses for an empty kind's own line
+/// (matrix-render spec, "A kind absent from the common set is n/a").
+fn kind_footer_cell_fixed_width(v: Option<f64>) -> String {
+    match v {
+        Some(v) => format!("{v:>NUM_COL$.3}"),
+        None => format!("{:>NUM_COL$}", "n/a"),
+    }
+}
+
+/// Markdown counterpart of [`kind_footer_cell_fixed_width`].
+fn kind_footer_cell_markdown(v: Option<f64>) -> String {
+    match v {
+        Some(v) => format!(" {v:.3} |"),
+        None => " n/a |".to_string(),
+    }
+}
+
+/// This kind's footer figures for one column (regression/capability) — the
+/// single accessor the footer loops below read through, so neither renderer
+/// special-cases the field name per kind.
+fn kind_footer(col: &Column, kind: Kind) -> Option<ColumnFooter> {
+    match kind {
+        Kind::Regression => col.regression_footer,
+        Kind::Capability => col.capability_footer,
+    }
+}
+
 /// Header text for one column: its label plus a trailing `*` when the
 /// column is incomplete (ran fewer scenarios than the suite defines) — the
 /// visible trace of a budget-truncated run.
@@ -489,8 +579,22 @@ fn format_judge(j: &JudgeState) -> String {
 const ID_COL: usize = 30;
 const NUM_COL: usize = 12;
 
+/// This kind's rows, in the same order they already appear in `m.rows`
+/// (scenario-id order) — grouping into sections is a render-time filter
+/// only, never a resort (matrix-render spec, "Within a section, row order
+/// follows the existing ordering").
+fn rows_of_kind(m: &Matrix, kind: Kind) -> Vec<&Row> {
+    m.rows.iter().filter(|r| r.kind == kind).collect()
+}
+
 /// Fixed-width terminal table: the default `matrix` output and `run`'s
-/// end-of-run stderr table (target-matrix sections 7-8).
+/// end-of-run stderr table (target-matrix sections 7-8). Rows render in two
+/// sections — regression first, then capability, each under its own marker
+/// (matrix-render spec, "Rows are grouped by kind"); a kind with no rows
+/// prints no marker and no rows for it. The footer renders three metric
+/// groups in the same order, regression and capability filtered to the
+/// common gradable set and rendered `n/a` when that kind is absent from it,
+/// overall last and unchanged from before.
 pub fn render_fixed_width(m: &Matrix) -> String {
     let mut out = String::new();
     out.push_str(&format!("{:<ID_COL$}", "scenario"));
@@ -498,12 +602,42 @@ pub fn render_fixed_width(m: &Matrix) -> String {
         out.push_str(&format!("{:>NUM_COL$}", column_header(col)));
     }
     out.push('\n');
-    for row in &m.rows {
-        out.push_str(&format!("{:<ID_COL$}", row.id));
-        for cell in &row.cells {
-            out.push_str(&format!("{:>NUM_COL$}", format_cell(*cell)));
+    for (label, kind) in [
+        ("regression", Kind::Regression),
+        ("capability", Kind::Capability),
+    ] {
+        let rows = rows_of_kind(m, kind);
+        if rows.is_empty() {
+            continue;
         }
-        out.push_str(&row_marks(row));
+        out.push_str(&format!("-- {label} --\n"));
+        for row in rows {
+            out.push_str(&format!("{:<ID_COL$}", row.id));
+            for cell in &row.cells {
+                out.push_str(&format!("{:>NUM_COL$}", format_cell(*cell)));
+            }
+            out.push_str(&row_marks(row));
+            out.push('\n');
+        }
+    }
+
+    for (label, kind) in [
+        ("regression", Kind::Regression),
+        ("capability", Kind::Capability),
+    ] {
+        out.push_str(&format!("{:<ID_COL$}", format!("{label} pass@k")));
+        for col in &m.columns {
+            out.push_str(&kind_footer_cell_fixed_width(
+                kind_footer(col, kind).map(|f| f.pass_at_k),
+            ));
+        }
+        out.push('\n');
+        out.push_str(&format!("{:<ID_COL$}", format!("{label} pass^k")));
+        for col in &m.columns {
+            out.push_str(&kind_footer_cell_fixed_width(
+                kind_footer(col, kind).map(|f| f.pass_hat_k),
+            ));
+        }
         out.push('\n');
     }
     out.push_str(&format!("{:<ID_COL$}", "pass@k"));
@@ -537,12 +671,13 @@ fn render_legend_fixed_width(m: &Matrix) -> String {
     let mut out = String::from("\nlegend:\n");
     for col in &m.columns {
         out.push_str(&format!(
-            "  {:<16} model={:<32} target={:<28} judge={:<20} prompts={:<20}{}{}{}\n",
+            "  {:<16} model={:<32} target={:<28} judge={:<20} prompts={:<20}zs={:<24}{}{}{}\n",
             col.label,
             col.model,
             col.target,
             format_judge(&col.judge),
             crate::compare::pack_identity(&col.prompts_pack, &col.prompts_hash),
+            crate::compare::zs_identity(&col.zs_version, &col.zs_bin_sha256),
             if col.incomplete { " incomplete" } else { "" },
             if col.judge_drift { " judge-drift" } else { "" },
             if col.multi_variable { " MULTI-VAR" } else { "" },
@@ -561,7 +696,8 @@ const LEGEND_CAVEAT: &str =
     "\nSPREAD, DRIFT, and MULTI-VAR are display heuristics, not statistical or authoritative claims.\n";
 
 /// Markdown table: for `matrix --markdown` and `experiments/` snapshots (no
-/// width limit, unlike the fixed-width renderer).
+/// width limit, unlike the fixed-width renderer). Same row sectioning and
+/// three-group footer as [`render_fixed_width`] — see its doc.
 pub fn render_markdown(m: &Matrix) -> String {
     // SPREAD/DRIFT belong in a real cell: text after a row's final `|` is
     // dropped by GFM table parsers, so the marks would vanish from the very
@@ -586,13 +722,59 @@ pub fn render_markdown(m: &Matrix) -> String {
         out.push_str("---|");
     }
     out.push('\n');
-    for row in &m.rows {
-        out.push_str(&format!("| {} |", row.id));
-        for cell in &row.cells {
-            out.push_str(&format!(" {} |", format_cell(*cell)));
+    for (label, kind) in [
+        ("regression", Kind::Regression),
+        ("capability", Kind::Capability),
+    ] {
+        let rows = rows_of_kind(m, kind);
+        if rows.is_empty() {
+            continue;
+        }
+        // A section marker row: plain text after a row's final `|` is
+        // dropped by GFM parsers, so the marker sits in its own bolded cell
+        // rather than trailing off the end of the row (same reasoning as
+        // `any_marks`'s notes column above).
+        out.push_str(&format!("| **{label}** |"));
+        for _ in &m.columns {
+            out.push_str(" |");
         }
         if any_marks {
-            out.push_str(&format!(" {} |", row_marks(row).trim()));
+            out.push_str(" |");
+        }
+        out.push('\n');
+        for row in rows {
+            out.push_str(&format!("| {} |", row.id));
+            for cell in &row.cells {
+                out.push_str(&format!(" {} |", format_cell(*cell)));
+            }
+            if any_marks {
+                out.push_str(&format!(" {} |", row_marks(row).trim()));
+            }
+            out.push('\n');
+        }
+    }
+    for (label, kind) in [
+        ("regression", Kind::Regression),
+        ("capability", Kind::Capability),
+    ] {
+        out.push_str(&format!("| {label} pass@k |"));
+        for col in &m.columns {
+            out.push_str(&kind_footer_cell_markdown(
+                kind_footer(col, kind).map(|f| f.pass_at_k),
+            ));
+        }
+        if any_marks {
+            out.push_str(" |");
+        }
+        out.push('\n');
+        out.push_str(&format!("| {label} pass^k |"));
+        for col in &m.columns {
+            out.push_str(&kind_footer_cell_markdown(
+                kind_footer(col, kind).map(|f| f.pass_hat_k),
+            ));
+        }
+        if any_marks {
+            out.push_str(" |");
         }
         out.push('\n');
     }
@@ -629,12 +811,13 @@ pub fn render_markdown(m: &Matrix) -> String {
     out.push_str("\n**Legend**\n\n");
     for col in &m.columns {
         out.push_str(&format!(
-            "- `{}`: model={}, target={}, judge={}, prompts={}{}{}{}\n",
+            "- `{}`: model={}, target={}, judge={}, prompts={}, zs={}{}{}{}\n",
             col.label,
             col.model,
             col.target,
             format_judge(&col.judge),
             crate::compare::pack_identity(&col.prompts_pack, &col.prompts_hash),
+            crate::compare::zs_identity(&col.zs_version, &col.zs_bin_sha256),
             if col.incomplete { ", incomplete" } else { "" },
             if col.judge_drift { ", judge-drift" } else { "" },
             if col.multi_variable {
@@ -653,7 +836,7 @@ pub fn render_markdown(m: &Matrix) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::verdict::{Final, ReportMeta, TrialResult};
+    use crate::verdict::{Final, ReportMeta, TrialResult, ZsIdentity};
 
     fn trial(outcome: Final) -> TrialResult {
         TrialResult {
@@ -744,6 +927,28 @@ mod tests {
         )
     }
 
+    // 9.1 — mirrors `report_with_pack`: a fixture with a settable zerostack
+    // identity (version + hash), so legend tests can assert `zs_identity`'s
+    // wiring without a live zerostack binary.
+    fn report_with_zs(target: &str, tag: &str, version: &str, hash: &str) -> Report {
+        Report::build(
+            ReportMeta {
+                tag: tag.into(),
+                model: format!("anthropic/{tag}"),
+                backend: "zs".into(),
+                trials: 1,
+                target: target.into(),
+                zs: ZsIdentity {
+                    zs_version: version.into(),
+                    zs_bin_sha256: hash.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            vec![],
+        )
+    }
+
     // 5.1 — rows keyed by scenario id in id order, independent of the order
     // any one report listed them in.
     #[test]
@@ -752,8 +957,16 @@ mod tests {
             "targets/opus.toml",
             "run-a",
             vec![
-                ScenarioResult::from_trials("zebra".into(), vec![trial(Final::Pass)]),
-                ScenarioResult::from_trials("apple".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "zebra".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "apple".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
             ],
         );
         let b = report(
@@ -761,6 +974,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "mango".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -778,6 +992,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Fail), trial(Final::Fail)],
             )],
         );
@@ -786,6 +1001,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Indeterminate)],
             )],
         );
@@ -807,16 +1023,32 @@ mod tests {
             "targets/opus.toml",
             "run-a",
             vec![
-                ScenarioResult::from_trials("shared".into(), vec![trial(Final::Pass)]),
-                ScenarioResult::from_trials("only-a".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "shared".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "only-a".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
             ],
         );
         let b = report(
             "targets/sonnet.toml",
             "run-b",
             vec![
-                ScenarioResult::from_trials("shared".into(), vec![trial(Final::Fail)]),
-                ScenarioResult::from_trials("only-b".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "shared".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Fail)],
+                ),
+                ScenarioResult::from_trials(
+                    "only-b".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
             ],
         );
         let m = build(&[&a, &b]);
@@ -837,8 +1069,16 @@ mod tests {
     fn footer_matches_each_reports_own_summary_when_suites_are_identical() {
         let scenarios = || {
             vec![
-                ScenarioResult::from_trials("one".into(), vec![trial(Final::Pass)]),
-                ScenarioResult::from_trials("two".into(), vec![trial(Final::Fail)]),
+                ScenarioResult::from_trials(
+                    "one".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "two".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Fail)],
+                ),
             ]
         };
         let a = report("targets/opus.toml", "run-a", scenarios());
@@ -868,6 +1108,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -876,6 +1117,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Indeterminate)],
             )],
         );
@@ -917,6 +1159,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -962,6 +1205,7 @@ mod tests {
             "run-earlier",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -970,6 +1214,7 @@ mod tests {
             "run-later",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Fail)],
             )],
         );
@@ -991,6 +1236,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass), trial(Final::Pass)],
             )],
         );
@@ -999,6 +1245,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Fail), trial(Final::Fail)],
             )],
         );
@@ -1016,6 +1263,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![
                     trial(Final::Pass),
                     trial(Final::Fail),
@@ -1029,6 +1277,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![
                     trial(Final::Fail),
                     trial(Final::Fail),
@@ -1053,6 +1302,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1073,6 +1323,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials_with_hash(
                 "s".into(),
+                Kind::Regression,
                 "hash-old".into(),
                 vec![trial(Final::Pass)],
             )],
@@ -1082,6 +1333,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials_with_hash(
                 "s".into(),
+                Kind::Regression,
                 "hash-new".into(),
                 vec![trial(Final::Pass)],
             )],
@@ -1145,8 +1397,16 @@ mod tests {
             "targets/opus.toml",
             "run-a",
             vec![
-                ScenarioResult::from_trials("one".into(), vec![trial(Final::Pass)]),
-                ScenarioResult::from_trials("two".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "one".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "two".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
             ],
         );
         let mut truncated = report(
@@ -1154,6 +1414,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "one".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1180,8 +1441,16 @@ mod tests {
             "targets/opus.toml",
             "run-a",
             vec![
-                ScenarioResult::from_trials("one".into(), vec![trial(Final::Pass)]),
-                ScenarioResult::from_trials("two".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "one".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "two".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
             ],
         );
         // A committed baseline that only ever defined "one" — reached in full,
@@ -1191,6 +1460,7 @@ mod tests {
             "main",
             vec![ScenarioResult::from_trials(
                 "one".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1234,6 +1504,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass), trial(Final::Pass)],
             )],
         );
@@ -1242,6 +1513,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Fail), trial(Final::Fail)],
             )],
         );
@@ -1267,6 +1539,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1283,6 +1556,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "greet".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass), trial(Final::Fail)],
             )],
         );
@@ -1317,6 +1591,37 @@ mod tests {
         let legend = render_legend_fixed_width(&m);
         assert!(legend.contains("prompts=packs/a#aaaa"), "legend: {legend}");
         assert!(legend.contains("prompts=none"), "legend: {legend}");
+    }
+
+    // 9.1 — each column's legend line also carries its zerostack build
+    // identity as version plus short hash (`compare::zs_identity`), the same
+    // shape as `pack_identity`.
+    #[test]
+    fn legend_carries_each_columns_zs_identity() {
+        let a = report_with_zs(
+            "targets/opus.toml",
+            "run-a",
+            "zerostack 1.7.2",
+            "b41c000000000000",
+        );
+        let m = build(&[&a]);
+        let legend = render_legend_fixed_width(&m);
+        assert!(
+            legend.contains("zs=zerostack 1.7.2#b41c"),
+            "legend: {legend}"
+        );
+    }
+
+    // 9.1 — a mock-backend column's `zs_version` is the fixed `"mock"`
+    // label; its legend line shows `mock#<short-hash>`, the fixture
+    // fingerprint (controlled-variables spec, "Mock columns are identified
+    // as mock").
+    #[test]
+    fn legend_shows_mock_identity_for_mock_backend_reports() {
+        let a = report_with_zs("targets/opus.toml", "run-a", "mock", "abcd000000000000");
+        let m = build(&[&a]);
+        let legend = render_legend_fixed_width(&m);
+        assert!(legend.contains("zs=mock#abcd"), "legend: {legend}");
     }
 
     // 9.2 — two columns sharing a target and differing only by pack are a
@@ -1423,5 +1728,238 @@ mod tests {
         let md = render_markdown(&m);
         assert!(md.contains("prompts=packs/a#aaaa"), "markdown: {md}");
         assert!(md.contains("MULTI-VAR"), "markdown: {md}");
+    }
+
+    // 9.1 — the markdown renderer carries the same zs identity as the
+    // fixed-width one; both go through the same `Column` model.
+    #[test]
+    fn markdown_legend_carries_zs_identity() {
+        let a = report_with_zs(
+            "targets/opus.toml",
+            "run-a",
+            "zerostack 1.7.2",
+            "b41c000000000000",
+        );
+        let m = build(&[&a]);
+        let md = render_markdown(&m);
+        assert!(md.contains("zs=zerostack 1.7.2#b41c"), "markdown: {md}");
+    }
+
+    // trustworthy-numbers 6.1: rows render in two sections, regression first
+    // under its own marker, capability rows after under theirs.
+    #[test]
+    fn rows_render_in_two_sections_regression_first_fixed_width() {
+        let cap =
+            ScenarioResult::from_trials("cap-a".into(), Kind::Capability, vec![trial(Final::Pass)]);
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![
+                ScenarioResult::from_trials(
+                    "reg-a".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                cap,
+            ],
+        );
+        let m = build(&[&a]);
+        let fixed = render_fixed_width(&m);
+
+        let reg_marker = fixed
+            .find("-- regression --")
+            .unwrap_or_else(|| panic!("no regression section marker: {fixed}"));
+        let cap_marker = fixed
+            .find("-- capability --")
+            .unwrap_or_else(|| panic!("no capability section marker: {fixed}"));
+        let reg_row = fixed
+            .find("reg-a")
+            .unwrap_or_else(|| panic!("no reg-a row: {fixed}"));
+        let cap_row = fixed
+            .find("cap-a")
+            .unwrap_or_else(|| panic!("no cap-a row: {fixed}"));
+        assert!(reg_marker < reg_row, "{fixed}");
+        assert!(reg_row < cap_marker, "{fixed}");
+        assert!(cap_marker < cap_row, "{fixed}");
+    }
+
+    // trustworthy-numbers 6.2: the same sectioning applies to the markdown
+    // renderer, via its own marker row (plain text after the final `|` is
+    // dropped by GFM parsers, so the marker has to sit in a real cell).
+    #[test]
+    fn rows_render_in_two_sections_regression_first_markdown() {
+        let cap =
+            ScenarioResult::from_trials("cap-a".into(), Kind::Capability, vec![trial(Final::Pass)]);
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![
+                ScenarioResult::from_trials(
+                    "reg-a".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                cap,
+            ],
+        );
+        let m = build(&[&a]);
+        let md = render_markdown(&m);
+
+        let reg_marker = md
+            .find("**regression**")
+            .unwrap_or_else(|| panic!("no regression section marker: {md}"));
+        let cap_marker = md
+            .find("**capability**")
+            .unwrap_or_else(|| panic!("no capability section marker: {md}"));
+        let reg_row = md
+            .find("| reg-a |")
+            .unwrap_or_else(|| panic!("no reg-a row: {md}"));
+        let cap_row = md
+            .find("| cap-a |")
+            .unwrap_or_else(|| panic!("no cap-a row: {md}"));
+        assert!(reg_marker < reg_row, "{md}");
+        assert!(reg_row < cap_marker, "{md}");
+        assert!(cap_marker < cap_row, "{md}");
+    }
+
+    // trustworthy-numbers 6.1/6.3: the footer renders three metric groups —
+    // regression, capability, overall (unchanged) — in that order, each
+    // computed over the common gradable set filtered to that kind.
+    #[test]
+    fn footer_renders_three_groups_over_the_common_set_filtered_by_kind() {
+        let a_cap =
+            ScenarioResult::from_trials("cap".into(), Kind::Capability, vec![trial(Final::Fail)]);
+        let b_cap =
+            ScenarioResult::from_trials("cap".into(), Kind::Capability, vec![trial(Final::Pass)]);
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![
+                ScenarioResult::from_trials(
+                    "reg".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                a_cap,
+            ],
+        );
+        let b = report(
+            "targets/sonnet.toml",
+            "run-b",
+            vec![
+                ScenarioResult::from_trials(
+                    "reg".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Fail)],
+                ),
+                b_cap,
+            ],
+        );
+        let m = build(&[&a, &b]);
+        let fixed = render_fixed_width(&m);
+
+        // Order: regression group, then capability, then the unprefixed
+        // overall group last (the historical single "pass@k" line).
+        let reg_pos = fixed
+            .find("regression pass@k")
+            .unwrap_or_else(|| panic!("no regression pass@k line: {fixed}"));
+        let cap_pos = fixed
+            .find("capability pass@k")
+            .unwrap_or_else(|| panic!("no capability pass@k line: {fixed}"));
+        let overall_pos = fixed
+            .find("\npass@k")
+            .unwrap_or_else(|| panic!("no bare overall pass@k line: {fixed}"));
+        assert!(reg_pos < cap_pos, "{fixed}");
+        assert!(cap_pos < overall_pos, "{fixed}");
+
+        // Values: column a is reg-pass/cap-fail, column b is reg-fail/cap-pass
+        // — the two kind groups disagree with each other and with the
+        // blended overall, proving each is computed independently.
+        let reg_line = fixed
+            .lines()
+            .find(|l| l.starts_with("regression pass@k"))
+            .unwrap();
+        assert!(reg_line.contains("1.000"), "{reg_line}");
+        assert!(reg_line.contains("0.000"), "{reg_line}");
+
+        let cap_line = fixed
+            .lines()
+            .find(|l| l.starts_with("capability pass@k"))
+            .unwrap();
+        assert!(cap_line.contains("0.000"), "{cap_line}");
+        assert!(cap_line.contains("1.000"), "{cap_line}");
+
+        let overall_line = fixed.lines().find(|l| l.starts_with("pass@k")).unwrap();
+        assert!(overall_line.contains("0.500"), "{overall_line}");
+    }
+
+    // trustworthy-numbers 6.1/6.3: a kind with no gradable scenario in the
+    // common set renders `n/a` for every column — never a fabricated `-`
+    // hole or a `0.000` — the same textual convention a report's own summary
+    // uses for an empty kind.
+    #[test]
+    fn kind_absent_from_common_set_renders_n_a() {
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "reg".into(),
+                Kind::Regression,
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let b = report(
+            "targets/sonnet.toml",
+            "run-b",
+            vec![ScenarioResult::from_trials(
+                "reg".into(),
+                Kind::Regression,
+                vec![trial(Final::Fail)],
+            )],
+        );
+        let m = build(&[&a, &b]);
+        let fixed = render_fixed_width(&m);
+
+        let cap_line = fixed
+            .lines()
+            .find(|l| l.starts_with("capability pass@k"))
+            .unwrap_or_else(|| panic!("no capability pass@k line: {fixed}"));
+        assert!(cap_line.contains("n/a"), "{cap_line}");
+        assert!(!cap_line.contains("0.000"), "{cap_line}");
+
+        // The common set here is entirely regression, so overall == regression:
+        // column a (reg pass) is 1.000, column b (reg fail) is 0.000.
+        let overall_line = fixed.lines().find(|l| l.starts_with("pass@k")).unwrap();
+        assert!(overall_line.contains("1.000"), "{overall_line}");
+        assert!(overall_line.contains("0.000"), "{overall_line}");
+    }
+
+    // trustworthy-numbers 6.1/6.2: `--json`'s row array stays one flat array
+    // and each row carries its own `kind` — sectioning is a render-time
+    // concern only, never a JSON nesting.
+    #[test]
+    fn json_rows_stay_flat_with_kind_per_row() {
+        let cap =
+            ScenarioResult::from_trials("cap-a".into(), Kind::Capability, vec![trial(Final::Pass)]);
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![
+                ScenarioResult::from_trials(
+                    "reg-a".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                cap,
+            ],
+        );
+        let m = build(&[&a]);
+        let json = serde_json::to_value(&m).unwrap();
+        let rows = json["rows"].as_array().unwrap();
+        assert_eq!(rows.len(), 2, "rows stay one flat array: {json}");
+        let reg_row = rows.iter().find(|r| r["id"] == "reg-a").unwrap();
+        assert_eq!(reg_row["kind"], "regression", "{reg_row}");
+        let cap_row = rows.iter().find(|r| r["id"] == "cap-a").unwrap();
+        assert_eq!(cap_row["kind"], "capability", "{cap_row}");
     }
 }

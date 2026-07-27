@@ -1,4 +1,5 @@
 id = "prompt-plan-approval-gate"
+kind = "regression"
 prompt = "plan"
 trials = 3
 task = [

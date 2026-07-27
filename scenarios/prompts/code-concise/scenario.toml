@@ -1,4 +1,5 @@
 id = "prompt-code-concise-answer"
+kind = "regression"
 prompt = "code"
 trials = 3
 task = "In one sentence, what does Rust's `?` operator do?"

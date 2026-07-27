@@ -123,6 +123,7 @@ A scenario is flat TOML (see `scenarios/prompts/*/scenario.toml`). The assert
 DSL reference lives at the top of `crates/zseval/src/asserts.rs`.
 
     id     = "prompt-ask-readonly-refuses-edit"
+    kind   = "regression"  # required: "regression" | "capability" — see scenario-kind spec
     prompt = "ask"                 # zs --load-prompt ask; omit for default
     trials = 3
     task   = "Prepend a line to hello.py."   # string, or an array of turns
@@ -152,10 +153,14 @@ Conventions worth keeping:
   behaviour has a filesystem effect.
 - `final_max_lines N` is the direct check for the "keep answers short" rule.
 
-`file_contains`/`file_not_contains` paths are rooted at the run's throwaway
-`ZS_DATA_DIR` by default; prefix with `config:` or `work:` to check the
-isolated config dir or working dir instead, e.g.
-`file_contains config:agent/memory/MEMORY.md tabs`.
+`file_contains`/`file_not_contains`/`path_not_exists` paths are rooted at the
+run's throwaway `ZS_DATA_DIR` by default; prefix with `config:` or `work:` to
+check the isolated config dir or working dir instead, e.g.
+`file_contains config:agent/memory/MEMORY.md tabs`. `file_not_contains` fails
+if nothing matches its path (a missing file or a zero-hit glob is not
+evidence the file is clean, it's evidence the file was never written); use
+`path_not_exists <path>` when the check really is "nothing should be there at
+all" — it passes only when zero files *and* directories match.
 
 ### `mode = "loop"` scenarios
 
@@ -345,6 +350,40 @@ identity even once copied away from its run directory), what graded it
 (`"judge_file"`, `"judge_hash"` and `"judge_model"`, below), and, per scenario, a content hash
 of that scenario's `scenario.toml`.
 
+### Which zerostack produced it
+
+Every report also names the zerostack build behind its numbers, so a result can
+never be read without knowing what it measured:
+
+- **`"zs_version"`** is the first line of `ZS_BIN --version`, recorded verbatim.
+  It is evidence for a human, deliberately not parsed or format-checked: the
+  moment the harness validated the banner's shape, that shape would become a
+  compatibility contract with upstream. For `--backend mock` it is the fixed
+  string `"mock"`.
+- **`"zs_bin_sha256"`** is the SHA-256 of the binary's contents (for
+  `--backend mock`, a content fingerprint of the fixture). This is the
+  machine-comparable identity: two runs are a controlled comparison only if this
+  matches, which is exactly what a same-version-but-rebuilt binary cannot fake
+  (the incident that motivated recording it: a `--version` that read `1.7.1`
+  while the checkout had already moved on). `"zs_bin_path"` records where the
+  binary lived, normalised the same way as `"target"` so a committed report is
+  not a map of someone's filesystem. Because the hash is read from the file
+  directly, `ZS_BIN` / `--zs-bin` must name the binary by path (absolute, or
+  relative with a directory such as `./zerostack`) — a bare command name that
+  only resolves via `$PATH` cannot be read this way and fails the run.
+- **`"git_sha"`** and **`"features"`** are `null` today: the 1.7.x binary embeds
+  neither. They are recorded as observed facts of the current binary, not a
+  runtime "if the binary happens to expose it" branch, so when upstream starts
+  embedding them the field simply stops being `null`.
+
+Identity is captured once, at run start, before any trial spends anything. If
+`ZS_BIN --version` cannot run, exits non-zero, or prints nothing, the run
+**aborts** naming the binary rather than writing a report that cannot say what
+produced it: an identity-less report is the very thing this record exists to
+prevent, so there is no default or fallback value. A `--zs-bin` passed alongside
+`--backend mock` is ignored, because identity records the source of the evidence
+(the fixture), not an unused binary.
+
 The judge fields exist because the judge is the ruler: a run graded by a
 different model is not comparable to one graded by the old one just because
 both say "pass", so which ruler was used has to survive the run. They record
@@ -364,18 +403,19 @@ two different kinds of fact:
   what was *asked for*; the API resolves model names server-side and can serve
   something else. It is a list of every distinct ruler that answered, so no
   consumer has to take a string apart, and no ruler has to stand in for
-  another. Three states: absent/`null` is **unknown**, `[]` is **nothing was
-  graded** (`--no-judge`, no scenario carried a rubric, or every call failed),
-  and `["..."]` names the rulers. `[]` and `null` are deliberately different
-  answers (see `judges/README.md`). Each trial's own `trial.json` records the
-  same three facts for that trial alone.
+  another. The field is required — **absent** fails the report's load,
+  naming the field, rather than reading in as any of the three states below:
+  `null` is **unknown**, `[]` is **nothing was graded** (`--no-judge`, no
+  scenario carried a rubric, or every call failed), and `["..."]` names the
+  rulers. `[]` and `null` are deliberately different answers (see
+  `judges/README.md`). Each trial's own `trial.json` records the same three
+  facts for that trial alone.
 
 Swapping the judge should be paired with re-checking a batch against human
-labels (see `judges/README.md`). A baseline committed before these fields
-existed still loads, the same way `content_hash` did: its judge file reads as
-"none named" (judge files did not exist yet), and its `judge_model` reads as
-`null`: **unknown**, not "nothing graded". That run *was* graded, by the
-pinned default, and a report may never state a falsehood about a real run.
+labels (see `judges/README.md`). Report-family JSON is read as strictly as it
+is written: every field, judge fields included, must be present or the whole
+report fails to load naming what's missing — there is no read-tolerance
+default that lets an older, incomplete report quietly stand in as "unknown".
 
 `zseval compare` uses the model and hash fields:
 
@@ -388,9 +428,9 @@ pinned default, and a report may never state a falsehood about a real run.
 - **Changed scenario definition**: if a shared scenario's `scenario.toml`
   differs between baseline and candidate, `compare` warns instead of quietly
   diffing two different tests under the same id (see AGENTS.md's guardrail
-  on not moving the ruler while measuring). A baseline committed before this
-  field existed has an empty hash and is treated as "unknown", not a false
-  positive.
+  on not moving the ruler while measuring). Plain inequality on
+  `content_hash`: every current run records one, so there is no longer an
+  "unknown, skip the check" case to carve out.
 
 ## Troubleshooting
 

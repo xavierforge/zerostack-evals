@@ -1,4 +1,5 @@
 id = "memory-search-snippet-sufficient"
+kind = "capability"
 trials = 3
 task = "What platform is our staging environment deployed on? Answer in one sentence."
 

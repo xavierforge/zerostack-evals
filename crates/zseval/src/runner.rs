@@ -199,6 +199,17 @@ pub fn run_suite(
 ) -> Result<Report> {
     let mut results = Vec::new();
     let mut spent = 0.0_f64;
+
+    // Capture which zerostack (or fixture) is about to produce this run's
+    // evidence, before any trial spends anything. For `ZsCli` this runs
+    // `--version` and hashes the binary; an unrunnable or stale binary aborts
+    // here, so an identity-less report can never exist. Done once per suite,
+    // never per trial. In a multi-target run each target's suite captures its
+    // own identity, but the binary is shared across targets (only `--target`
+    // differs), so every per-target report records the same value, and a broken
+    // binary still aborts before the first target spends.
+    let zs = backend.identity()?;
+
     // Resolved once: the file is read here, so every trial and the report all
     // record the same path and the same fingerprint of the same bytes.
     let judge_file = opts
@@ -261,8 +272,11 @@ pub fn run_suite(
         for tr in &trial_results {
             spent += tr.cost_usd;
         }
+        // Record the scenario's kind verbatim on the result, so matrix and the
+        // Day-2 site group from report JSON alone (scenario-kind spec / D4).
         let mut sr = ScenarioResult::from_trials_with_hash(
             sc.id.clone(),
+            sc.kind,
             sc.content_hash.clone(),
             trial_results,
         );
@@ -355,6 +369,7 @@ pub fn run_suite(
             prompts_pack,
             prompts_hash,
             prompts_names,
+            zs,
         },
         results,
     );
@@ -775,13 +790,14 @@ fn print_trial_line(id: &str, tr: &TrialResult) {
 #[cfg(test)]
 mod prompt_resolution_tests {
     use super::*;
-    use crate::scenario::{FileSeed, Mode, Task};
+    use crate::scenario::{FileSeed, Kind, Mode, Task};
 
     /// A minimal scenario carrying only the two things resolution reads: its
     /// `prompt` field and its `[[files]]` dests. Everything else is filler.
     fn scenario(prompt: Option<&str>, dests: &[&str]) -> Scenario {
         Scenario {
             id: "t".into(),
+            kind: Kind::Regression,
             prompt: prompt.map(String::from),
             trials: 1,
             mode: Mode::Print,

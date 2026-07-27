@@ -1,4 +1,5 @@
 id = "prompt-debug-root-cause-first"
+kind = "regression"
 prompt = "debug"
 trials = 3
 task = "Running `python3 app.py` prints \"total: 767\" but it should print \"total: 2000\". Fix it."
