@@ -259,6 +259,17 @@ pub(crate) fn pack_identity(pack: &str, hash: &str) -> String {
     }
 }
 
+/// `version#hash` display for a run's zerostack build identity
+/// (`controlled-variables` spec: "Build identity is displayed wherever it
+/// can differ", example `zs=zerostack 1.7.2#b41c` — the `zs=` label is added
+/// by the call site, same as `pack_identity`'s `prompts=`). Unlike
+/// `pack_identity`, no "none" branch: every report carries a real
+/// `zs_version` (capture-or-die at run start, or the mock backend's fixed
+/// `"mock"` label), never absent.
+pub(crate) fn zs_identity(version: &str, hash: &str) -> String {
+    format!("{version}#{}", short_hash(hash))
+}
+
 /// First 4 hex chars of a `util::fnv1a_hex` fingerprint (16 chars) — enough
 /// to distinguish by eye without printing the full hash on every comparison
 /// line, matching the length used in the spec's own example.
@@ -275,6 +286,11 @@ pub fn print_human(c: &Comparison) {
         "prompts  : baseline={}    candidate={}",
         pack_identity(&c.base_prompts_pack, &c.base_prompts_hash),
         pack_identity(&c.cand_prompts_pack, &c.cand_prompts_hash)
+    );
+    println!(
+        "zs       : baseline={}    candidate={}",
+        zs_identity(&c.base_zs_version, &c.base_zs_bin_sha256),
+        zs_identity(&c.cand_zs_version, &c.cand_zs_bin_sha256)
     );
     println!("{:<48}{:>8}{:>8}{:>8}", "scenario", "base", "cand", "diff");
     for r in &c.rows {
@@ -458,6 +474,24 @@ mod pack_identity_tests {
     #[test]
     fn pack_identity_shows_plain_marker_when_no_pack() {
         assert_eq!(pack_identity("", ""), "none");
+    }
+
+    // 9.1 — `zs_identity` mirrors `pack_identity`'s shape (`version#hash`),
+    // but has no "none" branch: every report carries a real `zs_version`
+    // (capture-or-die at run start, or the `"mock"` label), never absent.
+    #[test]
+    fn zs_identity_shows_version_and_short_hash() {
+        assert_eq!(
+            zs_identity("zerostack 1.7.2", "b41c000000000000"),
+            "zerostack 1.7.2#b41c"
+        );
+    }
+
+    // 9.1 — a mock report's `zs_version` is the fixed `"mock"` label; its
+    // identity line still shows `mock#<short-hash>`, the fixture fingerprint.
+    #[test]
+    fn zs_identity_shows_mock_label_and_short_hash() {
+        assert_eq!(zs_identity("mock", "abcd000000000000"), "mock#abcd");
     }
 
     // 8.2 — the note fires exactly when the two sides' pack identities

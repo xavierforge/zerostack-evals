@@ -74,6 +74,14 @@ pub struct Column {
     /// different contents are distinguishable by eye (design.md, "Display
     /// the fingerprint, so 'invisible difference' needs no special rule").
     pub prompts_hash: String,
+    /// `Report::zs_version`, legend-only. For `--backend mock`, the fixed
+    /// `"mock"` label (controlled-variables spec, "Mock columns are
+    /// identified as mock").
+    pub zs_version: String,
+    /// `Report::zs_bin_sha256`, legend-only. Displayed as a short form
+    /// alongside `zs_version` (`compare::zs_identity`), same shape as
+    /// `prompts_pack`/`prompts_hash`.
+    pub zs_bin_sha256: String,
     /// Overall footer figures over the scenarios gradable in *every* column.
     /// `None` when that intersection is empty: there is no shared gradable
     /// basis, so the footer is honestly a hole (rendered `-`) rather than a
@@ -217,6 +225,8 @@ pub fn build(reports: &[&Report]) -> Matrix {
             judge: judge_state(r),
             prompts_pack: r.prompts_pack.clone(),
             prompts_hash: r.prompts_hash.clone(),
+            zs_version: r.zs_version.clone(),
+            zs_bin_sha256: r.zs_bin_sha256.clone(),
             footer: column_footer(r, &intersection),
             regression_footer: column_footer(r, &regression_ids),
             capability_footer: column_footer(r, &capability_ids),
@@ -660,12 +670,13 @@ fn render_legend_fixed_width(m: &Matrix) -> String {
     let mut out = String::from("\nlegend:\n");
     for col in &m.columns {
         out.push_str(&format!(
-            "  {:<16} model={:<32} target={:<28} judge={:<20} prompts={:<20}{}{}{}\n",
+            "  {:<16} model={:<32} target={:<28} judge={:<20} prompts={:<20}zs={:<24}{}{}{}\n",
             col.label,
             col.model,
             col.target,
             format_judge(&col.judge),
             crate::compare::pack_identity(&col.prompts_pack, &col.prompts_hash),
+            crate::compare::zs_identity(&col.zs_version, &col.zs_bin_sha256),
             if col.incomplete { " incomplete" } else { "" },
             if col.judge_drift { " judge-drift" } else { "" },
             if col.multi_variable { " MULTI-VAR" } else { "" },
@@ -814,12 +825,13 @@ pub fn render_markdown(m: &Matrix) -> String {
     out.push_str("\n**Legend**\n\n");
     for col in &m.columns {
         out.push_str(&format!(
-            "- `{}`: model={}, target={}, judge={}, prompts={}{}{}{}\n",
+            "- `{}`: model={}, target={}, judge={}, prompts={}, zs={}{}{}{}\n",
             col.label,
             col.model,
             col.target,
             format_judge(&col.judge),
             crate::compare::pack_identity(&col.prompts_pack, &col.prompts_hash),
+            crate::compare::zs_identity(&col.zs_version, &col.zs_bin_sha256),
             if col.incomplete { ", incomplete" } else { "" },
             if col.judge_drift { ", judge-drift" } else { "" },
             if col.multi_variable {
@@ -838,7 +850,7 @@ pub fn render_markdown(m: &Matrix) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::verdict::{Final, ReportMeta, TrialResult};
+    use crate::verdict::{Final, ReportMeta, TrialResult, ZsIdentity};
 
     fn trial(outcome: Final) -> TrialResult {
         TrialResult {
@@ -923,6 +935,28 @@ mod tests {
                 target: target.into(),
                 prompts_pack: pack.into(),
                 prompts_hash: hash.into(),
+                ..Default::default()
+            },
+            vec![],
+        )
+    }
+
+    // 9.1 — mirrors `report_with_pack`: a fixture with a settable zerostack
+    // identity (version + hash), so legend tests can assert `zs_identity`'s
+    // wiring without a live zerostack binary.
+    fn report_with_zs(target: &str, tag: &str, version: &str, hash: &str) -> Report {
+        Report::build(
+            ReportMeta {
+                tag: tag.into(),
+                model: format!("anthropic/{tag}"),
+                backend: "zs".into(),
+                trials: 1,
+                target: target.into(),
+                zs: ZsIdentity {
+                    zs_version: version.into(),
+                    zs_bin_sha256: hash.into(),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             vec![],
@@ -1504,6 +1538,37 @@ mod tests {
         assert!(legend.contains("prompts=none"), "legend: {legend}");
     }
 
+    // 9.1 — each column's legend line also carries its zerostack build
+    // identity as version plus short hash (`compare::zs_identity`), the same
+    // shape as `pack_identity`.
+    #[test]
+    fn legend_carries_each_columns_zs_identity() {
+        let a = report_with_zs(
+            "targets/opus.toml",
+            "run-a",
+            "zerostack 1.7.2",
+            "b41c000000000000",
+        );
+        let m = build(&[&a]);
+        let legend = render_legend_fixed_width(&m);
+        assert!(
+            legend.contains("zs=zerostack 1.7.2#b41c"),
+            "legend: {legend}"
+        );
+    }
+
+    // 9.1 — a mock-backend column's `zs_version` is the fixed `"mock"`
+    // label; its legend line shows `mock#<short-hash>`, the fixture
+    // fingerprint (controlled-variables spec, "Mock columns are identified
+    // as mock").
+    #[test]
+    fn legend_shows_mock_identity_for_mock_backend_reports() {
+        let a = report_with_zs("targets/opus.toml", "run-a", "mock", "abcd000000000000");
+        let m = build(&[&a]);
+        let legend = render_legend_fixed_width(&m);
+        assert!(legend.contains("zs=mock#abcd"), "legend: {legend}");
+    }
+
     // 9.2 — two columns sharing a target and differing only by pack are a
     // clean single-variable comparison: not marked, but their legend lines
     // are still distinguishable by pack identity.
@@ -1608,6 +1673,21 @@ mod tests {
         let md = render_markdown(&m);
         assert!(md.contains("prompts=packs/a#aaaa"), "markdown: {md}");
         assert!(md.contains("MULTI-VAR"), "markdown: {md}");
+    }
+
+    // 9.1 — the markdown renderer carries the same zs identity as the
+    // fixed-width one; both go through the same `Column` model.
+    #[test]
+    fn markdown_legend_carries_zs_identity() {
+        let a = report_with_zs(
+            "targets/opus.toml",
+            "run-a",
+            "zerostack 1.7.2",
+            "b41c000000000000",
+        );
+        let m = build(&[&a]);
+        let md = render_markdown(&m);
+        assert!(md.contains("zs=zerostack 1.7.2#b41c"), "markdown: {md}");
     }
 
     // trustworthy-numbers 6.1: rows render in two sections, regression first

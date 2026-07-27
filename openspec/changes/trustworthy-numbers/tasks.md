@@ -61,6 +61,6 @@
 
 ## 9. Build identity displayed wherever it can differ [dispatch: too-te, parallel: no, reason: display shape copies the existing pack_identity precedent verbatim (helper + two call sites); est. ~15 tool calls]
 
-- [ ] 9.1 Write failing tests: compare's identity lines show `zs=<version>#<short-hash>` beside the pack identity; matrix legend carries the same per column; a mock report's line shows `mock#<short-hash>`. Cite red output.
-- [ ] 9.2 Add a `zs_identity` display helper beside `pack_identity` and wire both call sites (compare human output, matrix legend).
-- [ ] 9.3 Evidence: test output green; one rendered legend sample cited.
+- [x] 9.1 Write failing tests: compare's identity lines show `zs=<version>#<short-hash>` beside the pack identity; matrix legend carries the same per column; a mock report's line shows `mock#<short-hash>`. Cite red output.
+- [x] 9.2 Add a `zs_identity` display helper beside `pack_identity` and wire both call sites (compare human output, matrix legend).
+- [x] 9.3 Evidence: test output green; one rendered legend sample cited.
