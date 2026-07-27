@@ -44,12 +44,12 @@
 
 ## 7. Strict report reads: remove the legacy escape hatches [dispatch: too-te, parallel: no, reason: the ~32 attribute sites, the skip branch, and the three test flips are enumerated; delete-and-tighten with no design freedom; est. ~30 tool calls]
 
-- [ ] 7.1 Flip the three verdict.rs tolerates-old-JSON tests into rejection tests: report JSON missing a field fails `load_report` with an error naming the field; a current-binary report round-trips cleanly. Red first, cite output.
-- [ ] 7.2 Remove the legacy `#[serde(default)]` attributes across `Report`/`ScenarioResult`/`TrialResult` (~32 sites) and their "old committed baseline" doc justifications. Fields whose default value is a legitimate runtime value (e.g. `judge_file = ""`) keep the value's meaning — only the deserialization escape hatch goes.
-- [ ] 7.3 Simplify `compare.rs`'s empty-hash skip branch to plain inequality; update its comment (the "old baseline" referent is gone); adjust any test relying on the skip.
-- [ ] 7.4 `git rm baselines/main.json`; update `baselines/README.md` (Day 2 regenerates against v1.7.2; the 07-21 numbers live in git history only).
-- [ ] 7.5 Tighten README's `judge_model` three-state wording: absent = load error, `null` = unknown, `[]` = nothing graded.
-- [ ] 7.6 Evidence: full `cargo test` green; `zseval compare baselines/main.json x` no longer applicable (file gone) — cite the failing-load test from 7.1 as the strictness proof.
+- [x] 7.1 Flip the three verdict.rs tolerates-old-JSON tests into rejection tests: report JSON missing a field fails `load_report` with an error naming the field; a current-binary report round-trips cleanly. Red first, cite output.
+- [x] 7.2 Remove the legacy `#[serde(default)]` attributes across `Report`/`ScenarioResult`/`TrialResult` (~32 sites) and their "old committed baseline" doc justifications. Fields whose default value is a legitimate runtime value (e.g. `judge_file = ""`) keep the value's meaning — only the deserialization escape hatch goes.
+- [x] 7.3 Simplify `compare.rs`'s empty-hash skip branch to plain inequality; update its comment (the "old baseline" referent is gone); adjust any test relying on the skip.
+- [x] 7.4 `git rm baselines/main.json`; update `baselines/README.md` (Day 2 regenerates against v1.7.2; the 07-21 numbers live in git history only).
+- [x] 7.5 Tighten README's `judge_model` three-state wording: absent = load error, `null` = unknown, `[]` = nothing graded.
+- [x] 7.6 Evidence: full `cargo test` green; `zseval compare baselines/main.json x` no longer applicable (file gone) — cite the failing-load test from 7.1 as the strictness proof.
 
 ## 8. Compare warning policy: two new warnings under one rule [dispatch: too-te, parallel: no, reason: policy, warning semantics, invariant test shape, and ADR content are all pre-decided in design D6; est. ~35 tool calls]
 

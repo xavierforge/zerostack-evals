@@ -399,18 +399,19 @@ two different kinds of fact:
   what was *asked for*; the API resolves model names server-side and can serve
   something else. It is a list of every distinct ruler that answered, so no
   consumer has to take a string apart, and no ruler has to stand in for
-  another. Three states: absent/`null` is **unknown**, `[]` is **nothing was
-  graded** (`--no-judge`, no scenario carried a rubric, or every call failed),
-  and `["..."]` names the rulers. `[]` and `null` are deliberately different
-  answers (see `judges/README.md`). Each trial's own `trial.json` records the
-  same three facts for that trial alone.
+  another. The field is required — **absent** fails the report's load,
+  naming the field, rather than reading in as any of the three states below:
+  `null` is **unknown**, `[]` is **nothing was graded** (`--no-judge`, no
+  scenario carried a rubric, or every call failed), and `["..."]` names the
+  rulers. `[]` and `null` are deliberately different answers (see
+  `judges/README.md`). Each trial's own `trial.json` records the same three
+  facts for that trial alone.
 
 Swapping the judge should be paired with re-checking a batch against human
-labels (see `judges/README.md`). A baseline committed before these fields
-existed still loads, the same way `content_hash` did: its judge file reads as
-"none named" (judge files did not exist yet), and its `judge_model` reads as
-`null`: **unknown**, not "nothing graded". That run *was* graded, by the
-pinned default, and a report may never state a falsehood about a real run.
+labels (see `judges/README.md`). Report-family JSON is read as strictly as it
+is written: every field, judge fields included, must be present or the whole
+report fails to load naming what's missing — there is no read-tolerance
+default that lets an older, incomplete report quietly stand in as "unknown".
 
 `zseval compare` uses the model and hash fields:
 
@@ -423,9 +424,9 @@ pinned default, and a report may never state a falsehood about a real run.
 - **Changed scenario definition**: if a shared scenario's `scenario.toml`
   differs between baseline and candidate, `compare` warns instead of quietly
   diffing two different tests under the same id (see AGENTS.md's guardrail
-  on not moving the ruler while measuring). A baseline committed before this
-  field existed has an empty hash and is treated as "unknown", not a false
-  positive.
+  on not moving the ruler while measuring). Plain inequality on
+  `content_hash`: every current run records one, so there is no longer an
+  "unknown, skip the check" case to carve out.
 
 ## Troubleshooting
 

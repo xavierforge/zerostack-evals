@@ -118,13 +118,7 @@ pub fn compare(base: &Report, cand: &Report, threshold: f64) -> Comparison {
                 if b.total_tool_calls > 0 && c.total_tool_calls == 0 {
                     evidence_warnings.push(b.id.clone());
                 }
-                // Empty hash = an old baseline predating this field, or a
-                // hand-built ScenarioResult in a test — "unknown", not "the
-                // same", but also not evidence of a real change, so skip.
-                if !b.content_hash.is_empty()
-                    && !c.content_hash.is_empty()
-                    && b.content_hash != c.content_hash
-                {
+                if b.content_hash != c.content_hash {
                     definition_changed.push(b.id.clone());
                 }
                 let base_rate = b.trial_pass_rate();
@@ -613,23 +607,18 @@ mod exit_code_tests {
     }
 
     #[test]
-    fn no_warning_when_hash_matches_or_is_unknown() {
-        // Same hash: no warning. Empty hash on either side (an old
-        // committed baseline predating this field): also no warning — a
-        // migration must not manufacture false positives for every
-        // pre-existing scenario.
+    fn no_warning_when_hash_matches() {
+        // Same hash: no warning — whether both sides recorded a real hash or
+        // (a hand-built `ScenarioResult` in a test) both left it empty. S7
+        // removed the old empty-hash skip branch (current runs always hash,
+        // so there is no longer a pre-field baseline to tolerate); plain
+        // inequality already gives the right answer here since equal hashes
+        // are equal whether or not they happen to be `""`.
         let mut same_a = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
         same_a.content_hash = "aaaa".into();
         let mut same_b = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
         same_b.content_hash = "aaaa".into();
         let c = compare(&report(vec![same_a]), &report(vec![same_b]), 0.05);
-        assert!(c.definition_changed.is_empty());
-
-        let mut old_baseline = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
-        old_baseline.content_hash = String::new();
-        let mut fresh = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
-        fresh.content_hash = "aaaa".into();
-        let c = compare(&report(vec![old_baseline]), &report(vec![fresh]), 0.05);
         assert!(c.definition_changed.is_empty());
     }
 

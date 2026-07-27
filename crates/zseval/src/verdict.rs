@@ -20,10 +20,11 @@ use crate::judge::JudgeVerdict;
 use crate::scenario::Kind;
 
 /// Frozen at `1`: nothing reads this value (verified — only set at build and
-/// asserted in tests), so bumping it is decorative. `#[serde(default)]` on
-/// individual fields (e.g. `Report::target`) does the real backward-load
-/// work; consumers check for a field's own presence on its own merits rather
-/// than branching on this number.
+/// asserted in tests), so bumping it is decorative. Every field on
+/// `Report`/`ScenarioResult`/`TrialResult` is required on load (S7 removed
+/// the last `#[serde(default)]` read-tolerance hatches): there is no
+/// backward-compat default path, so a report missing a field fails to load
+/// naming it rather than silently reading as an older shape.
 pub const REPORT_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -38,17 +39,16 @@ pub enum Final {
 /// `ScenarioResult::prompt_source` for the resolution order (implemented in
 /// section 6; this section only carries the type and its defaults).
 ///
-/// `Unknown` is the `#[derive(Default)]` variant: it is what a report
-/// predating this field reads as, and what the run path writes for now,
-/// before section 6 fills in a real resolution. It is deliberately distinct
-/// from `Stock` — an unobserved prompt is not the same fact as a run that
-/// observably used zerostack's built-in prompts.
+/// `Unknown` is the `#[derive(Default)]` variant: the placeholder value the
+/// run path writes for now, before section 6 fills in a real resolution. It
+/// is deliberately distinct from `Stock` — an unobserved prompt is not the
+/// same fact as a run that observably used zerostack's built-in prompts.
 ///
 /// A value on the wire that is not one of these four names is a
-/// deserialization error, not a silent `Unknown`: `#[serde(default)]` on the
-/// *field* (see `ScenarioResult::prompt_source`) covers a *missing* field,
-/// never a garbled one, so an unrecognized value fails loudly rather than
-/// being misread as "we don't know".
+/// deserialization error, not a silent `Unknown` — same as a missing field
+/// now that `ScenarioResult::prompt_source` has no read-tolerance default
+/// either (S7): an unrecognized value fails loudly rather than being
+/// misread as "we don't know".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum PromptSource {
@@ -64,9 +64,7 @@ pub struct TrialResult {
     pub trial: usize,
     pub outcome: Final,
     /// Human-readable reasons when not a clean pass.
-    #[serde(default)]
     pub reasons: Vec<String>,
-    #[serde(default)]
     pub asserts: Vec<AssertResult>,
     pub judge: Option<JudgeVerdict>,
     /// Configuration: the judge file this trial was graded with (`--judge`),
@@ -76,27 +74,24 @@ pub struct TrialResult {
     /// ruler would sit under a `report.json` naming the first, and nothing on
     /// disk would say which of the two produced the verdict. Recorded the same
     /// way as `Report::judge_file` — see `JudgeFileRef`.
-    #[serde(default)]
     pub judge_file: String,
     /// Fingerprint of the judge file's bytes, `None` when no judge file was
     /// named (or its bytes could not be read). Same reason
     /// `ScenarioResult::content_hash` exists: a path is not an identity, and a
     /// judge file's contents change under a stable path.
-    #[serde(default)]
     pub judge_hash: Option<String>,
     /// Execution: the model that actually graded this trial, as the judge's
     /// own response reported it. Recorded per trial because that is where the
     /// evidence it graded lives; the report aggregates these (see
     /// `Report::judge_model`). Three distinct states:
     ///
-    /// - `None` — unknown: this record predates the field, or the judge
-    ///   answered without naming the model that served the call. Naming the
-    ///   configured model instead would report an intention as a fact.
+    /// - `None` — unknown: the judge answered without naming the model that
+    ///   served the call. Naming the configured model instead would report an
+    ///   intention as a fact.
     /// - `Some("")` — nothing graded this trial (no rubric, `--no-judge`, no
     ///   key, or the call failed). No ruler to name, which is not the same as
     ///   not knowing which ruler it was.
     /// - `Some(model)` — `model` graded it.
-    #[serde(default)]
     pub judge_model: Option<String>,
     pub input_tokens: u64,
     pub output_tokens: u64,
@@ -105,9 +100,7 @@ pub struct TrialResult {
     /// behavior, so it must never count against a scenario's
     /// `max_total_tokens`. Zero when no judge ran (or a test double reports
     /// nothing). Real API spend even so — see `judge::JudgeOutcome`.
-    #[serde(default)]
     pub judge_input_tokens: u64,
-    #[serde(default)]
     pub judge_output_tokens: u64,
     pub cost_usd: f64,
     pub wall_secs: f64,
@@ -118,7 +111,6 @@ pub struct TrialResult {
     /// happened before headless tool-call reconstruction existed): `compare`
     /// uses this to flag "evidence vanished" even when the pass rate didn't
     /// move.
-    #[serde(default)]
     pub tool_call_count: usize,
     /// Where the raw transcript(s) and stdout/stderr live, for `explain`.
     pub run_dir: String,
@@ -129,52 +121,41 @@ pub struct ScenarioResult {
     pub id: String,
     /// The scenario's `kind`, recorded verbatim: matrix and the Day-2 site
     /// group from report JSON alone, never by re-reading scenario.toml
-    /// (scenario-kind spec / design D4). `#[serde(default)]` for the same
-    /// read-tolerance reason as `content_hash`/`prompt_name` below — a report
-    /// written before this field existed still loads (S7 removes the hatch).
-    /// The run path always sets it from the scenario (see `runner.rs`), so a
-    /// real report never leans on the default.
-    #[serde(default = "default_result_kind")]
+    /// (scenario-kind spec / design D4). Required, with no read-tolerance
+    /// default (S7): the run path always sets it from the scenario (see
+    /// `runner.rs`), so a report missing it is not a real report.
     pub kind: Kind,
     pub trials: Vec<TrialResult>,
     pub pass_at_k: f64,
     pub pass_hat_k: f64,
     pub indeterminate: usize,
     /// Sum of `tool_call_count` across all trials — see `TrialResult`'s doc.
-    #[serde(default)]
     pub total_tool_calls: usize,
     /// `Scenario::content_hash` at run time — lets `compare` warn when a
     /// scenario's own definition changed between baseline and candidate.
-    /// `#[serde(default)]` so an old committed baseline predating this
-    /// field deserializes as `""`, which `compare` treats as "unknown, skip
-    /// the check" rather than a false-positive warning on every scenario.
-    #[serde(default)]
+    /// `""` when unknown (a hand-built `ScenarioResult` in a test), which
+    /// `compare` treats as "unknown, skip the check" rather than a
+    /// false-positive warning on every scenario.
     pub content_hash: String,
     /// The prompt name this scenario actually loaded — `""` when unresolved.
     /// Scenario-level rather than trial-level: constant across a scenario's
     /// trials (unlike `TrialResult::judge_file`, which varies because
     /// `regrade --judge` can re-score one trial with a different ruler), so it
-    /// sits beside `content_hash` instead. `#[serde(default)]` so a
-    /// `ScenarioResult` predating this field deserializes as `""` rather than
-    /// failing to parse. Populated by the resolution added in a later section;
-    /// the run path writes `""` for now.
-    #[serde(default)]
+    /// sits beside `content_hash` instead. Populated by the resolution added
+    /// in a later section; the run path writes `""` for now.
     pub prompt_name: String,
-    /// Which layer supplied `prompt_name` — see `PromptSource`.
-    /// `#[serde(default)]` so a `ScenarioResult` predating this field
-    /// deserializes as `Unknown`, never `Stock`: an older report's prompt was
-    /// never observed, which is not the same fact as a run that observably
-    /// used the built-in prompts. Populated by the resolution added in a
-    /// later section; the run path writes `Unknown` for now.
-    #[serde(default)]
+    /// Which layer supplied `prompt_name` — see `PromptSource`. Populated by
+    /// the resolution added in a later section; the run path writes
+    /// `Unknown` for now.
     pub prompt_source: PromptSource,
 }
 
-/// Read-tolerance default for `ScenarioResult::kind` (see its doc): only
-/// reached by a report predating the field, or a test fixture that leaves it
-/// unset. Every real run overwrites it from the scenario, so this value never
-/// travels on a genuine report. Removed with the other legacy
-/// `#[serde(default)]` hatches in S7.
+/// Placeholder `kind` used by `ScenarioResult::from_trials`/
+/// `from_trials_with_hash` before the caller overwrites it with the real
+/// scenario kind (see `runner.rs`) — a construction convenience, not a
+/// deserialization default: `ScenarioResult::kind` has no serde default
+/// (S7), so a report missing it fails to load rather than reading in as
+/// `Regression`.
 fn default_result_kind() -> Kind {
     Kind::Regression
 }
@@ -258,15 +239,11 @@ pub struct Report {
     /// and that fact has to survive the run. Always a working-directory-
     /// relative, forward-slashed path, never an absolute one — see
     /// `JudgeFileRef`.
-    /// `#[serde(default)]` so a baseline committed before this field existed
-    /// still loads, same precedent as `ScenarioResult::content_hash`.
-    #[serde(default)]
     pub judge_file: String,
     /// Fingerprint of `judge_file`'s bytes, `None` when no judge file was
     /// named (or its bytes could not be read). The path alone cannot pin the
     /// ruler down: a judge file's contents change under a stable path, which
     /// is the same reason `ScenarioResult::content_hash` exists.
-    #[serde(default)]
     pub judge_hash: Option<String>,
     /// Execution: the model(s) that actually graded, read back from the
     /// judge's own responses rather than from the config. `judge_file` and
@@ -274,17 +251,15 @@ pub struct Report {
     /// server-side, so what answered is a separate fact. Three distinct
     /// states, none of which may be confused for another:
     ///
-    /// - `None` — unknown. Either the report predates this field (a baseline
-    ///   written before it was still graded by *something*, so claiming
-    ///   "nothing" would state a falsehood about a real run), or some trial's
-    ///   own ruler was unknown, which leaves the run's rulers unlistable.
+    /// - `None` — unknown: some trial's own ruler was unknown, which leaves
+    ///   the run's rulers unlistable. (A report predating this field no
+    ///   longer loads at all: required, no default, per S7.)
     /// - `Some([])` — nothing was graded: `--no-judge`, no scenario carried a
     ///   rubric, or every call failed. The honest answer, where echoing the
     ///   configured model back would report an intention as a fact.
     /// - `Some([m, ...])` — these rulers graded, sorted and deduped. On the
     ///   rare disagreement (trials served by different models) every distinct
     ///   model is listed rather than one being picked to stand for the rest.
-    #[serde(default)]
     pub judge_model: Option<Vec<String>>,
     /// The target this run evaluated against: column identity, not content.
     /// `target.toml` (the file's bytes) lives only in the run dir; this field
@@ -293,18 +268,14 @@ pub struct Report {
     /// Normalised through the same `record_path` rule as `JudgeFileRef::path`
     /// (working-directory-relative, forward-slashed, never absolute; reduced
     /// to a bare file name when the target lives outside the working
-    /// directory). `#[serde(default)]` so a report written before this field
-    /// existed still loads, as an empty target rather than an error.
-    #[serde(default)]
+    /// directory).
     pub target: String,
     /// This run stopped early because it hit `--max-total-usd`: at least one
     /// declared scenario was never reached. Recorded as a fact on the report
     /// rather than inferred from a scenario count, so a consumer (`matrix`'s
     /// incomplete/`*` mark) can tell "the budget cut this short" apart from
     /// "this was simply a smaller suite" (a shorter baseline reached in full),
-    /// which a bare count cannot distinguish. `#[serde(default)]` so a report
-    /// written before this field existed still loads, as `false`.
-    #[serde(default)]
+    /// which a bare count cannot distinguish.
     pub budget_truncated: bool,
     /// The prompt pack this run evaluated (`--prompts`), `""` when none was
     /// given. Recorded because a pack is a subject variable of the experiment:
@@ -314,22 +285,18 @@ pub struct Report {
     /// (working-directory-relative, forward-slashed, never absolute; reduced to
     /// a bare directory name when the pack lives outside the working
     /// directory), so a report copied into `baselines/` is not a map of
-    /// someone's filesystem. `#[serde(default)]` so a report written before
-    /// this field existed still loads, as an empty pack.
-    #[serde(default)]
+    /// someone's filesystem.
     pub prompts_pack: String,
     /// Fingerprint of the pack's contents and names (`PromptPack::fingerprint`),
     /// `""` when no pack was given. The path alone cannot pin the pack down: a
     /// pack's files change under a stable path, the same reason `judge_hash`
     /// and `ScenarioResult::content_hash` exist. A moved-but-unchanged pack
     /// keeps this hash, so identity survives relocation.
-    #[serde(default)]
     pub prompts_hash: String,
     /// The sorted prompt names the pack provides (file stems), `[]` when no
     /// pack was given. Recorded alongside the hash so "why did every scenario
     /// resolve `stock`" is answerable from the report alone: a pack whose names
     /// no scenario calls is visible here without re-reading the pack directory.
-    #[serde(default)]
     pub prompts_names: Vec<String>,
     /// The zerostack build that produced this report, captured verbatim from
     /// `ZS_BIN --version`'s first line at run start (for `--backend mock`, the
@@ -337,11 +304,12 @@ pub struct Report {
     /// validated: the machine-comparable identity is `zs_bin_sha256`, so
     /// upstream's version-string shape never becomes a compatibility contract.
     ///
-    /// Required, with **no** `#[serde(default)]`, unlike the fields above: this
-    /// feature exists to make identity-less reports impossible, so a report
-    /// that cannot name the zerostack that produced it must fail to load, not
-    /// deserialize to an empty string. Capture failure aborts the run before
-    /// any API spend rather than writing a defaulted value (design D3/D7).
+    /// Required since it was added (design D3/D7), unlike the fields above:
+    /// those have a legitimate empty/default *value* (no judge file named, no
+    /// pack given); this one does not — a report that cannot name the
+    /// zerostack that produced it must fail to load, never read as an empty
+    /// string. Capture failure aborts the run before any API spend rather than
+    /// writing a defaulted value.
     pub zs_version: String,
     /// The zerostack binary's path as run, normalised through `record_path`
     /// (working-directory-relative, forward-slashed, bare name when outside the
@@ -802,19 +770,15 @@ mod exit_code_tests {
         assert_eq!(report.schema_version, 1);
     }
 
-    /// Same precedent as `content_hash`: a baseline written before the *judge*
-    /// fields existed must still load, as "unknown" rather than an error.
-    /// Specifically it must not read as "nothing graded" — that baseline *was*
-    /// graded (by the pinned default), so the one thing this report may not do
-    /// is assert a falsehood about a real past run. It keeps the schema
-    /// version it was written with; the serde defaults on the judge fields are
-    /// what let it load. (The zerostack identity fields are required with no
-    /// default, so the fixture carries them; that strictness is exercised by
-    /// `a_report_json_lacking_zs_version_fails_to_load`.)
+    /// S7: report-family JSON is read as strictly as it is written. The
+    /// read-tolerance default that used to let a pre-field baseline load is
+    /// gone — a report missing a judge field now fails `load_report` with an
+    /// error naming it, same as the zerostack identity fields already did
+    /// (`a_report_json_lacking_zs_version_fails_to_load`).
     #[test]
-    fn a_baseline_predating_the_judge_fields_loads_as_unknown_not_as_ungraded() {
-        let old = r#"{
-            "schema_version": 2,
+    fn a_report_json_missing_a_judge_field_fails_to_load_naming_it() {
+        let missing_judge_file = r#"{
+            "schema_version": 1,
             "tag": "main",
             "model": "anthropic/claude-sonnet-4-6",
             "backend": "zs",
@@ -834,36 +798,36 @@ mod exit_code_tests {
                 "capability": {"n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0}
             }
         }"#;
-        let report: Report = serde_json::from_str(old).unwrap();
-        assert_eq!(
-            report.schema_version, 2,
-            "keeps the version it was written with"
-        );
-        assert_eq!(report.judge_file, "", "judge files did not exist yet");
-        assert_eq!(report.judge_hash, None);
-        assert_eq!(
-            report.judge_model, None,
-            "this run was graded — it must read as unknown, never as 'nothing graded'"
+        let err = serde_json::from_str::<Report>(missing_judge_file).unwrap_err();
+        assert!(
+            err.to_string().contains("judge_file"),
+            "the load error should name the missing field: {err}"
         );
     }
 
-    /// A trial.json written before these fields existed is the same problem
-    /// one level down: it was graded, so it may not claim it wasn't.
+    /// S7, one level down: a trial.json missing a judge field fails to load
+    /// naming it, same strictness as the report-level fields above.
     #[test]
-    fn a_trial_predating_the_judge_fields_loads_as_unknown_not_as_ungraded() {
-        let old = r#"{
+    fn a_trial_json_missing_a_judge_field_fails_to_load_naming_it() {
+        let missing_judge_file = r#"{
             "trial": 0,
             "outcome": "pass",
+            "reasons": [],
+            "asserts": [],
             "judge": "yes",
+            "judge_hash": null,
+            "judge_model": null,
             "input_tokens": 1, "output_tokens": 2,
+            "judge_input_tokens": 0, "judge_output_tokens": 0,
             "cost_usd": 0.1, "wall_secs": 1.0,
+            "tool_call_count": 0,
             "run_dir": "results/main/s/trial-0"
         }"#;
-        let tr: TrialResult = serde_json::from_str(old).unwrap();
-        assert_eq!(tr.judge, Some(JudgeVerdict::Yes));
-        assert_eq!(tr.judge_file, "");
-        assert_eq!(tr.judge_hash, None);
-        assert_eq!(tr.judge_model, None);
+        let err = serde_json::from_str::<TrialResult>(missing_judge_file).unwrap_err();
+        assert!(
+            err.to_string().contains("judge_file"),
+            "the load error should name the missing field: {err}"
+        );
     }
 
     #[test]
@@ -955,19 +919,26 @@ mod target_field_tests {
         assert!(!reloaded.target.is_empty());
     }
 
-    /// Same precedent as `judge_file`/`content_hash`: a report written before
-    /// the `target` field existed must still load, as an empty target rather
-    /// than an error. (Identity fields are required, so the fixture carries
-    /// them — see `a_report_json_lacking_zs_version_fails_to_load`.)
+    /// S7: same strictness as the judge fields — a report missing `target`
+    /// fails to load naming it, rather than reading in as an empty target.
+    /// (Identity fields are required, so the fixture carries them — see
+    /// `a_report_json_lacking_zs_version_fails_to_load`.)
     #[test]
-    fn a_report_json_lacking_the_field_deserialises_to_an_empty_target() {
-        let old = r#"{
+    fn a_report_json_missing_target_fails_to_load_naming_it() {
+        let missing_target = r#"{
             "schema_version": 1,
             "tag": "main",
             "model": "anthropic/claude-sonnet-4-6",
             "backend": "zs",
             "timestamp": "2026-07-01T00:00:00Z",
             "trials": 3,
+            "judge_file": "",
+            "judge_hash": null,
+            "judge_model": null,
+            "budget_truncated": false,
+            "prompts_pack": "",
+            "prompts_hash": "",
+            "prompts_names": [],
             "zs_version": "zerostack 1.7.0",
             "zs_bin_path": "zerostack",
             "zs_bin_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -982,8 +953,11 @@ mod target_field_tests {
                 "capability": {"n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0}
             }
         }"#;
-        let report: Report = serde_json::from_str(old).unwrap();
-        assert_eq!(report.target, "");
+        let err = serde_json::from_str::<Report>(missing_target).unwrap_err();
+        assert!(
+            err.to_string().contains("target"),
+            "the load error should name the missing field: {err}"
+        );
     }
 }
 
@@ -1031,20 +1005,24 @@ mod prompts_pack_field_tests {
         assert!(report.prompts_names.is_empty());
     }
 
-    /// prompts-pack 4.3: a report written before the *pack* fields existed
-    /// still deserialises, as an empty pack rather than a parse error — same
-    /// `#[serde(default)]` precedent as `target` and `judge_file`. (Identity
-    /// fields are required, so the fixture carries them — see
-    /// `a_report_json_lacking_zs_version_fails_to_load`.)
+    /// S7: same strictness reaches the pack-identity fields — a report
+    /// missing them fails to load naming the first one absent, rather than
+    /// reading in as an empty pack. (Identity fields are required, so the
+    /// fixture carries them — see `a_report_json_lacking_zs_version_fails_to_load`.)
     #[test]
-    fn a_report_json_predating_the_pack_fields_deserialises_to_empties() {
-        let old = r#"{
+    fn a_report_json_missing_prompts_pack_fails_to_load_naming_it() {
+        let missing_pack = r#"{
             "schema_version": 1,
             "tag": "main",
             "model": "anthropic/claude-sonnet-4-6",
             "backend": "zs",
             "timestamp": "2026-07-01T00:00:00Z",
             "trials": 3,
+            "judge_file": "",
+            "judge_hash": null,
+            "judge_model": null,
+            "target": "",
+            "budget_truncated": false,
             "zs_version": "zerostack 1.7.0",
             "zs_bin_path": "zerostack",
             "zs_bin_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -1059,10 +1037,11 @@ mod prompts_pack_field_tests {
                 "capability": {"n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0}
             }
         }"#;
-        let report: Report = serde_json::from_str(old).unwrap();
-        assert_eq!(report.prompts_pack, "");
-        assert_eq!(report.prompts_hash, "");
-        assert!(report.prompts_names.is_empty());
+        let err = serde_json::from_str::<Report>(missing_pack).unwrap_err();
+        assert!(
+            err.to_string().contains("prompts_pack"),
+            "the load error should name the missing field: {err}"
+        );
     }
 }
 
@@ -1124,6 +1103,14 @@ mod zs_identity_field_tests {
             "backend": "zs",
             "timestamp": "2026-07-01T00:00:00Z",
             "trials": 3,
+            "judge_file": "",
+            "judge_hash": null,
+            "judge_model": null,
+            "target": "",
+            "budget_truncated": false,
+            "prompts_pack": "",
+            "prompts_hash": "",
+            "prompts_names": [],
             "zs_bin_path": "zerostack",
             "zs_bin_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
             "git_sha": null,
@@ -1185,9 +1172,10 @@ mod prompt_field_tests {
     }
 
     /// prompts-pack 5.1: an unrecognized value must fail to deserialize
-    /// rather than silently reading as `unknown` — `#[serde(default)]` on the
-    /// *field* covers a missing field, not a garbled one, and the spec relies
-    /// on that distinction holding.
+    /// rather than silently reading as `unknown` — a missing value and a
+    /// garbled one both fail now (S7 removed the field's read-tolerance
+    /// default too), but this pins down the enum's own strictness
+    /// independent of that.
     #[test]
     fn an_unrecognized_prompt_source_value_is_a_deserialization_error() {
         let err = serde_json::from_str::<PromptSource>("\"bogus\"");
@@ -1197,28 +1185,24 @@ mod prompt_field_tests {
         );
     }
 
-    /// prompts-pack 5.2: a `ScenarioResult` written before these fields
-    /// existed must still deserialize, same `#[serde(default)]` precedent as
-    /// `content_hash`, and its source must read as `unknown` rather than
-    /// `stock`: an older report's prompt was never observed, which is not the
-    /// same fact as a run that observably used the built-in prompts.
+    /// S7: same strictness reaches `ScenarioResult` — the fixture that used
+    /// to stand in for "a report predating `kind`/`prompt_name`/
+    /// `prompt_source`" (prompts-pack 5.2) now fails to load naming the first
+    /// field it lacks, rather than reading in as `Kind::Regression` /
+    /// `PromptSource::Unknown`.
     #[test]
-    fn a_scenario_result_predating_these_fields_deserializes_with_source_unknown() {
-        let old = r#"{
+    fn a_scenario_result_json_missing_kind_fails_to_load_naming_it() {
+        let missing_kind = r#"{
             "id": "s",
             "trials": [],
             "pass_at_k": 0.0,
             "pass_hat_k": 0.0,
             "indeterminate": 0
         }"#;
-        let sc: ScenarioResult = serde_json::from_str(old).unwrap();
-        assert_eq!(sc.prompt_name, "");
-        assert_eq!(sc.prompt_source, PromptSource::Unknown);
-        assert_ne!(
-            sc.prompt_source,
-            PromptSource::Stock,
-            "an older report's prompt was never observed, distinct from a run \
-             that observably used the built-in prompts"
+        let err = serde_json::from_str::<ScenarioResult>(missing_kind).unwrap_err();
+        assert!(
+            err.to_string().contains("kind"),
+            "the load error should name the missing field: {err}"
         );
     }
 }
