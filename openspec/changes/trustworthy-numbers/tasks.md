@@ -8,10 +8,10 @@
 
 ## 2. Strict scenario loading: deny unknown fields at every layer [dispatch: too-te, parallel: yes, reason: layers and fallback are pre-decided in design D2; typo fixtures fully enumerated in spec; est. ~25 tool calls]
 
-- [ ] 2.1 Write failing load tests with typo fixtures: unknown top-level key, unknown key in `[[files]]`, unknown key in `[loop]`, and `{ msg = "...", new_sesion = true }` in a multi-turn task — each expecting a load error that includes the scenario path. Cite red test output.
-- [ ] 2.2 Add `deny_unknown_fields` to `Scenario` and the six named nested structs (`FileSeed`, `LoopCfg`, `MemorySeed`, `NoteSeed`, `McpSeed`, `McpServerSeed`).
-- [ ] 2.3 Make the untagged `Task`/`Turn` layer strict. If serde's `deny_unknown_fields` does not enforce through untagged enums (the 2.1 turn-typo test proves it either way), fall back to a hand-written `Deserialize` for `Turn` (string-or-strict-struct). Constraint from the pre-start rulings: if any scenario fails the new strictness, fix the scenario — never add a whitelist or escape hatch.
-- [ ] 2.4 Evidence: 2.1 tests green, and `zseval list` loads all 42 in-tree scenarios cleanly (cite output).
+- [x] 2.1 Write failing load tests with typo fixtures: unknown top-level key, unknown key in `[[files]]`, unknown key in `[loop]`, and `{ msg = "...", new_sesion = true }` in a multi-turn task — each expecting a load error that includes the scenario path. Cite red test output.
+- [x] 2.2 Add `deny_unknown_fields` to `Scenario` and the six named nested structs (`FileSeed`, `LoopCfg`, `MemorySeed`, `NoteSeed`, `McpSeed`, `McpServerSeed`).
+- [x] 2.3 Make the untagged `Task`/`Turn` layer strict. If serde's `deny_unknown_fields` does not enforce through untagged enums (the 2.1 turn-typo test proves it either way), fall back to a hand-written `Deserialize` for `Turn` (string-or-strict-struct). Constraint from the pre-start rulings: if any scenario fails the new strictness, fix the scenario — never add a whitelist or escape hatch.
+- [x] 2.4 Evidence: 2.1 tests green, and `zseval list` loads all 42 in-tree scenarios cleanly (cite output).
 
 ## 3. zerostack identity: capture or die [dispatch: sai-hu, parallel: yes, reason: external-process handling and failure taxonomy carry real judgment (where capture lives, error shaping); spec pins the contract, not the structure; no tool-call cap]
 

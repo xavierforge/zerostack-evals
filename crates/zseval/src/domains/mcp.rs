@@ -60,11 +60,13 @@ use crate::scenario::Scenario;
 use crate::seed::Placement;
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct McpSeed {
     pub servers: Vec<McpServerSeed>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct McpServerSeed {
     pub name: String,
     /// Path to a `python3` stdio MCP server script, resolved the same way

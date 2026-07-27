@@ -24,6 +24,7 @@ use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Scenario {
     pub id: String,
     /// Named prompt to load (`zs --load-prompt <name>`). None = default prompt.
@@ -121,6 +122,7 @@ pub enum Mode {
 ///     root cause) on a loop scenario at load time instead of letting that
 ///     footgun ship.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LoopCfg {
     /// `--loop-max`. Required (not optional) because `--loop` alone runs
     /// unbounded — every loop scenario must declare a hard ceiling.
@@ -166,7 +168,7 @@ impl Task {
 /// force a fresh session (`new_session = true`) — the way to cut the context
 /// cord for cross-session tests.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum Turn {
     Simple(String),
     Full {
@@ -195,6 +197,7 @@ impl Turn {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FileSeed {
     pub src: PathBuf,
     pub dest: String,

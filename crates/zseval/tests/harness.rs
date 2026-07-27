@@ -897,6 +897,70 @@ fn loop_mode_rejects_every_tool_and_token_assert() {
 }
 
 #[test]
+fn unknown_top_level_key_fails_to_load() {
+    // A typo'd top-level key (e.g. `trails` for `trials`) must fail loudly at
+    // load, not be silently dropped — see scenario-strict-load spec.
+    let sc_dir = write_scenario(
+        "unknown-top-level",
+        "id = \"x\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\ntrails = 3\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    assert!(format!("{err:#}").contains("trails"), "{err:#}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
+fn unknown_key_in_files_entry_fails_to_load() {
+    let sc_dir = write_scenario(
+        "unknown-files-key",
+        "id = \"x\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
+         [[files]]\nsrc = \"_fixtures/x.py\"\ndest = \"work:x.py\"\nowner = \"root\"\n",
+    );
+    // The fixture must actually resolve so the only possible load failure is
+    // the unknown `owner` key, not an unrelated missing-fixture error.
+    let fixtures = sc_dir.join("_fixtures");
+    std::fs::create_dir_all(&fixtures).unwrap();
+    std::fs::write(fixtures.join("x.py"), "pass\n").unwrap();
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    assert!(format!("{err:#}").contains("owner"), "{err:#}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
+fn unknown_key_in_loop_table_fails_to_load() {
+    let sc_dir = write_scenario(
+        "unknown-loop-key",
+        "id = \"x\"\nmode = \"loop\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
+         [loop]\nmax_iterations = 3\nretries = 2\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    assert!(format!("{err:#}").contains("retries"), "{err:#}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
+fn typod_turn_field_fails_instead_of_silently_defaulting() {
+    // Before strict untagged-enum loading, a typo'd `new_sesion` silently
+    // became `new_session = false`, rewriting session-fresh-forgets from
+    // testing isolation to testing continuation while staying green — the
+    // motivating false-pass for this section.
+    let sc_dir = write_scenario(
+        "typod-turn-field",
+        "id = \"x\"\ntask = [{ msg = \"hi\", new_sesion = true }]\n\
+         expect = [\"final_contains x\"]\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    // serde's untagged-enum error message may degrade to "did not match any
+    // variant" without naming the bad field — what must survive is the
+    // scenario path, supplied by Scenario::load's own context wrap.
+    assert!(
+        format!("{err:#}").contains(sc_dir.to_str().unwrap()),
+        "{err:#}"
+    );
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
 fn loop_scenario_loads_and_grades_from_iteration_records_via_mock() {
     // No zerostack build needed: build a fixture shaped like a captured
     // mode = "loop" trial dir (data/loops/<uuid>/iter-*.json, no session
