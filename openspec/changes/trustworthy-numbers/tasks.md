@@ -1,10 +1,10 @@
 ## 1. Absence asserts: strict zero-hit semantics and path_not_exists [dispatch: too-te, parallel: yes, reason: spec states exact semantics, path language, and failure details; template-shaped assert work with in-file test conventions to copy; est. ~20 tool calls]
 
-- [ ] 1.1 Write failing unit tests in `asserts.rs`: `file_not_contains` fails when no file matches (missing file and zero-hit glob both); `path_not_exists` passes on absent path, fails on existing file, fails on existing directory, passes on empty/missing glob dir, fails on populated glob naming the hits; load-time rejection of a `path_not_exists` line with two `*` segments. Cite `cargo test` output showing them red.
-- [ ] 1.2 Split a shared matcher out of `read_glob` ("list all hits for pattern, files and directories"); `file_contains`/`file_not_contains` filter hits to files and read contents — existing green-path behavior unchanged (existing tests stay green).
-- [ ] 1.3 Flip `file_not_contains`'s `Err` arm to fail (symmetric with `file_contains`) and implement `path_not_exists` on the shared matcher, including its parse arm in the assert mini-DSL.
-- [ ] 1.4 Update README's assert table: add `path_not_exists`, and document that `file_not_contains` now requires the file to exist. Note: section 3 also edits README in this parallel group (distant sections; if the lane merge conflicts, resolve by keeping both edits).
-- [ ] 1.5 Evidence: full `cargo test` output green, plus a grep showing all 14 in-tree `file_not_contains` uses (across 7 scenario.toml files) still pass suite loading (`zseval list`).
+- [x] 1.1 Write failing unit tests in `asserts.rs`: `file_not_contains` fails when no file matches (missing file and zero-hit glob both); `path_not_exists` passes on absent path, fails on existing file, fails on existing directory, passes on empty/missing glob dir, fails on populated glob naming the hits; load-time rejection of a `path_not_exists` line with two `*` segments. Cite `cargo test` output showing them red.
+- [x] 1.2 Split a shared matcher out of `read_glob` ("list all hits for pattern, files and directories"); `file_contains`/`file_not_contains` filter hits to files and read contents — existing green-path behavior unchanged (existing tests stay green).
+- [x] 1.3 Flip `file_not_contains`'s `Err` arm to fail (symmetric with `file_contains`) and implement `path_not_exists` on the shared matcher, including its parse arm in the assert mini-DSL.
+- [x] 1.4 Update README's assert table: add `path_not_exists`, and document that `file_not_contains` now requires the file to exist. Note: section 3 also edits README in this parallel group (distant sections; if the lane merge conflicts, resolve by keeping both edits).
+- [x] 1.5 Evidence: full `cargo test` output green, plus a grep showing all 14 in-tree `file_not_contains` uses (across 7 scenario.toml files) still pass suite loading (`zseval list`).
 
 ## 2. Strict scenario loading: deny unknown fields at every layer [dispatch: too-te, parallel: yes, reason: layers and fallback are pre-decided in design D2; typo fixtures fully enumerated in spec; est. ~25 tool calls]
 

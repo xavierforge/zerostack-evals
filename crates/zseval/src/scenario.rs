@@ -227,7 +227,8 @@ fn loop_incompatible_assert(a: &crate::asserts::Assert) -> Option<&'static str> 
         | TranscriptContains(_)
         | TranscriptNotContains(_)
         | FileContains { .. }
-        | FileNotContains { .. } => None,
+        | FileNotContains { .. }
+        | PathNotExists(_) => None,
     }
 }
 

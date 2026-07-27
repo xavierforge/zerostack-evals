@@ -152,10 +152,14 @@ Conventions worth keeping:
   behaviour has a filesystem effect.
 - `final_max_lines N` is the direct check for the "keep answers short" rule.
 
-`file_contains`/`file_not_contains` paths are rooted at the run's throwaway
-`ZS_DATA_DIR` by default; prefix with `config:` or `work:` to check the
-isolated config dir or working dir instead, e.g.
-`file_contains config:agent/memory/MEMORY.md tabs`.
+`file_contains`/`file_not_contains`/`path_not_exists` paths are rooted at the
+run's throwaway `ZS_DATA_DIR` by default; prefix with `config:` or `work:` to
+check the isolated config dir or working dir instead, e.g.
+`file_contains config:agent/memory/MEMORY.md tabs`. `file_not_contains` fails
+if nothing matches its path (a missing file or a zero-hit glob is not
+evidence the file is clean, it's evidence the file was never written); use
+`path_not_exists <path>` when the check really is "nothing should be there at
+all" — it passes only when zero files *and* directories match.
 
 ### `mode = "loop"` scenarios
 
