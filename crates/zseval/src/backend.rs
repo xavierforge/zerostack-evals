@@ -873,7 +873,7 @@ mod mock_trial_dir_tests {
         std::fs::create_dir_all(&sc_dir).unwrap();
         std::fs::write(
             sc_dir.join("scenario.toml"),
-            "id = \"x\"\ntask = \"hi\"\nexpect = [\"final_contains x\"]\n",
+            "id = \"x\"\nkind = \"regression\"\ntask = \"hi\"\nexpect = [\"final_contains x\"]\n",
         )
         .unwrap();
         let sc = crate::scenario::Scenario::load(&sc_dir).unwrap();

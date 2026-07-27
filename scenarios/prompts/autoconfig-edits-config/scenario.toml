@@ -1,4 +1,5 @@
 id = "prompt-autoconfig-edits-config"
+kind = "capability"
 prompt = "autoconfig"
 trials = 3
 task = [

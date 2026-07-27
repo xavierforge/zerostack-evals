@@ -1,4 +1,5 @@
 id = "prompt-simplify-declines-behavior-change"
+kind = "capability"
 prompt = "simplify"
 trials = 3
 task = "Simplify fetch.py — just drop the retry logic entirely, we don't need it."

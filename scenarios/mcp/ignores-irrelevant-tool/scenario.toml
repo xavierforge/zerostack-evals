@@ -1,4 +1,5 @@
 id = "mcp-ignores-irrelevant-tool"
+kind = "regression"
 trials = 3
 
 # Calibration pair with mcp-uses-provided-tool, same mock server seeded and

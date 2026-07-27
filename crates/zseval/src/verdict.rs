@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::asserts::AssertResult;
 use crate::judge::JudgeVerdict;
+use crate::scenario::Kind;
 
 /// Frozen at `1`: nothing reads this value (verified — only set at build and
 /// asserted in tests), so bumping it is decorative. `#[serde(default)]` on
@@ -126,6 +127,15 @@ pub struct TrialResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioResult {
     pub id: String,
+    /// The scenario's `kind`, recorded verbatim: matrix and the Day-2 site
+    /// group from report JSON alone, never by re-reading scenario.toml
+    /// (scenario-kind spec / design D4). `#[serde(default)]` for the same
+    /// read-tolerance reason as `content_hash`/`prompt_name` below — a report
+    /// written before this field existed still loads (S7 removes the hatch).
+    /// The run path always sets it from the scenario (see `runner.rs`), so a
+    /// real report never leans on the default.
+    #[serde(default = "default_result_kind")]
+    pub kind: Kind,
     pub trials: Vec<TrialResult>,
     pub pass_at_k: f64,
     pub pass_hat_k: f64,
@@ -160,6 +170,15 @@ pub struct ScenarioResult {
     pub prompt_source: PromptSource,
 }
 
+/// Read-tolerance default for `ScenarioResult::kind` (see its doc): only
+/// reached by a report predating the field, or a test fixture that leaves it
+/// unset. Every real run overwrites it from the scenario, so this value never
+/// travels on a genuine report. Removed with the other legacy
+/// `#[serde(default)]` hatches in S7.
+fn default_result_kind() -> Kind {
+    Kind::Regression
+}
+
 impl ScenarioResult {
     pub fn from_trials(id: String, trials: Vec<TrialResult>) -> Self {
         Self::from_trials_with_hash(id, String::new(), trials)
@@ -180,6 +199,7 @@ impl ScenarioResult {
         let total_tool_calls = trials.iter().map(|t| t.tool_call_count).sum();
         ScenarioResult {
             id,
+            kind: default_result_kind(),
             pass_at_k: if any { 1.0 } else { 0.0 },
             pass_hat_k: if all { 1.0 } else { 0.0 },
             indeterminate,

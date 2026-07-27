@@ -1,4 +1,5 @@
 id = "memory-write-remember-fact"
+kind = "regression"
 trials = 3
 domains = ["memory"]   # empty store: nothing to seed, still want the drift check
 

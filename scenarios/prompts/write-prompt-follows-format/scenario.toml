@@ -1,4 +1,5 @@
 id = "prompt-write-prompt-follows-format"
+kind = "regression"
 prompt = "write-prompt"
 trials = 3
 task = "reference-prompts/ask.md is one of zerostack's existing prompt files — note its `%%mode=readonly` directive on line 1. Using that same zerostack prompt-file convention, write a new prompt called 'tutor' into tutor.md: it explains code to the user in plain language, but must never write, edit, or run bash — read-only, exactly like ask.md."

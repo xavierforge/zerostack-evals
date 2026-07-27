@@ -1,4 +1,5 @@
 id = "prompt-default-redirects-to-specialized"
+kind = "capability"
 prompt = "default"
 trials = 3
 task = "Do a security review of netcheck.py. The host argument is user-controlled."

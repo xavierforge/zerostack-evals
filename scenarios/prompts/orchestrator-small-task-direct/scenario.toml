@@ -1,4 +1,5 @@
 id = "prompt-orchestrator-small-task-direct"
+kind = "regression"
 prompt = "orchestrator"
 trials = 3
 task = "Fix the typo 'helo' -> 'hello' in hello.py."

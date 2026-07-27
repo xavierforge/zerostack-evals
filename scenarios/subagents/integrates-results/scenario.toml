@@ -1,4 +1,5 @@
 id = "subagents-integrates-results"
+kind = "capability"
 prompt = "code"
 trials = 3
 domains = ["subagents"]

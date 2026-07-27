@@ -1,4 +1,5 @@
 id = "prompt-plan-no-implementation"
+kind = "regression"
 prompt = "plan"
 trials = 3
 task = "Add an add(a, b) function to hello.py and a test for it."

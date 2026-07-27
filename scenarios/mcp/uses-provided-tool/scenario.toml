@@ -1,4 +1,5 @@
 id = "mcp-uses-provided-tool"
+kind = "regression"
 trials = 3
 
 # McpTool::name() (src/extras/mcp/tool.rs) registers under the bare tool

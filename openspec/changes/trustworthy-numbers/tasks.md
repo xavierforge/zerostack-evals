@@ -23,10 +23,10 @@
 
 ## 4. kind classification: required field and the adjudicated 42 [dispatch: too-te, parallel: no, reason: schema shape, enum values, and all 42 labels are pre-adjudicated in the spec table; bulk labeling is scripted, not judged; est. ~25 tool calls]
 
-- [ ] 4.1 Write failing tests: scenario without `kind` fails to load naming the field; `kind = "probe"` fails; after labeling, loading the full suite yields 29 regression + 13 capability. Cite red output.
-- [ ] 4.2 Add required `kind` field to `Scenario` (lowercase two-value enum, no default) and record it verbatim on `ScenarioResult` (constructors and existing test fixtures updated).
-- [ ] 4.3 Label all 42 scenario.toml files (41 under `scenarios/` + `examples/prompt-pack` marker) exactly per the spec table, via a scripted pass keyed off the table; verify by grep: 29 `kind = "regression"`, 13 `kind = "capability"`, no file without a kind line.
-- [ ] 4.4 Evidence: 4.1 tests green, `zseval list` green, grep counts cited. Note: suite is red between 4.2 and 4.3 by design — this section lands as one commit, never split.
+- [x] 4.1 Write failing tests: scenario without `kind` fails to load naming the field; `kind = "probe"` fails; after labeling, loading the full suite yields 29 regression + 13 capability. Cite red output.
+- [x] 4.2 Add required `kind` field to `Scenario` (lowercase two-value enum, no default) and record it verbatim on `ScenarioResult` (constructors and existing test fixtures updated).
+- [x] 4.3 Label all 42 scenario.toml files (41 under `scenarios/` + `examples/prompt-pack` marker) exactly per the spec table, via a scripted pass keyed off the table; verify by grep: 29 `kind = "regression"`, 13 `kind = "capability"`, no file without a kind line.
+- [x] 4.4 Evidence: 4.1 tests green, `zseval list` green, grep counts cited. Note: suite is red between 4.2 and 4.3 by design — this section lands as one commit, never split.
 
 ## 5. Per-kind summary metrics in report output [dispatch: too-te, parallel: yes, reason: struct shape, field names, n/a convention, and line order are all pinned in spec and design D5; est. ~20 tool calls]
 

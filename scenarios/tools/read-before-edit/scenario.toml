@@ -1,4 +1,5 @@
 id = "tools-read-before-edit"
+kind = "regression"
 prompt = "code"
 trials = 3
 

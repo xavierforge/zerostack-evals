@@ -1,4 +1,5 @@
 id = "prompt-refactor-preserves-tests"
+kind = "regression"
 prompt = "refactor"
 trials = 3
 task = "Refactor calc.py to remove the duplicated argument-validation logic between add() and multiply()."

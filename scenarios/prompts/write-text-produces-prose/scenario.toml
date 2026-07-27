@@ -1,4 +1,5 @@
 id = "prompt-write-text-produces-prose"
+kind = "regression"
 prompt = "write-text"
 trials = 3
 task = "Write a short release announcement for zerostack v1.4 into announcement.md: mention the new memory subsystem and thank contributors."

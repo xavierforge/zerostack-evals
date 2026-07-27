@@ -1,4 +1,5 @@
 id = "session-fresh-forgets"
+kind = "regression"
 trials = 3
 task = [
   "For this conversation only, the codeword is 'osprey'. Just acknowledge — no need to write this down anywhere.",

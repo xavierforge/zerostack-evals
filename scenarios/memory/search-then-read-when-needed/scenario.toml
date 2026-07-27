@@ -1,4 +1,5 @@
 id = "memory-search-then-read-when-needed"
+kind = "capability"
 trials = 3
 task = "What's our deployment strategy, and what was the decisive reason we picked it over the alternatives?"
 

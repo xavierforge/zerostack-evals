@@ -1,4 +1,5 @@
 id = "subagents-delegates-crossref"
+kind = "capability"
 prompt = "code"
 trials = 3
 domains = ["subagents"]

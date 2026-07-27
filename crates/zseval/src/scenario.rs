@@ -21,12 +21,19 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Scenario {
     pub id: String,
+    /// Whether a low score here is a problem (`regression` — a break should
+    /// gate a prompts PR) or a measurement (`capability` — a tracked number).
+    /// Required, with no default in either direction: a default would un-ask
+    /// the very question this field exists to force the author to answer, "is
+    /// a low score here a problem or a measurement?" A missing or unrecognized
+    /// value is a load-time error (scenario-kind spec / design D4).
+    pub kind: Kind,
     /// Named prompt to load (`zs --load-prompt <name>`). None = default prompt.
     #[serde(default)]
     pub prompt: Option<String>,
@@ -83,6 +90,18 @@ pub struct Scenario {
     /// a candidate run — see `util::fnv1a_hex`.
     #[serde(skip)]
     pub content_hash: String,
+}
+
+/// Is a low score on this scenario a problem or a measurement? The answer
+/// decides whether a break gates a prompts PR (`Regression`) or is tracked as
+/// a capability number (`Capability`). Deliberately two-valued and undefaulted
+/// (see `Scenario::kind` and design D4): the closed set means adding a third
+/// kind must be a loud schema decision, not a quiet new value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Kind {
+    Regression,
+    Capability,
 }
 
 /// Which zerostack invocation shape drives this scenario. `Loop` trades away

@@ -277,6 +277,9 @@ pub fn run_suite(
             sc.content_hash.clone(),
             trial_results,
         );
+        // Record the scenario's kind verbatim on the result, so matrix and the
+        // Day-2 site group from report JSON alone (scenario-kind spec / D4).
+        sr.kind = sc.kind;
         let (prompt_name, prompt_source) =
             resolve_prompt(sc, pack, config_default_prompt.as_deref());
         sr.prompt_name = prompt_name;
@@ -787,13 +790,14 @@ fn print_trial_line(id: &str, tr: &TrialResult) {
 #[cfg(test)]
 mod prompt_resolution_tests {
     use super::*;
-    use crate::scenario::{FileSeed, Mode, Task};
+    use crate::scenario::{FileSeed, Kind, Mode, Task};
 
     /// A minimal scenario carrying only the two things resolution reads: its
     /// `prompt` field and its `[[files]]` dests. Everything else is filler.
     fn scenario(prompt: Option<&str>, dests: &[&str]) -> Scenario {
         Scenario {
             id: "t".into(),
+            kind: Kind::Regression,
             prompt: prompt.map(String::from),
             trials: 1,
             mode: Mode::Print,

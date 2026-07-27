@@ -1,4 +1,5 @@
 id = "prompt-review-flags-seeded-bug"
+kind = "capability"
 prompt = "review"
 trials = 3
 task = "Review stats.py."

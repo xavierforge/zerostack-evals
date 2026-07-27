@@ -9,7 +9,7 @@ use zseval::backend::{AgentBackend, Mock, RunRoots, ZsCli};
 use zseval::judge::{JudgeConfig, JudgeProvider, LlmJudge};
 use zseval::prompts::PromptPack;
 use zseval::runner::{regrade, run_suite, RunOptions};
-use zseval::scenario::{discover, Scenario};
+use zseval::scenario::{discover, Kind, Scenario};
 use zseval::seed;
 use zseval::transcript;
 use zseval::verdict::Final;
@@ -80,7 +80,7 @@ fn rubric_scenario_dir(name: &str) -> PathBuf {
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("scenario.toml"),
-        "id = \"rubric-only\"\ntask = \"say hi\"\njudge = \"Did the agent say hi? Answer Yes/No/Unknown.\"\n",
+        "id = \"rubric-only\"\nkind = \"regression\"\ntask = \"say hi\"\njudge = \"Did the agent say hi? Answer Yes/No/Unknown.\"\n",
     )
     .unwrap();
     dir
@@ -96,7 +96,7 @@ fn no_rubric_scenario_dir(name: &str) -> PathBuf {
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("scenario.toml"),
-        "id = \"no-rubric\"\ntask = \"say hi\"\nexpect = [\"tool_not_called write\"]\n",
+        "id = \"no-rubric\"\nkind = \"regression\"\ntask = \"say hi\"\nexpect = [\"tool_not_called write\"]\n",
     )
     .unwrap();
     dir
@@ -588,6 +588,7 @@ fn memory_seed_sugar_expands_to_config_rooted_placements() {
         sc_dir.join("scenario.toml"),
         r#"
 id = "memory-seed-test"
+kind = "regression"
 task = "hello"
 expect = ["final_contains x"]
 
@@ -648,6 +649,7 @@ fn domain_dispatch_is_the_single_entry_point() {
         sc_dir.join("scenario.toml"),
         r#"
 id = "dispatch-test"
+kind = "regression"
 task = "hello"
 expect = ["final_contains x"]
 
@@ -710,7 +712,7 @@ fn explicit_domains_field_triggers_verify_without_any_seed_sugar() {
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
-        "id = \"domains-field-test\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
+        "id = \"domains-field-test\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
          domains = [\"memory\"]\n",
     )
     .unwrap();
@@ -744,7 +746,7 @@ fn unknown_domain_name_fails_at_load_not_mid_run() {
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
-        "id = \"bad-domain\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
+        "id = \"bad-domain\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
          domains = [\"chains\"]\n",
     )
     .unwrap();
@@ -766,6 +768,7 @@ fn load_fails_fast_on_missing_files_fixture() {
         sc_dir.join("scenario.toml"),
         r#"
 id = "bad-files-fixture"
+kind = "regression"
 task = "hello"
 expect = ["final_contains x"]
 
@@ -789,6 +792,7 @@ fn load_fails_fast_on_missing_memory_note_fixture() {
         sc_dir.join("scenario.toml"),
         r#"
 id = "bad-memory-fixture"
+kind = "regression"
 task = "hello"
 expect = ["final_contains x"]
 
@@ -813,7 +817,7 @@ fn write_scenario(name: &str, toml: &str) -> PathBuf {
 fn loop_mode_requires_a_loop_table() {
     let sc_dir = write_scenario(
         "loop-no-table",
-        "id = \"x\"\nmode = \"loop\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n",
+        "id = \"x\"\nkind = \"regression\"\nmode = \"loop\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n",
     );
     let err = Scenario::load(&sc_dir).unwrap_err();
     assert!(
@@ -827,7 +831,7 @@ fn loop_mode_requires_a_loop_table() {
 fn loop_table_rejected_on_a_print_scenario() {
     let sc_dir = write_scenario(
         "loop-table-on-print",
-        "id = \"x\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
+        "id = \"x\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
          [loop]\nmax_iterations = 3\n",
     );
     let err = Scenario::load(&sc_dir).unwrap_err();
@@ -842,7 +846,7 @@ fn loop_table_rejected_on_a_print_scenario() {
 fn loop_mode_rejects_zero_max_iterations() {
     let sc_dir = write_scenario(
         "loop-zero-max",
-        "id = \"x\"\nmode = \"loop\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
+        "id = \"x\"\nkind = \"regression\"\nmode = \"loop\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
          [loop]\nmax_iterations = 0\n",
     );
     let err = Scenario::load(&sc_dir).unwrap_err();
@@ -857,7 +861,7 @@ fn loop_mode_rejects_zero_max_iterations() {
 fn loop_mode_rejects_multi_turn_task() {
     let sc_dir = write_scenario(
         "loop-multi-turn",
-        "id = \"x\"\nmode = \"loop\"\ntask = [\"first\", \"second\"]\n\
+        "id = \"x\"\nkind = \"regression\"\nmode = \"loop\"\ntask = [\"first\", \"second\"]\n\
          expect = [\"final_contains x\"]\n[loop]\nmax_iterations = 3\n",
     );
     let err = Scenario::load(&sc_dir).unwrap_err();
@@ -883,7 +887,7 @@ fn loop_mode_rejects_every_tool_and_token_assert() {
         let sc_dir = write_scenario(
             &format!("loop-bad-assert-{op}"),
             &format!(
-                "id = \"x\"\nmode = \"loop\"\ntask = \"hello\"\nexpect = [\"{line}\"]\n\
+                "id = \"x\"\nkind = \"regression\"\nmode = \"loop\"\ntask = \"hello\"\nexpect = [\"{line}\"]\n\
                  [loop]\nmax_iterations = 3\n"
             ),
         );
@@ -902,7 +906,7 @@ fn unknown_top_level_key_fails_to_load() {
     // load, not be silently dropped — see scenario-strict-load spec.
     let sc_dir = write_scenario(
         "unknown-top-level",
-        "id = \"x\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\ntrails = 3\n",
+        "id = \"x\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\ntrails = 3\n",
     );
     let err = Scenario::load(&sc_dir).unwrap_err();
     assert!(format!("{err:#}").contains("trails"), "{err:#}");
@@ -913,7 +917,7 @@ fn unknown_top_level_key_fails_to_load() {
 fn unknown_key_in_files_entry_fails_to_load() {
     let sc_dir = write_scenario(
         "unknown-files-key",
-        "id = \"x\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
+        "id = \"x\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
          [[files]]\nsrc = \"_fixtures/x.py\"\ndest = \"work:x.py\"\nowner = \"root\"\n",
     );
     // The fixture must actually resolve so the only possible load failure is
@@ -930,7 +934,7 @@ fn unknown_key_in_files_entry_fails_to_load() {
 fn unknown_key_in_loop_table_fails_to_load() {
     let sc_dir = write_scenario(
         "unknown-loop-key",
-        "id = \"x\"\nmode = \"loop\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
+        "id = \"x\"\nkind = \"regression\"\nmode = \"loop\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n\
          [loop]\nmax_iterations = 3\nretries = 2\n",
     );
     let err = Scenario::load(&sc_dir).unwrap_err();
@@ -946,7 +950,7 @@ fn typod_turn_field_fails_instead_of_silently_defaulting() {
     // motivating false-pass for this section.
     let sc_dir = write_scenario(
         "typod-turn-field",
-        "id = \"x\"\ntask = [{ msg = \"hi\", new_sesion = true }]\n\
+        "id = \"x\"\nkind = \"regression\"\ntask = [{ msg = \"hi\", new_sesion = true }]\n\
          expect = [\"final_contains x\"]\n",
     );
     let err = Scenario::load(&sc_dir).unwrap_err();
@@ -958,6 +962,54 @@ fn typod_turn_field_fails_instead_of_silently_defaulting() {
         "{err:#}"
     );
     std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
+fn scenario_without_kind_fails_to_load_naming_the_field() {
+    // `kind` is required with no default: a scenario that never answers "is a
+    // low score a problem or a measurement?" must fail loudly at load, naming
+    // the missing field, not deserialize to a silent default (scenario-kind
+    // spec / design D4).
+    let sc_dir = write_scenario(
+        "no-kind",
+        "id = \"x\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    assert!(format!("{err:#}").contains("kind"), "{err:#}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
+fn invalid_kind_value_fails_to_load() {
+    // The enum is closed and two-valued; anything else (here `probe`) is a
+    // load-time error, never a silently accepted third kind.
+    let sc_dir = write_scenario(
+        "bad-kind",
+        "id = \"x\"\nkind = \"probe\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    assert!(format!("{err:#}").contains("probe"), "{err:#}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+#[test]
+fn the_committed_suite_is_29_regression_and_13_capability() {
+    // The adjudicated in-tree classification (scenario-kind spec table): the
+    // whole 42-scenario suite, the 41 under `scenarios/` plus the
+    // `examples/prompt-pack` coverage marker, labels to exactly 29 regression
+    // and 13 capability.
+    let mut all = discover(&scenarios_root()).unwrap();
+    let marker = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/prompt-pack/scenario");
+    all.push(Scenario::load(&marker).unwrap());
+
+    let regression = all.iter().filter(|s| s.kind == Kind::Regression).count();
+    let capability = all.iter().filter(|s| s.kind == Kind::Capability).count();
+    assert_eq!(all.len(), 42, "expected the full in-tree suite");
+    assert_eq!(
+        (regression, capability),
+        (29, 13),
+        "regression/capability split off the adjudicated table"
+    );
 }
 
 #[test]
@@ -983,7 +1035,7 @@ fn loop_scenario_loads_and_grades_from_iteration_records_via_mock() {
 
     let sc_dir = write_scenario(
         "loop-mock-scenario",
-        "id = \"loop-mock-scenario\"\nmode = \"loop\"\ntask = \"fix the bug\"\n\
+        "id = \"loop-mock-scenario\"\nkind = \"regression\"\nmode = \"loop\"\ntask = \"fix the bug\"\n\
          expect = [\"final_contains off-by-one\", \"transcript_contains ALL TESTS PASS\"]\n\
          [loop]\nmax_iterations = 3\nrun = \"python3 test_calc.py\"\n",
     );
@@ -1059,6 +1111,7 @@ fn scenario_load_stores_parsed_asserts() {
         sc_dir.join("scenario.toml"),
         r#"
 id = "parsed-asserts"
+kind = "regression"
 task = "hello"
 expect = ["tool_not_called write", "final_max_lines 4"]
 "#,
@@ -1079,7 +1132,7 @@ fn scenario_content_hash_changes_with_the_file_and_is_stable_otherwise() {
     let sc_dir = std::env::temp_dir().join(format!("zseval-test-hash-{}", std::process::id()));
     std::fs::create_dir_all(&sc_dir).unwrap();
     let toml = |task: &str| {
-        format!("id = \"hash-test\"\ntask = \"{task}\"\nexpect = [\"final_contains x\"]\n")
+        format!("id = \"hash-test\"\nkind = \"regression\"\ntask = \"{task}\"\nexpect = [\"final_contains x\"]\n")
     };
     std::fs::write(sc_dir.join("scenario.toml"), toml("hello")).unwrap();
     let a = Scenario::load(&sc_dir).unwrap();
@@ -1561,6 +1614,7 @@ fn judge_verdicts_map_to_final_outcomes() {
         sc_dir.join("scenario.toml"),
         r#"
 id = "judge-mapping"
+kind = "regression"
 task = "hello"
 judge = "Did the agent answer the question?"
 "#,
@@ -1680,7 +1734,7 @@ fn indeterminate_trial_recovers_cost_already_spent_before_the_failure() {
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
-        "id = \"cost-recover-test\"\ntask = \"hi\"\nexpect = [\"final_contains x\"]\n",
+        "id = \"cost-recover-test\"\nkind = \"regression\"\ntask = \"hi\"\nexpect = [\"final_contains x\"]\n",
     )
     .unwrap();
     let sc = Scenario::load(&sc_dir).unwrap();
@@ -1728,7 +1782,7 @@ fn a_run_stopped_by_the_budget_cap_records_budget_truncated() {
         std::fs::create_dir_all(&d).unwrap();
         std::fs::write(
             d.join("scenario.toml"),
-            format!("id = \"{id}\"\ntask = \"hi\"\nexpect = [\"final_contains x\"]\n"),
+            format!("id = \"{id}\"\nkind = \"regression\"\ntask = \"hi\"\nexpect = [\"final_contains x\"]\n"),
         )
         .unwrap();
         ids.push(Scenario::load(&d).unwrap());
@@ -1794,7 +1848,7 @@ fn indeterminate_trial_run_dir_is_also_recorded_relative_to_the_working_director
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
-        "id = \"relrun-indet-test\"\ntask = \"hi\"\nexpect = [\"final_contains x\"]\n",
+        "id = \"relrun-indet-test\"\nkind = \"regression\"\ntask = \"hi\"\nexpect = [\"final_contains x\"]\n",
     )
     .unwrap();
     let sc = Scenario::load(&sc_dir).unwrap();
@@ -1839,7 +1893,7 @@ fn the_report_records_the_judge_file_it_was_configured_with() {
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
-        "id = \"judge-record-test\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n",
+        "id = \"judge-record-test\"\nkind = \"regression\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n",
     )
     .unwrap();
     let sc = Scenario::load(&sc_dir).unwrap();
@@ -1921,7 +1975,7 @@ fn the_report_records_the_model_that_actually_graded() {
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
-        "id = \"served-model-test\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
+        "id = \"served-model-test\"\nkind = \"regression\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
          judge = \"Did the agent stay read-only?\"\n",
     )
     .unwrap();
@@ -1972,7 +2026,7 @@ fn a_judge_that_grades_without_naming_its_model_leaves_the_ruler_unknown() {
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
-        "id = \"unnamed-ruler-test\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
+        "id = \"unnamed-ruler-test\"\nkind = \"regression\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
          judge = \"Did the agent stay read-only?\"\n",
     )
     .unwrap();
@@ -2019,7 +2073,7 @@ fn a_judge_that_never_graded_records_no_model_but_keeps_the_file() {
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
-        "id = \"uncalled-judge-test\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n",
+        "id = \"uncalled-judge-test\"\nkind = \"regression\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n",
     )
     .unwrap();
     let sc = Scenario::load(&sc_dir).unwrap();
@@ -2059,7 +2113,7 @@ fn no_judge_leaves_both_judge_fields_empty() {
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
-        "id = \"no-judge-record-test\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
+        "id = \"no-judge-record-test\"\nkind = \"regression\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
          judge = \"Did the agent stay read-only?\"\n",
     )
     .unwrap();
@@ -2101,7 +2155,7 @@ fn regrading_with_a_second_judge_records_it_and_keeps_the_first_ones_evidence() 
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
-        "id = \"regrade-trace-test\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
+        "id = \"regrade-trace-test\"\nkind = \"regression\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
          judge = \"Did the agent stay read-only?\"\n",
     )
     .unwrap();
@@ -2202,7 +2256,7 @@ fn a_no_judge_regrade_leaves_no_regrade_artifacts_dir() {
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
-        "id = \"regrade-bare-test\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
+        "id = \"regrade-bare-test\"\nkind = \"regression\"\ntask = \"hi\"\nexpect = [\"tool_not_called write\"]\n\
          judge = \"Did the agent stay read-only?\"\n",
     )
     .unwrap();
@@ -2266,7 +2320,7 @@ fn regrade_regrades_existing_artifacts_without_driving_the_agent() {
     let write_scenario = |expect: &str| {
         std::fs::write(
             sc_dir.join("scenario.toml"),
-            format!("id = \"regrade-test\"\ntask = \"hi\"\nexpect = [\"{expect}\"]\n"),
+            format!("id = \"regrade-test\"\nkind = \"regression\"\ntask = \"hi\"\nexpect = [\"{expect}\"]\n"),
         )
         .unwrap();
     };
@@ -2365,7 +2419,7 @@ fn regrade_canonicalizes_run_dir_so_memory_drift_check_does_not_false_positive()
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
-        "id = \"regrade-canon-test\"\ntask = \"hi\"\nexpect = [\"final_contains done\"]\n[seed.memory]\n",
+        "id = \"regrade-canon-test\"\nkind = \"regression\"\ntask = \"hi\"\nexpect = [\"final_contains done\"]\n[seed.memory]\n",
     )
     .unwrap();
     let sc = Scenario::load(&sc_dir).unwrap();
@@ -3142,7 +3196,7 @@ fn scenario_seeded_prompt_overrides_the_pack() {
     std::fs::write(sc_dir.join("scenario-code.md"), "scenario body\n").unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
-        "id = \"precedence\"\ntask = \"say hi\"\nexpect = [\"tool_not_called write\"]\n\n\
+        "id = \"precedence\"\nkind = \"regression\"\ntask = \"say hi\"\nexpect = [\"tool_not_called write\"]\n\n\
          [[files]]\nsrc = \"scenario-code.md\"\ndest = \"work:.zerostack/prompts/code.md\"\n",
     )
     .unwrap();
@@ -3357,7 +3411,7 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
     let a_dir = scratch_dir("s6-a");
     std::fs::write(
         a_dir.join("scenario.toml"),
-        "id = \"declares-code\"\nprompt = \"code\"\ntask = \"say hi\"\n\
+        "id = \"declares-code\"\nkind = \"regression\"\nprompt = \"code\"\ntask = \"say hi\"\n\
          expect = [\"tool_not_called write\"]\n",
     )
     .unwrap();
@@ -3366,7 +3420,7 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
     let b_dir = scratch_dir("s6-b");
     std::fs::write(
         b_dir.join("scenario.toml"),
-        "id = \"declares-ask\"\nprompt = \"ask\"\ntask = \"say hi\"\n\
+        "id = \"declares-ask\"\nkind = \"regression\"\nprompt = \"ask\"\ntask = \"say hi\"\n\
          expect = [\"tool_not_called write\"]\n",
     )
     .unwrap();
@@ -3376,7 +3430,7 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
     std::fs::write(c_dir.join("scenario-code.md"), "scenario code body\n").unwrap();
     std::fs::write(
         c_dir.join("scenario.toml"),
-        "id = \"seeds-own-code\"\nprompt = \"code\"\ntask = \"say hi\"\n\
+        "id = \"seeds-own-code\"\nkind = \"regression\"\nprompt = \"code\"\ntask = \"say hi\"\n\
          expect = [\"tool_not_called write\"]\n\n\
          [[files]]\nsrc = \"scenario-code.md\"\ndest = \"work:.zerostack/prompts/code.md\"\n",
     )
@@ -3386,7 +3440,7 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
     let d_dir = scratch_dir("s6-d");
     std::fs::write(
         d_dir.join("scenario.toml"),
-        "id = \"no-prompt\"\ntask = \"say hi\"\nexpect = [\"tool_not_called write\"]\n",
+        "id = \"no-prompt\"\nkind = \"regression\"\ntask = \"say hi\"\nexpect = [\"tool_not_called write\"]\n",
     )
     .unwrap();
 
@@ -3471,7 +3525,7 @@ fn a_pack_no_scenario_calls_warns_it_was_never_loaded() {
     let dir = scratch_dir("s7-never-loaded-sc");
     std::fs::write(
         dir.join("scenario.toml"),
-        "id = \"declares-ask\"\nprompt = \"ask\"\ntask = \"say hi\"\n\
+        "id = \"declares-ask\"\nkind = \"regression\"\nprompt = \"ask\"\ntask = \"say hi\"\n\
          expect = [\"tool_not_called write\"]\n",
     )
     .unwrap();
@@ -3527,14 +3581,14 @@ fn a_partially_used_pack_emits_no_never_loaded_warning() {
     std::fs::create_dir_all(suite.join("a")).unwrap();
     std::fs::write(
         suite.join("a/scenario.toml"),
-        "id = \"declares-code\"\nprompt = \"code\"\ntask = \"say hi\"\n\
+        "id = \"declares-code\"\nkind = \"regression\"\nprompt = \"code\"\ntask = \"say hi\"\n\
          expect = [\"tool_not_called write\"]\n",
     )
     .unwrap();
     std::fs::create_dir_all(suite.join("b")).unwrap();
     std::fs::write(
         suite.join("b/scenario.toml"),
-        "id = \"declares-ask\"\nprompt = \"ask\"\ntask = \"say hi\"\n\
+        "id = \"declares-ask\"\nkind = \"regression\"\nprompt = \"ask\"\ntask = \"say hi\"\n\
          expect = [\"tool_not_called write\"]\n",
     )
     .unwrap();

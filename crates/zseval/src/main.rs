@@ -1201,7 +1201,7 @@ mod multi_target_tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(
             dir.join("scenario.toml"),
-            format!("id = \"{name}\"\ntask = \"say hi\"\nexpect = [\"final_contains done\"]\n"),
+            format!("id = \"{name}\"\nkind = \"regression\"\ntask = \"say hi\"\nexpect = [\"final_contains done\"]\n"),
         )
         .unwrap();
         dir

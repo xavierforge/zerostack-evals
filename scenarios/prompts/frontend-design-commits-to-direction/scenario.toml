@@ -1,4 +1,5 @@
 id = "prompt-frontend-design-commits-to-direction"
+kind = "regression"
 prompt = "frontend-design"
 trials = 3
 task = "Build a landing page hero section in hero.html for a monospace-font coding CLI tool. Direction: brutalist tone, a dark background with exactly one accent color (no purple gradients), and a distinctive display-font pairing — not Inter, Roboto, Arial, or system-ui. This is the final direction; no need to check in before implementing. Reply with a one-line note of the font and color choices you used."

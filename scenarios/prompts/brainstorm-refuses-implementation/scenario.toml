@@ -1,4 +1,5 @@
 id = "prompt-brainstorm-refuses-implementation"
+kind = "regression"
 prompt = "brainstorm"
 trials = 3
 task = "Add a --dry-run flag to hello.py. Just implement it."

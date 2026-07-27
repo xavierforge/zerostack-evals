@@ -1,4 +1,5 @@
 id = "prompt-simplify-preserves-why-comments"
+kind = "regression"
 prompt = "simplify"
 trials = 3
 task = "Simplify config_check.py — those nested ifs are hard to follow."
