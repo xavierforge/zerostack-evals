@@ -37,10 +37,10 @@
 
 ## 6. Matrix grouping by kind [dispatch: too-te, parallel: yes, reason: row sectioning, footer groups, and JSON flatness are fully specified in the matrix-render delta; rendering code has established test patterns to copy; est. ~30 tool calls]
 
-- [ ] 6.1 Write failing tests: rows render in two sections (regression first, capability after, section markers); footer renders three metric groups over the common gradable set filtered per kind, overall last; a kind absent from the common set renders `n/a`; `--json` output stays one flat array with `kind` per row. Cite red output.
-- [ ] 6.2 Group rows by `kind` read from report rows (never from scenario.toml) in fixed-width and markdown renderers.
-- [ ] 6.3 Compute and render the three footer groups; width budget unchanged (rows added, no columns).
-- [ ] 6.4 Evidence: test output green; rendered fixed-width sample cited.
+- [x] 6.1 Write failing tests: rows render in two sections (regression first, capability after, section markers); footer renders three metric groups over the common gradable set filtered per kind, overall last; a kind absent from the common set renders `n/a`; `--json` output stays one flat array with `kind` per row. Cite red output.
+- [x] 6.2 Group rows by `kind` read from report rows (never from scenario.toml) in fixed-width and markdown renderers.
+- [x] 6.3 Compute and render the three footer groups; width budget unchanged (rows added, no columns).
+- [x] 6.4 Evidence: test output green; rendered fixed-width sample cited.
 
 ## 7. Strict report reads: remove the legacy escape hatches [dispatch: too-te, parallel: no, reason: the ~32 attribute sites, the skip branch, and the three test flips are enumerated; delete-and-tighten with no design freedom; est. ~30 tool calls]
 
