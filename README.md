@@ -349,6 +349,37 @@ identity even once copied away from its run directory), what graded it
 (`"judge_file"`, `"judge_hash"` and `"judge_model"`, below), and, per scenario, a content hash
 of that scenario's `scenario.toml`.
 
+### Which zerostack produced it
+
+Every report also names the zerostack build behind its numbers, so a result can
+never be read without knowing what it measured:
+
+- **`"zs_version"`** is the first line of `ZS_BIN --version`, recorded verbatim.
+  It is evidence for a human, deliberately not parsed or format-checked: the
+  moment the harness validated the banner's shape, that shape would become a
+  compatibility contract with upstream. For `--backend mock` it is the fixed
+  string `"mock"`.
+- **`"zs_bin_sha256"`** is the SHA-256 of the binary's contents (for
+  `--backend mock`, a content fingerprint of the fixture). This is the
+  machine-comparable identity: two runs are a controlled comparison only if this
+  matches, which is exactly what a same-version-but-rebuilt binary cannot fake
+  (the incident that motivated recording it: a `--version` that read `1.7.1`
+  while the checkout had already moved on). `"zs_bin_path"` records where the
+  binary lived, normalised the same way as `"target"` so a committed report is
+  not a map of someone's filesystem.
+- **`"git_sha"`** and **`"features"`** are `null` today: the 1.7.x binary embeds
+  neither. They are recorded as observed facts of the current binary, not a
+  runtime "if the binary happens to expose it" branch, so when upstream starts
+  embedding them the field simply stops being `null`.
+
+Identity is captured once, at run start, before any trial spends anything. If
+`ZS_BIN --version` cannot run, exits non-zero, or prints nothing, the run
+**aborts** naming the binary rather than writing a report that cannot say what
+produced it: an identity-less report is the very thing this record exists to
+prevent, so there is no default or fallback value. A `--zs-bin` passed alongside
+`--backend mock` is ignored, because identity records the source of the evidence
+(the fixture), not an unused binary.
+
 The judge fields exist because the judge is the ruler: a run graded by a
 different model is not comparable to one graded by the old one just because
 both say "pass", so which ruler was used has to survive the run. They record

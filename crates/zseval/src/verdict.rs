@@ -311,8 +311,65 @@ pub struct Report {
     /// no scenario calls is visible here without re-reading the pack directory.
     #[serde(default)]
     pub prompts_names: Vec<String>,
+    /// The zerostack build that produced this report, captured verbatim from
+    /// `ZS_BIN --version`'s first line at run start (for `--backend mock`, the
+    /// fixed `"mock"` label). Evidence for humans, deliberately *not* format-
+    /// validated: the machine-comparable identity is `zs_bin_sha256`, so
+    /// upstream's version-string shape never becomes a compatibility contract.
+    ///
+    /// Required, with **no** `#[serde(default)]`, unlike the fields above: this
+    /// feature exists to make identity-less reports impossible, so a report
+    /// that cannot name the zerostack that produced it must fail to load, not
+    /// deserialize to an empty string. Capture failure aborts the run before
+    /// any API spend rather than writing a defaulted value (design D3/D7).
+    pub zs_version: String,
+    /// The zerostack binary's path as run, normalised through `record_path`
+    /// (working-directory-relative, forward-slashed, bare name when outside the
+    /// working directory) so a report copied into `baselines/` is not a map of
+    /// someone's filesystem — the same rule `target`/`judge_file`/`prompts_pack`
+    /// follow. For `--backend mock`, the fixture path. Human-facing "where";
+    /// the identity that `compare` diffs on is `zs_bin_sha256`.
+    pub zs_bin_path: String,
+    /// SHA-256 of the binary's file contents (for `--backend mock`, a content
+    /// fingerprint of the fixture — see `AgentBackend::identity`). The
+    /// machine-comparable build identity: two runs are only a controlled
+    /// comparison if this matches, which is exactly what a same-version-
+    /// different-binary incident (the motivating case) cannot fake. Required,
+    /// no default, for the same reason as `zs_version`.
+    pub zs_bin_sha256: String,
+    /// The binary's embedded git sha, `null` today: the 1.7.x binary embeds
+    /// none (no `build.rs`, no clap customization — live-tested). Stated as a
+    /// fact of the current binary, not a runtime "record if present" branch;
+    /// when upstream starts embedding one, this stops being unconditionally
+    /// `null` and the capture in `AgentBackend::identity` fills it.
+    pub git_sha: Option<String>,
+    /// The build's enabled feature set, `null` today for the same reason as
+    /// `git_sha`: the binary exposes none to capture.
+    pub features: Option<Vec<String>>,
     pub scenarios: Vec<ScenarioResult>,
     pub summary: Summary,
+}
+
+/// What produced a run's evidence, captured once (never per trial). For a real
+/// zerostack backend: the version string, the binary's path, and the SHA-256
+/// of its contents. For `--backend mock`: `"mock"`, the fixture path, and a
+/// content fingerprint of the fixture. Carried on `ReportMeta` and flattened
+/// onto `Report` by `Report::build`; the capture logic lives on
+/// `AgentBackend::identity` (it is the backend that knows what ran).
+///
+/// `git_sha`/`features` are `Option`, `None` today — the current binary embeds
+/// neither. They are recorded as observed facts, not a runtime feature probe.
+///
+/// `Default` is the all-empty identity, used only by test fixtures that build a
+/// `ReportMeta` without a live backend; a real run always fills every field or
+/// aborts.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ZsIdentity {
+    pub zs_version: String,
+    pub zs_bin_path: String,
+    pub zs_bin_sha256: String,
+    pub git_sha: Option<String>,
+    pub features: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -435,6 +492,11 @@ pub struct ReportMeta {
     pub prompts_hash: String,
     /// See `Report::prompts_names`. Empty when no pack was evaluated.
     pub prompts_names: Vec<String>,
+    /// The build (or fixture) that produced this run's evidence. Captured once
+    /// per run by `run_suite` off `AgentBackend::identity` and flattened onto
+    /// the report's `zs_version`/`zs_bin_path`/`zs_bin_sha256`/`git_sha`/
+    /// `features` fields here.
+    pub zs: ZsIdentity,
 }
 
 impl Report {
@@ -470,6 +532,11 @@ impl Report {
             prompts_pack: meta.prompts_pack,
             prompts_hash: meta.prompts_hash,
             prompts_names: meta.prompts_names,
+            zs_version: meta.zs.zs_version,
+            zs_bin_path: meta.zs.zs_bin_path,
+            zs_bin_sha256: meta.zs.zs_bin_sha256,
+            git_sha: meta.zs.git_sha,
+            features: meta.zs.features,
             summary: Summary {
                 n_scenarios: scenarios.len(),
                 n_gradable: gradable.len(),
@@ -666,12 +733,15 @@ mod exit_code_tests {
         assert_eq!(report.schema_version, 1);
     }
 
-    /// Same precedent as `content_hash`: a baseline committed before these
+    /// Same precedent as `content_hash`: a baseline written before the *judge*
     /// fields existed must still load, as "unknown" rather than an error.
     /// Specifically it must not read as "nothing graded" — that baseline *was*
     /// graded (by the pinned default), so the one thing this report may not do
     /// is assert a falsehood about a real past run. It keeps the schema
-    /// version it was written with; the serde defaults are what let it load.
+    /// version it was written with; the serde defaults on the judge fields are
+    /// what let it load. (The zerostack identity fields are required with no
+    /// default, so the fixture carries them; that strictness is exercised by
+    /// `a_report_json_lacking_zs_version_fails_to_load`.)
     #[test]
     fn a_baseline_predating_the_judge_fields_loads_as_unknown_not_as_ungraded() {
         let old = r#"{
@@ -681,6 +751,11 @@ mod exit_code_tests {
             "backend": "zs",
             "timestamp": "2026-07-01T00:00:00Z",
             "trials": 3,
+            "zs_version": "zerostack 1.7.0",
+            "zs_bin_path": "zerostack",
+            "zs_bin_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "git_sha": null,
+            "features": null,
             "scenarios": [],
             "summary": {
                 "n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0,
@@ -810,8 +885,9 @@ mod target_field_tests {
     }
 
     /// Same precedent as `judge_file`/`content_hash`: a report written before
-    /// this field existed must still load, as an empty target rather than an
-    /// error.
+    /// the `target` field existed must still load, as an empty target rather
+    /// than an error. (Identity fields are required, so the fixture carries
+    /// them — see `a_report_json_lacking_zs_version_fails_to_load`.)
     #[test]
     fn a_report_json_lacking_the_field_deserialises_to_an_empty_target() {
         let old = r#"{
@@ -821,6 +897,11 @@ mod target_field_tests {
             "backend": "zs",
             "timestamp": "2026-07-01T00:00:00Z",
             "trials": 3,
+            "zs_version": "zerostack 1.7.0",
+            "zs_bin_path": "zerostack",
+            "zs_bin_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "git_sha": null,
+            "features": null,
             "scenarios": [],
             "summary": {
                 "n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0,
@@ -877,9 +958,11 @@ mod prompts_pack_field_tests {
         assert!(report.prompts_names.is_empty());
     }
 
-    /// prompts-pack 4.3: a report written before these fields existed still
-    /// deserialises, as an empty pack rather than a parse error — same
-    /// `#[serde(default)]` precedent as `target` and `judge_file`.
+    /// prompts-pack 4.3: a report written before the *pack* fields existed
+    /// still deserialises, as an empty pack rather than a parse error — same
+    /// `#[serde(default)]` precedent as `target` and `judge_file`. (Identity
+    /// fields are required, so the fixture carries them — see
+    /// `a_report_json_lacking_zs_version_fails_to_load`.)
     #[test]
     fn a_report_json_predating_the_pack_fields_deserialises_to_empties() {
         let old = r#"{
@@ -889,6 +972,11 @@ mod prompts_pack_field_tests {
             "backend": "zs",
             "timestamp": "2026-07-01T00:00:00Z",
             "trials": 3,
+            "zs_version": "zerostack 1.7.0",
+            "zs_bin_path": "zerostack",
+            "zs_bin_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "git_sha": null,
+            "features": null,
             "scenarios": [],
             "summary": {
                 "n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0,
@@ -900,6 +988,83 @@ mod prompts_pack_field_tests {
         assert_eq!(report.prompts_pack, "");
         assert_eq!(report.prompts_hash, "");
         assert!(report.prompts_names.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod zs_identity_field_tests {
+    use super::*;
+
+    fn meta_with_zs(zs: ZsIdentity) -> ReportMeta {
+        ReportMeta {
+            tag: "t".into(),
+            model: "m".into(),
+            backend: "zs".into(),
+            trials: 1,
+            zs,
+            ..Default::default()
+        }
+    }
+
+    /// trustworthy-numbers 3.1: `Report::build` flattens the captured identity
+    /// onto the report's own fields, and every field survives a JSON round trip
+    /// — including `git_sha`/`features` as `null`.
+    #[test]
+    fn build_flattens_the_identity_and_it_round_trips() {
+        let report = Report::build(
+            meta_with_zs(ZsIdentity {
+                zs_version: "zerostack 1.7.2".into(),
+                zs_bin_path: "zerostack".into(),
+                zs_bin_sha256: "a".repeat(64),
+                git_sha: None,
+                features: None,
+            }),
+            vec![],
+        );
+        assert_eq!(report.zs_version, "zerostack 1.7.2");
+        assert_eq!(report.zs_bin_path, "zerostack");
+        assert_eq!(report.zs_bin_sha256, "a".repeat(64));
+        assert_eq!(report.git_sha, None);
+        assert_eq!(report.features, None);
+
+        let json = serde_json::to_string(&report).unwrap();
+        let back: Report = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.zs_version, "zerostack 1.7.2");
+        assert_eq!(back.zs_bin_sha256, "a".repeat(64));
+        assert_eq!(back.git_sha, None);
+        assert_eq!(back.features, None);
+    }
+
+    /// trustworthy-numbers 3.1 (required, no default): a report JSON missing an
+    /// identity field must fail to load, not deserialize to an empty string.
+    /// This is the strictness the whole feature rests on — an identity-less
+    /// report may not exist. (S7 extends this stance to the rest of the report
+    /// family; here it is proven for the identity fields alone.)
+    #[test]
+    fn a_report_json_lacking_zs_version_fails_to_load() {
+        let missing_version = r#"{
+            "schema_version": 1,
+            "tag": "main",
+            "model": "anthropic/claude-sonnet-4-6",
+            "backend": "zs",
+            "timestamp": "2026-07-01T00:00:00Z",
+            "trials": 3,
+            "zs_bin_path": "zerostack",
+            "zs_bin_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "git_sha": null,
+            "features": null,
+            "scenarios": [],
+            "summary": {
+                "n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0,
+                "indeterminate_scenarios": 0, "indeterminate_trials": 0,
+                "total_cost_usd": 0.0, "avg_wall_secs": 0.0
+            }
+        }"#;
+        let err = serde_json::from_str::<Report>(missing_version).unwrap_err();
+        assert!(
+            err.to_string().contains("zs_version"),
+            "the load error should name the missing field: {err}"
+        );
     }
 }
 

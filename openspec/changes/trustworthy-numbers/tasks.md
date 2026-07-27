@@ -15,11 +15,11 @@
 
 ## 3. zerostack identity: capture or die [dispatch: sai-hu, parallel: yes, reason: external-process handling and failure taxonomy carry real judgment (where capture lives, error shaping); spec pins the contract, not the structure; no tool-call cap]
 
-- [ ] 3.1 Add `Report` fields: `zs_version`, `zs_bin_path`, `zs_bin_sha256` (required), `git_sha`/`features` (`Option`, always `null` today — no runtime "if available" branch, per design D3).
-- [ ] 3.2 Capture at run start, once per invocation, before any trial: run `ZS_BIN --version`; success = exit 0 and non-empty stdout; record first line verbatim (no format validation, multi-line tolerated). Any failure aborts the run naming the binary.
-- [ ] 3.3 Compute `zs_bin_sha256` from binary file contents, once per run (multi-target runs share one capture; every per-target report records it).
-- [ ] 3.4 Mock backend records fixture identity: `zs_version = "mock"`, fixture path, content fingerprint (file: sha256 of bytes; directory: fold files sorted by relative path with length-prefixed fields — deliberately not copying `PromptPack::fingerprint`'s registered NUL flaw). `--zs-bin` alongside mock stays ignored.
-- [ ] 3.5 Tests: four stub `--zs-bin` scripts (prints version / exits nonzero / prints nothing / path missing) proving verbatim capture and the three aborts; mock identity tests (same dir contents at two paths → same hash; different contents → different hash). README gains a zerostack-identity section (note: section 1 also edits README in this parallel group; distant sections, if the lane merge conflicts, resolve by keeping both edits). Evidence: test output, zero API calls.
+- [x] 3.1 Add `Report` fields: `zs_version`, `zs_bin_path`, `zs_bin_sha256` (required), `git_sha`/`features` (`Option`, always `null` today — no runtime "if available" branch, per design D3).
+- [x] 3.2 Capture at run start, once per invocation, before any trial: run `ZS_BIN --version`; success = exit 0 and non-empty stdout; record first line verbatim (no format validation, multi-line tolerated). Any failure aborts the run naming the binary.
+- [x] 3.3 Compute `zs_bin_sha256` from binary file contents, once per run (multi-target runs share one capture; every per-target report records it).
+- [x] 3.4 Mock backend records fixture identity: `zs_version = "mock"`, fixture path, content fingerprint (file: sha256 of bytes; directory: fold files sorted by relative path with length-prefixed fields — deliberately not copying `PromptPack::fingerprint`'s registered NUL flaw). `--zs-bin` alongside mock stays ignored.
+- [x] 3.5 Tests: four stub `--zs-bin` scripts (prints version / exits nonzero / prints nothing / path missing) proving verbatim capture and the three aborts; mock identity tests (same dir contents at two paths → same hash; different contents → different hash). README gains a zerostack-identity section (note: section 1 also edits README in this parallel group; distant sections, if the lane merge conflicts, resolve by keeping both edits). Evidence: test output, zero API calls.
 
 ## 4. kind classification: required field and the adjudicated 42 [dispatch: too-te, parallel: no, reason: schema shape, enum values, and all 42 labels are pre-adjudicated in the spec table; bulk labeling is scripted, not judged; est. ~25 tool calls]
 

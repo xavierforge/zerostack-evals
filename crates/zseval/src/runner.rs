@@ -199,6 +199,17 @@ pub fn run_suite(
 ) -> Result<Report> {
     let mut results = Vec::new();
     let mut spent = 0.0_f64;
+
+    // Capture which zerostack (or fixture) is about to produce this run's
+    // evidence, before any trial spends anything. For `ZsCli` this runs
+    // `--version` and hashes the binary; an unrunnable or stale binary aborts
+    // here, so an identity-less report can never exist. Done once per suite,
+    // never per trial. In a multi-target run each target's suite captures its
+    // own identity, but the binary is shared across targets (only `--target`
+    // differs), so every per-target report records the same value, and a broken
+    // binary still aborts before the first target spends.
+    let zs = backend.identity()?;
+
     // Resolved once: the file is read here, so every trial and the report all
     // record the same path and the same fingerprint of the same bytes.
     let judge_file = opts
@@ -355,6 +366,7 @@ pub fn run_suite(
             prompts_pack,
             prompts_hash,
             prompts_names,
+            zs,
         },
         results,
     );

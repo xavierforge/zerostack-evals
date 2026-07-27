@@ -1438,6 +1438,11 @@ fn jobs_warm_up_runs_trial_zero_solo_before_the_parallel_fan_out() {
         fn name(&self) -> &str {
             "order-logger"
         }
+        fn identity(&self) -> anyhow::Result<zseval::verdict::ZsIdentity> {
+            // Delegates to the wrapped Mock: this double only reorders/logs
+            // trials, it does not change what produced the evidence.
+            self.inner.identity()
+        }
         fn run(
             &self,
             sc: &Scenario,
@@ -1639,6 +1644,15 @@ struct PartialFailureBackend {
 impl zseval::backend::AgentBackend for PartialFailureBackend {
     fn name(&self) -> &str {
         "partial-failure"
+    }
+    fn identity(&self) -> anyhow::Result<zseval::verdict::ZsIdentity> {
+        // A synthetic backend: identity capture must not itself fail (that is
+        // the whole point of this double is to fail in `run`, not before it),
+        // so it names itself and leaves the rest empty.
+        Ok(zseval::verdict::ZsIdentity {
+            zs_version: self.name().to_string(),
+            ..Default::default()
+        })
     }
     fn run(&self, _sc: &Scenario, run_dir: &Path) -> anyhow::Result<zseval::backend::RunArtifacts> {
         let sessions = run_dir.join("data").join("sessions");
@@ -3044,9 +3058,15 @@ fn run_without_prompts_still_exits_0() {
 /// seen from its own working directory — the same directory `ZsCli::run`
 /// sets via `cmd.current_dir` — to `listing_log`, then completes the call
 /// with a canned session file so `run_print` doesn't error on a missing one.
+///
+/// It answers `--version` first, cleanly and without touching the listing or
+/// `$ZS_DATA_DIR`: `run_suite` captures zerostack identity by running
+/// `<bin> --version` before any trial, so the stub has to behave like a real
+/// binary's version banner (exit 0, one line) or the run would abort at
+/// capture.
 fn write_stub_zs_bin(bin: &Path, listing_log: &Path) {
     let script = format!(
-        "#!/usr/bin/env bash\nset -euo pipefail\n{{\n  if [ -d .zerostack/prompts ]; then\n    ls .zerostack/prompts | sort | paste -sd, -\n  else\n    echo '(none)'\n  fi\n}} >> \"{log}\"\nmkdir -p \"$ZS_DATA_DIR/sessions\"\ncp \"{fixture}\" \"$ZS_DATA_DIR/sessions/s.json\"\n",
+        "#!/usr/bin/env bash\nset -euo pipefail\nif [ \"${{1:-}}\" = \"--version\" ]; then\n  echo 'zerostack 0.0.0-stub'\n  exit 0\nfi\n{{\n  if [ -d .zerostack/prompts ]; then\n    ls .zerostack/prompts | sort | paste -sd, -\n  else\n    echo '(none)'\n  fi\n}} >> \"{log}\"\nmkdir -p \"$ZS_DATA_DIR/sessions\"\ncp \"{fixture}\" \"$ZS_DATA_DIR/sessions/s.json\"\n",
         log = listing_log.display(),
         fixture = fixture("session-ask-readonly.json").display(),
     );

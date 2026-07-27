@@ -267,6 +267,25 @@ pub trait AgentBackend: Sync {
     /// The backend must not force a model: what a run evaluates against comes
     /// from the backend's own configuration, not from the caller.
     fn run(&self, sc: &Scenario, run_dir: &Path) -> Result<RunArtifacts>;
+    /// The identity of what produced this run's evidence, captured once at run
+    /// start (never per trial), so `run_suite` can record on every report
+    /// which zerostack produced it — or refuse to run.
+    ///
+    /// `ZsCli` runs `<bin> --version` (recording the first line verbatim, no
+    /// format validation) and SHA-256s the binary. Any failure — unrunnable,
+    /// non-zero exit, empty output — is an error naming the binary, which
+    /// aborts the run before any API spend: this feature exists to make
+    /// identity-less reports impossible, and a null fallback would reintroduce
+    /// them.
+    ///
+    /// `Mock` returns the fixture's identity (`"mock"`, the fixture path, and a
+    /// content fingerprint of the fixture). It never aborts on an unreadable
+    /// fixture: mock spends nothing, so the abort-before-spend rationale does
+    /// not apply, and a missing fixture already surfaces as a fully-ungradable
+    /// run via `run`. A `--zs-bin` passed alongside `--backend mock=` is not
+    /// consulted — identity records the evidence *source*, and mock's evidence
+    /// is the fixture, not an unused binary.
+    fn identity(&self) -> Result<crate::verdict::ZsIdentity>;
     /// The prompt pack this backend seeds into every trial, if any. The
     /// backend is the authority on which pack was actually used (it is what
     /// seeds it), so `run_suite` reads the pack's identity for the report from
@@ -305,6 +324,56 @@ impl AgentBackend for ZsCli {
 
     fn prompt_pack(&self) -> Option<&PromptPack> {
         self.prompts.as_deref()
+    }
+
+    fn identity(&self) -> Result<crate::verdict::ZsIdentity> {
+        // `--version` is a plain one-shot: no isolation, no timeout machinery,
+        // no session — just the version banner. stdin is closed so a binary
+        // that (wrongly) waits on input fails fast rather than hanging.
+        let out = Command::new(&self.bin)
+            .arg("--version")
+            .stdin(Stdio::null())
+            .output()
+            .with_context(|| {
+                format!(
+                    "capture zerostack identity: could not run '{} --version' \
+                     (is ZS_BIN / --zs-bin a runnable zerostack binary?)",
+                    self.bin.display()
+                )
+            })?;
+        if !out.status.success() {
+            bail!(
+                "capture zerostack identity: '{} --version' exited with {} (expected 0). \
+                 Refusing to run: a report must name the zerostack that produced it.",
+                self.bin.display(),
+                out.status
+            );
+        }
+        // First line, verbatim — no parsing. The version string is human
+        // evidence; `zs_bin_sha256` is the machine-comparable identity, so
+        // upstream's banner shape never becomes a compatibility contract.
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let version = stdout.lines().next().unwrap_or("").to_string();
+        if version.trim().is_empty() {
+            bail!(
+                "capture zerostack identity: '{} --version' produced no output. \
+                 Refusing to run: a report must name the zerostack that produced it.",
+                self.bin.display()
+            );
+        }
+        let bytes = std::fs::read(&self.bin).with_context(|| {
+            format!(
+                "capture zerostack identity: could not read '{}' to hash it",
+                self.bin.display()
+            )
+        })?;
+        Ok(crate::verdict::ZsIdentity {
+            zs_version: version,
+            zs_bin_path: crate::verdict::record_path(&self.bin),
+            zs_bin_sha256: crate::util::sha256_hex(&bytes),
+            git_sha: None,
+            features: None,
+        })
     }
 
     fn run(&self, sc: &Scenario, run_dir: &Path) -> Result<RunArtifacts> {
@@ -592,6 +661,60 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
     Ok(())
 }
 
+/// A content fingerprint of a mock fixture — the machine-comparable half of
+/// its identity (`ZsIdentity::zs_bin_sha256`). A single-file fixture is the
+/// SHA-256 of its bytes. A directory fixture (a captured trial dir) folds every
+/// file, sorted by forward-slashed relative path, each entry length-prefixed
+/// (`len(rel) || rel || len(bytes) || bytes`, 8-byte little-endian lengths)
+/// before hashing.
+///
+/// Only relative paths and contents feed the hash, never the fixture's own
+/// location, so the same contents at two paths fingerprint identically (a mock
+/// run is reproducible wherever the fixture sits). Length-prefixing — rather
+/// than `PromptPack::fingerprint`'s `name\0bytes\0` separators — is deliberate:
+/// NUL separators collide once a name or content can contain the separator, a
+/// registered flaw the new code must not copy.
+fn fixture_fingerprint(fixture: &Path) -> Result<String> {
+    if fixture.is_dir() {
+        let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+        collect_files(fixture, fixture, &mut files)?;
+        files.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut buf: Vec<u8> = Vec::new();
+        for (rel, bytes) in files {
+            buf.extend_from_slice(&(rel.len() as u64).to_le_bytes());
+            buf.extend_from_slice(rel.as_bytes());
+            buf.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
+            buf.extend_from_slice(&bytes);
+        }
+        Ok(crate::util::sha256_hex(&buf))
+    } else {
+        let bytes = std::fs::read(fixture)
+            .with_context(|| format!("hash mock fixture {}", fixture.display()))?;
+        Ok(crate::util::sha256_hex(&bytes))
+    }
+}
+
+/// Recursively collect every file under `dir` as `(relative-to-root path,
+/// bytes)`, the relative path forward-slashed so it does not vary by platform.
+fn collect_files(root: &Path, dir: &Path, out: &mut Vec<(String, Vec<u8>)>) -> Result<()> {
+    for e in std::fs::read_dir(dir).with_context(|| format!("read {}", dir.display()))? {
+        let e = e?;
+        let path = e.path();
+        if path.is_dir() {
+            collect_files(root, &path, out)?;
+        } else {
+            let rel = path.strip_prefix(root).unwrap_or(&path);
+            let rel = rel
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+                .join("/");
+            out.push((rel, std::fs::read(&path)?));
+        }
+    }
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Mock
 // ---------------------------------------------------------------------------
@@ -623,6 +746,20 @@ pub struct Mock {
 impl AgentBackend for Mock {
     fn name(&self) -> &str {
         "mock"
+    }
+
+    fn identity(&self) -> Result<crate::verdict::ZsIdentity> {
+        // Never aborts: mock spends nothing, so the "fail before any API spend"
+        // rationale does not apply, and an unreadable fixture already surfaces
+        // as a fully-ungradable run in `run`. An unreadable fixture leaves the
+        // content fingerprint empty rather than failing the run.
+        Ok(crate::verdict::ZsIdentity {
+            zs_version: self.name().to_string(),
+            zs_bin_path: crate::verdict::record_path(&self.fixture),
+            zs_bin_sha256: fixture_fingerprint(&self.fixture).unwrap_or_default(),
+            git_sha: None,
+            features: None,
+        })
     }
 
     fn run(&self, _sc: &Scenario, run_dir: &Path) -> Result<RunArtifacts> {
@@ -790,5 +927,153 @@ mod turn_artifacts_tests {
     #[test]
     fn discover_turn_artifacts_on_missing_dir_is_empty() {
         assert!(discover_turn_artifacts(Path::new("/no/such/run-dir")).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+
+    /// Write an executable `--version` stub with the given shell body, in a
+    /// fresh per-test dir, and return its path.
+    fn stub(name: &str, body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let dir =
+            std::env::temp_dir().join(format!("zseval-zsident-{name}-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("zerostack-stub");
+        std::fs::write(&path, body).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        path
+    }
+
+    fn zs(bin: PathBuf) -> ZsCli {
+        ZsCli {
+            bin,
+            target: None,
+            prompts: None,
+        }
+    }
+
+    /// 3.2: the first line of `--version` stdout is recorded verbatim — no
+    /// format validation (a non-standard string is kept as-is), extra lines
+    /// tolerated and ignored. The binary is also hashed (64 hex chars), and
+    /// git_sha/features are `None` (not captured from today's binary).
+    #[test]
+    fn version_first_line_is_captured_verbatim() {
+        let bin = stub(
+            "verbatim",
+            "#!/bin/sh\necho 'zerostack 9.9.9-rc1 (custom build!)'\necho 'ignored second line'\n",
+        );
+        let id = zs(bin.clone()).identity().unwrap();
+        assert_eq!(id.zs_version, "zerostack 9.9.9-rc1 (custom build!)");
+        assert_eq!(id.zs_bin_sha256.len(), 64, "{}", id.zs_bin_sha256);
+        assert!(id.git_sha.is_none());
+        assert!(id.features.is_none());
+        std::fs::remove_dir_all(bin.parent().unwrap()).ok();
+    }
+
+    /// 3.2: a non-zero exit aborts, even when the binary printed a version
+    /// line — exit 0 is required. The error names the binary.
+    #[test]
+    fn a_nonzero_exit_aborts_naming_the_binary() {
+        let bin = stub("nonzero", "#!/bin/sh\necho 'zerostack 1.0.0'\nexit 3\n");
+        let err = zs(bin.clone()).identity().unwrap_err();
+        assert!(
+            format!("{err:#}").contains(&bin.display().to_string()),
+            "{err:#}"
+        );
+        std::fs::remove_dir_all(bin.parent().unwrap()).ok();
+    }
+
+    /// 3.2: empty stdout (exit 0 but nothing printed) aborts, naming the
+    /// binary — there is no version to record.
+    #[test]
+    fn empty_output_aborts_naming_the_binary() {
+        let bin = stub("empty", "#!/bin/sh\nexit 0\n");
+        let err = zs(bin.clone()).identity().unwrap_err();
+        assert!(
+            format!("{err:#}").contains(&bin.display().to_string()),
+            "{err:#}"
+        );
+        std::fs::remove_dir_all(bin.parent().unwrap()).ok();
+    }
+
+    /// 3.2: an unrunnable binary (path does not exist) aborts, naming it.
+    #[test]
+    fn a_missing_binary_aborts_naming_it() {
+        let bin = std::env::temp_dir().join(format!(
+            "zseval-zsident-missing-{}/does-not-exist",
+            std::process::id()
+        ));
+        let err = zs(bin.clone()).identity().unwrap_err();
+        assert!(
+            format!("{err:#}").contains(&bin.display().to_string()),
+            "{err:#}"
+        );
+    }
+
+    fn write(path: &Path, bytes: &[u8]) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, bytes).unwrap();
+    }
+
+    /// 3.4: a single-file mock fixture records `"mock"` and a content
+    /// fingerprint of the file's bytes — identical bytes at two different paths
+    /// hash the same (the path is not the identity), different bytes differ.
+    #[test]
+    fn mock_single_file_fixture_hashes_bytes_path_independently() {
+        let root = std::env::temp_dir().join(format!("zseval-mockid-file-{}", std::process::id()));
+        std::fs::remove_dir_all(&root).ok();
+        let a = root.join("a/mock.json");
+        let b = root.join("b/mock.json");
+        let c = root.join("c/mock.json");
+        write(&a, b"{\"id\":\"s\"}");
+        write(&b, b"{\"id\":\"s\"}");
+        write(&c, b"{\"id\":\"different\"}");
+
+        let id_a = Mock { fixture: a }.identity().unwrap();
+        let id_b = Mock { fixture: b }.identity().unwrap();
+        let id_c = Mock { fixture: c }.identity().unwrap();
+
+        assert_eq!(id_a.zs_version, "mock");
+        assert!(id_a.git_sha.is_none() && id_a.features.is_none());
+        assert_eq!(
+            id_a.zs_bin_sha256, id_b.zs_bin_sha256,
+            "same bytes at a different path hash the same"
+        );
+        assert_ne!(id_a.zs_bin_sha256, id_c.zs_bin_sha256);
+        assert_eq!(id_a.zs_bin_sha256.len(), 64);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// 3.4: a directory mock fixture folds its files (sorted by relative path,
+    /// length-prefixed) — identical contents at two different roots hash the
+    /// same, and changing one byte changes the hash. Length-prefixing is what
+    /// keeps this off `PromptPack::fingerprint`'s NUL-separated flaw.
+    #[test]
+    fn mock_directory_fixture_hashes_contents_path_independently() {
+        let base = std::env::temp_dir().join(format!("zseval-mockid-dir-{}", std::process::id()));
+        std::fs::remove_dir_all(&base).ok();
+        let a = base.join("root-a");
+        let b = base.join("root-b");
+        for root in [&a, &b] {
+            write(&root.join("data/sessions/s.json"), b"{\"id\":\"s\"}");
+            write(&root.join("turn-0.stdout"), b"hello world\n");
+        }
+        let id_a = Mock { fixture: a.clone() }.identity().unwrap();
+        let id_b = Mock { fixture: b.clone() }.identity().unwrap();
+        assert_eq!(id_a.zs_version, "mock");
+        assert_eq!(
+            id_a.zs_bin_sha256, id_b.zs_bin_sha256,
+            "identical relative contents at two roots hash the same"
+        );
+
+        // Flip one byte in root-b: the hash must move.
+        write(&b.join("turn-0.stdout"), b"HELLO world\n");
+        let id_b2 = Mock { fixture: b }.identity().unwrap();
+        assert_ne!(id_a.zs_bin_sha256, id_b2.zs_bin_sha256);
+        std::fs::remove_dir_all(&base).ok();
     }
 }
