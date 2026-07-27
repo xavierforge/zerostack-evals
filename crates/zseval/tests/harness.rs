@@ -576,6 +576,50 @@ fn file_asserts_resolve_data_config_work_prefixes_independently() {
 }
 
 #[test]
+fn path_not_exists_resolves_against_named_root_prefix() {
+    // Direct coverage for `path_not_exists`'s root-prefix resolution: a
+    // `config:` path must resolve against the config root, not data (or
+    // work) — the same guarantee
+    // `file_asserts_resolve_data_config_work_prefixes_independently`
+    // establishes for `file_contains`, but `path_not_exists` otherwise only
+    // gets exercised transitively.
+    let base = std::env::temp_dir().join(format!("zseval-test-pne-roots-{}", std::process::id()));
+    let data = base.join("data");
+    let config = base.join("config");
+    let work = base.join("work");
+    for d in [&data, &config, &work] {
+        std::fs::create_dir_all(d).unwrap();
+    }
+    std::fs::write(data.join("marker.log"), "in-data").unwrap();
+    let roots = RunRoots {
+        data: &data,
+        config: &config,
+        work: &work,
+    };
+    let t = transcript::Transcript::default();
+
+    // Absent from config: passes, even though the same relative path exists
+    // under data — proof the assert resolved against the config root, not
+    // silently falling back to (or matching) another one.
+    assert!(
+        Assert::parse("path_not_exists config:marker.log")
+            .unwrap()
+            .eval(&t, &roots)
+            .pass
+    );
+
+    // Once it exists in config, the same assert fails.
+    std::fs::write(config.join("marker.log"), "in-config").unwrap();
+    assert!(
+        !Assert::parse("path_not_exists config:marker.log")
+            .unwrap()
+            .eval(&t, &roots)
+            .pass
+    );
+    std::fs::remove_dir_all(&base).ok();
+}
+
+#[test]
 fn memory_seed_sugar_expands_to_config_rooted_placements() {
     // A scenario declaring [seed.memory] should place MEMORY.md and notes
     // under <config>/agent/memory/, scoped by the same project_slug
@@ -948,20 +992,40 @@ fn typod_turn_field_fails_instead_of_silently_defaulting() {
     // became `new_session = false`, rewriting session-fresh-forgets from
     // testing isolation to testing continuation while staying green — the
     // motivating false-pass for this section.
-    let sc_dir = write_scenario(
+    //
+    // serde's untagged-enum error degrades to "did not match any variant"
+    // without naming the bad field, so the failure message alone cannot prove
+    // *which* field caused it. The proof is a contrast: two fixtures that
+    // differ only in the field name — the correctly-spelled one must load and
+    // actually read `new_session = true`, the typo'd one must fail. If the
+    // `Turn::Full` variant were failing to match for any reason other than the
+    // unknown field, the correct spelling would fail too, and this test would
+    // catch that regression rather than pass blindly on a path-only assert.
+    let ok_dir = write_scenario(
+        "correct-turn-field",
+        "id = \"x\"\nkind = \"regression\"\ntask = [{ msg = \"hi\", new_session = true }]\n\
+         expect = [\"final_contains x\"]\n",
+    );
+    let sc = Scenario::load(&ok_dir).expect("the correctly-spelled field must load");
+    assert!(
+        sc.task.turns()[0].new_session(),
+        "the correct spelling must be read as new_session = true, not silently dropped"
+    );
+    std::fs::remove_dir_all(&ok_dir).ok();
+
+    let typo_dir = write_scenario(
         "typod-turn-field",
         "id = \"x\"\nkind = \"regression\"\ntask = [{ msg = \"hi\", new_sesion = true }]\n\
          expect = [\"final_contains x\"]\n",
     );
-    let err = Scenario::load(&sc_dir).unwrap_err();
-    // serde's untagged-enum error message may degrade to "did not match any
-    // variant" without naming the bad field — what must survive is the
-    // scenario path, supplied by Scenario::load's own context wrap.
+    let err = Scenario::load(&typo_dir).unwrap_err();
+    // The message can't name the field, but the scenario path must survive —
+    // supplied by Scenario::load's own context wrap.
     assert!(
-        format!("{err:#}").contains(sc_dir.to_str().unwrap()),
+        format!("{err:#}").contains(typo_dir.to_str().unwrap()),
         "{err:#}"
     );
-    std::fs::remove_dir_all(&sc_dir).ok();
+    std::fs::remove_dir_all(&typo_dir).ok();
 }
 
 #[test]
@@ -2471,6 +2535,7 @@ fn pass_hat_k_is_the_stability_floor() {
     };
     let s = ScenarioResult::from_trials(
         "x".into(),
+        Kind::Regression,
         vec![mk(0, Final::Pass), mk(1, Final::Fail), mk(2, Final::Pass)],
     );
     assert_eq!(s.pass_at_k, 1.0);
@@ -2478,13 +2543,18 @@ fn pass_hat_k_is_the_stability_floor() {
     // Indeterminate trials are excluded from grading, not counted as fails.
     let s2 = ScenarioResult::from_trials(
         "y".into(),
+        Kind::Regression,
         vec![mk(0, Final::Pass), mk(1, Final::Indeterminate)],
     );
     assert_eq!(s2.pass_hat_k, 1.0);
     assert_eq!(s2.indeterminate, 1);
     assert!(s2.is_gradable());
     // A fully-indeterminate scenario is not gradable (excluded from rates).
-    let s3 = ScenarioResult::from_trials("z".into(), vec![mk(0, Final::Indeterminate)]);
+    let s3 = ScenarioResult::from_trials(
+        "z".into(),
+        Kind::Regression,
+        vec![mk(0, Final::Indeterminate)],
+    );
     assert!(!s3.is_gradable());
 }
 
@@ -2527,6 +2597,7 @@ fn compare_warns_when_tool_call_evidence_drops_to_zero() {
         meta("base"),
         vec![ScenarioResult::from_trials(
             "memory-search-then-read-when-needed".into(),
+            Kind::Regression,
             vec![mk(2)],
         )],
     );
@@ -2534,6 +2605,7 @@ fn compare_warns_when_tool_call_evidence_drops_to_zero() {
         meta("cand"),
         vec![ScenarioResult::from_trials(
             "memory-search-then-read-when-needed".into(),
+            Kind::Regression,
             vec![mk(0)],
         )],
     );
@@ -2553,6 +2625,7 @@ fn compare_warns_when_tool_call_evidence_drops_to_zero() {
         meta("base"),
         vec![ScenarioResult::from_trials(
             "prompt-code-concise-answer".into(),
+            Kind::Regression,
             vec![mk(0)],
         )],
     );
@@ -2560,6 +2633,7 @@ fn compare_warns_when_tool_call_evidence_drops_to_zero() {
         meta("cand"),
         vec![ScenarioResult::from_trials(
             "prompt-code-concise-answer".into(),
+            Kind::Regression,
             vec![mk(0)],
         )],
     );
@@ -2768,7 +2842,11 @@ fn matrix_json_flag_exits_0_and_stdout_parses_as_the_matrix_model() {
             target: "targets/opus.toml".into(),
             ..Default::default()
         },
-        vec![ScenarioResult::from_trials("s".into(), vec![trial])],
+        vec![ScenarioResult::from_trials(
+            "s".into(),
+            Kind::Regression,
+            vec![trial],
+        )],
     );
     let report_path = dir.join("a.json");
     std::fs::write(&report_path, serde_json::to_string_pretty(&r).unwrap()).unwrap();
@@ -2829,6 +2907,7 @@ fn matrix_markdown_flag_exits_0_and_stdout_is_a_markdown_table() {
         },
         vec![ScenarioResult::from_trials(
             "markdown-scenario".into(),
+            Kind::Regression,
             vec![trial],
         )],
     );
@@ -2887,6 +2966,7 @@ fn matrix_with_no_format_flag_renders_fixed_width_not_markdown() {
         },
         vec![ScenarioResult::from_trials(
             "fixed-width-scenario".into(),
+            Kind::Regression,
             vec![trial],
         )],
     );

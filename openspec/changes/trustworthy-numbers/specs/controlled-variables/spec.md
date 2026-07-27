@@ -46,7 +46,7 @@ WHEN either side of a comparison recorded `budget_truncated`, `compare` SHALL wa
 ### Requirement: Warnings never move the exit code
 `compare`'s exit code SHALL answer only the gate question — 0 clean, 1 regressions found, 2 nothing comparable — as a pure function of the comparison rows. Every fact that weakens or invalidates that answer is a warning, uniformly, with no exceptions and no per-warning escalation flags. This policy is recorded as the repo's first ADR ("compare always warns; matrix owns MULTI-VAR"), which also reserves a future exit code 3 ("experiment invalid") as a single aggregate predicate over the warning set inside the exit-code function — to be built only when the CI gate creates a consumer.
 
-Enforcement is structural: an invariant test SHALL construct a comparison with every warning lit and assert its exit code equals the all-quiet value; warnings SHALL render through one block in fixed order.
+Enforcement is structural: an invariant test SHALL construct a comparison with every warning lit and assert its exit code equals the all-quiet value. Warnings SHALL render in fixed order, split by class into two blocks: incomparability warnings (different target, prompt pack, or zerostack build — a pass-rate diff there is not a regression check) above the scenario table, and caveat warnings (truncation, changed definition, vanished evidence, low resolution — the comparison is valid but weaker than it looks) below it. Neither block is read by the exit-code function.
 
 #### Scenario: All warnings lit, exit code unmoved
 - **WHEN** a comparison carries every warning kind at once (definition changed, evidence, low resolution, target mismatch, pack mismatch, build mismatch, truncation) and no regressions

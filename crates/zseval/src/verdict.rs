@@ -150,23 +150,14 @@ pub struct ScenarioResult {
     pub prompt_source: PromptSource,
 }
 
-/// Placeholder `kind` used by `ScenarioResult::from_trials`/
-/// `from_trials_with_hash` before the caller overwrites it with the real
-/// scenario kind (see `runner.rs`) — a construction convenience, not a
-/// deserialization default: `ScenarioResult::kind` has no serde default
-/// (S7), so a report missing it fails to load rather than reading in as
-/// `Regression`.
-fn default_result_kind() -> Kind {
-    Kind::Regression
-}
-
 impl ScenarioResult {
-    pub fn from_trials(id: String, trials: Vec<TrialResult>) -> Self {
-        Self::from_trials_with_hash(id, String::new(), trials)
+    pub fn from_trials(id: String, kind: Kind, trials: Vec<TrialResult>) -> Self {
+        Self::from_trials_with_hash(id, kind, String::new(), trials)
     }
 
     pub fn from_trials_with_hash(
         id: String,
+        kind: Kind,
         content_hash: String,
         trials: Vec<TrialResult>,
     ) -> Self {
@@ -180,7 +171,7 @@ impl ScenarioResult {
         let total_tool_calls = trials.iter().map(|t| t.tool_call_count).sum();
         ScenarioResult {
             id,
-            kind: default_result_kind(),
+            kind,
             pass_at_k: if any { 1.0 } else { 0.0 },
             pass_hat_k: if all { 1.0 } else { 0.0 },
             indeterminate,
@@ -675,6 +666,7 @@ mod exit_code_tests {
             meta(),
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Indeterminate)],
             )],
         );
@@ -696,6 +688,7 @@ mod exit_code_tests {
             meta(),
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Fail)],
             )],
         );
@@ -708,6 +701,7 @@ mod exit_code_tests {
             meta(),
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -837,8 +831,16 @@ mod exit_code_tests {
         let report = Report::build(
             meta(),
             vec![
-                ScenarioResult::from_trials("gradable".into(), vec![trial(Final::Pass)]),
-                ScenarioResult::from_trials("broken".into(), vec![trial(Final::Indeterminate)]),
+                ScenarioResult::from_trials(
+                    "gradable".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "broken".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Indeterminate)],
+                ),
             ],
         );
         assert_eq!(report.exit_code(), 0);
@@ -1321,9 +1323,7 @@ mod kind_summary_tests {
     }
 
     fn scenario(id: &str, kind: Kind, trials: Vec<TrialResult>) -> ScenarioResult {
-        let mut sr = ScenarioResult::from_trials(id.into(), trials);
-        sr.kind = kind;
-        sr
+        ScenarioResult::from_trials(id.into(), kind, trials)
     }
 
     /// trustworthy-numbers 5.1: `Summary::regression`/`Summary::capability`

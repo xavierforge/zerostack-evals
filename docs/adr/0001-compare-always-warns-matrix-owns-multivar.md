@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-07-27, `trustworthy-numbers` change, section S6).
+Accepted (2026-07-27).
 
 ## Context
 
@@ -15,12 +15,12 @@ touch the exit code: `target_mismatch` and `pack_mismatch` each got a
 and `low_resolution` each repeated the pattern; the design note for
 `pack_mismatch` read "compare treats the build as always moved, for now"
 specifically because no report yet recorded a build identity to check
-against. This section (`trustworthy-numbers` S6) adds two more warnings —
-budget truncation and a zerostack build mismatch (`zs_mismatch`), now
-possible because `report-zs-identity` (S3) put `zs_bin_sha256` on every
-report — which would have been a sixth and seventh restatement of the same
-rule. The maintenance debt was never any one warning's behavior; it was that
-the rule existed once per warning instead of once.
+against. Two more warnings then arrived — budget truncation and a zerostack
+build mismatch (`zs_mismatch`), the latter newly possible once every report
+records `zs_bin_sha256` — which would have been a sixth and seventh
+restatement of the same rule. The maintenance debt was never any one
+warning's behavior; it was that the rule existed once per warning instead of
+once.
 
 ## Decision
 
@@ -32,20 +32,27 @@ with no exceptions and no per-warning escalation flags.**
 This is now enforced structurally, not by convention:
 
 1. **`exit_code()` stays a pure function of `rows`/`errored`/`regressions`.**
-   Its signature admits no warning input. This section's acceptance criterion
-   was that its body is untouched by adding the two new warnings — verified
+   Its signature admits no warning input. The acceptance criterion when the
+   two new warnings were added was that its body stayed untouched — verified
    by diff, not by inspection.
 2. **An invariant test constructs a `Comparison` with every warning kind lit**
    (definition changed, evidence, low resolution, target mismatch, pack
    mismatch, build mismatch, truncation) **and asserts the exit code equals
    the all-quiet value.** A future warning extends this one test, never adds
    a new convention to remember.
-3. **Warnings render through one block, in one fixed order.** Adding a
-   warning is adding a list entry to that block, not deciding where in
-   `print_human` a new `if` belongs.
+3. **Warnings render in two fixed-order blocks, split by class.**
+   *Incomparability* warnings (different target, prompt pack, or zerostack
+   build) print **above** the scenario table, because each one inverts how the
+   whole table should be read — "a pass-rate diff here is not a regression
+   check" has to be seen before the scores, not several lines after them.
+   *Caveat* warnings (budget truncation, changed scenario definition, vanished
+   evidence, low resolution) print **below** the table: the comparison is
+   valid, they only qualify how strong it is. Adding a warning is: classify it
+   into one of the two blocks and add one list entry, never deciding where in
+   `print_human` a new `if` belongs. Both blocks are read by nothing in
+   `exit_code()`.
 
-The two new warnings this section adds, under the same policy as every
-existing one:
+The two new warnings, under the same policy as every existing one:
 
 - **Budget truncation**: warns when either side (or both) recorded
   `budget_truncated`, naming the side(s). The truncated side's missing
@@ -85,11 +92,15 @@ its own mark under its own rules.
 ## Consequences
 
 - Adding a comparability warning to `compare` in the future is: add a field
-  to `Comparison`, compute it in `compare()`, add one entry to the fixed-order
-  render block, add one assertion to the invariant test. It is never: decide
-  whether this warning should move the exit code (the policy already answers
-  that — no), and never write a new "never affects `exit_code`" comment,
-  because the invariant test is the enforcement, not the comment.
+  to `Comparison`, compute it in `compare()`, classify it as incomparability
+  (above the table) or caveat (below) and add one entry to that block, add one
+  assertion to the invariant test. It is never: decide whether this warning
+  should move the exit code (the policy already answers that — no), and never
+  write a new "never affects `exit_code`" comment, because the invariant test
+  is the enforcement, not the comment. The one judgment a new warning does
+  carry is which of the two blocks it belongs in, and that is a bounded,
+  principled call (is the comparison invalid, or merely weaker than it looks?),
+  not the per-warning escalation policy this ADR abolished.
 - `exit_code()`'s purity is now a tested property, not a habit. A change that
   makes `exit_code()` read a warning field breaks the invariant test, by
   design.

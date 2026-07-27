@@ -143,7 +143,7 @@ None — all decisions locked in the 07-27 grilling session. Day-2 verification 
 6. serde-on-untagged risk: test-first, hand-written `Deserialize` fallback → D2
 7. `--version` capture: exit 0 + non-empty, first line verbatim, **no format validation** → D3
 8. Identity capture failure = hard fail, before any API spend → D3
-9. `zs_bin_sha256` computed once per run → D3
+9. `zs_bin_sha256` captured per target (same binary, so every per-target report records the same value) → D3
 10. `git_sha`/`features` as `Option`, always `null` today, stated as fact → D3
 11. Mock identity = fixture identity ("mock" / path / content fingerprint); length-prefixed dir fold; `--zs-bin` alongside mock stays ignored → D3
 12. Four stub tests, zero API → D3
@@ -164,7 +164,7 @@ None — all decisions locked in the 07-27 grilling session. Day-2 verification 
 27. Read strictness = write strictness; identity fields never defaulted → D7
 28. ~32 legacy `#[serde(default)]`s removed; legitimate runtime default *values* keep their meaning → D7
 29. compare empty-hash skip branch simplified to plain inequality → D7
-30. Three tolerates-old-JSON tests flip to rejection tests → D7
+30. Five tolerates-old-JSON tests flip to rejection tests → D7
 31. `baselines/main.json` deleted; ROADMAP Day-2 wording already updated (hand-written comparison) → D7
 32. README three-state `judge_model` wording tightened → D7
 33. Dispatch: S3 sai-hu, rest too-te; S1/S2/S3 parallelizable; S7 between S3 and S6 → D8

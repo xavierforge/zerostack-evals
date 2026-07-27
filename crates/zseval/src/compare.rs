@@ -292,6 +292,11 @@ pub fn print_human(c: &Comparison) {
         zs_identity(&c.base_zs_version, &c.base_zs_bin_sha256),
         zs_identity(&c.cand_zs_version, &c.cand_zs_bin_sha256)
     );
+    // Incomparability alarms (different target/pack/build) print above the
+    // table: each says "a diff here is not a regression check", so it has to be
+    // seen before the scores, not after several lines of reading the wrong
+    // table. Caveats print below (see the two functions' docs and ADR 0001).
+    print_incomparability_warnings(c);
     println!("{:<48}{:>8}{:>8}{:>8}", "scenario", "base", "cand", "diff");
     for r in &c.rows {
         println!(
@@ -321,7 +326,7 @@ pub fn print_human(c: &Comparison) {
         println!("? ungradable (eval/infra, not a regression): {id}");
     }
 
-    print_warnings(c);
+    print_caveat_warnings(c);
 
     if !c.regressions.is_empty() {
         println!(
@@ -334,12 +339,21 @@ pub fn print_human(c: &Comparison) {
     }
 }
 
-/// Every comparability warning `compare` can raise, in one fixed order. This
-/// is the "single render block" structural anchor from the "compare always
-/// warns" ADR (`docs/adr/0001-compare-always-warns-matrix-owns-multivar.md`):
-/// adding a warning means adding a list entry here, never a new branch in
-/// `exit_code()`, which reads none of these fields.
-fn print_warnings(c: &Comparison) {
+/// Incomparability warnings: the two sides are not the same experiment
+/// (different target, prompt pack, or zerostack build), so a pass-rate diff
+/// is not a regression check at all. Printed *above* the table, right after
+/// the identity lines, because each one inverts how the whole table should be
+/// read — seeing it only after the scores means reading the wrong table for
+/// several lines first. The lower-severity caveats print below the table
+/// instead (`print_caveat_warnings`).
+///
+/// Two fixed-order blocks by class, not the one block D6 first specified: the
+/// split is by what a warning says about the comparison (invalid subject vs.
+/// weaker-than-it-looks evidence), never a per-warning exit-code decision (see
+/// `docs/adr/0001-compare-always-warns-matrix-owns-multivar.md`). `exit_code()`
+/// still reads none of these fields.
+fn print_incomparability_warnings(c: &Comparison) {
+    let mut any = false;
     if c.pack_mismatch {
         println!(
             "\n⚠ comparing different prompt packs — baseline used '{}', \
@@ -348,6 +362,7 @@ fn print_warnings(c: &Comparison) {
             pack_identity(&c.base_prompts_pack, &c.base_prompts_hash),
             pack_identity(&c.cand_prompts_pack, &c.cand_prompts_hash)
         );
+        any = true;
     }
     if c.target_mismatch {
         println!(
@@ -358,6 +373,7 @@ fn print_warnings(c: &Comparison) {
              matrix`.",
             c.base_model, c.cand_model
         );
+        any = true;
     }
     if c.zs_mismatch {
         println!(
@@ -370,7 +386,24 @@ fn print_warnings(c: &Comparison) {
             c.cand_zs_version,
             short_hash(&c.cand_zs_bin_sha256)
         );
+        any = true;
     }
+    if any {
+        // Blank line separating the alarm block from the scenario table below.
+        println!();
+    }
+}
+
+/// Caveat warnings: the comparison is valid, but its denominator or evidence
+/// is weaker than the raw scores suggest (a side truncated, a scenario's
+/// definition moved, evidence vanished, or the trial count can't resolve the
+/// threshold). Printed *below* the table, after the scores, in fixed order;
+/// the higher-severity incomparability warnings print above the table instead
+/// (`print_incomparability_warnings`). Adding a warning is: classify it into
+/// one of the two blocks and add one entry — never a new branch in
+/// `exit_code()`, which reads none of these fields
+/// (`docs/adr/0001-compare-always-warns-matrix-owns-multivar.md`).
+fn print_caveat_warnings(c: &Comparison) {
     if let Some(sides) = truncated_sides(c.base_budget_truncated, c.cand_budget_truncated) {
         println!(
             "\n⚠ {sides} budget-truncated — the cost cap stopped that side \
@@ -414,6 +447,7 @@ fn print_warnings(c: &Comparison) {
 #[cfg(test)]
 mod pack_identity_tests {
     use super::*;
+    use crate::scenario::Kind;
     use crate::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
 
     fn trial() -> TrialResult {
@@ -448,7 +482,11 @@ mod pack_identity_tests {
                 prompts_hash: hash.into(),
                 ..Default::default()
             },
-            vec![ScenarioResult::from_trials("s".into(), vec![trial()])],
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                Kind::Regression,
+                vec![trial()],
+            )],
         )
     }
 
@@ -540,6 +578,7 @@ mod pack_identity_tests {
 #[cfg(test)]
 mod exit_code_tests {
     use super::*;
+    use crate::scenario::Kind;
     use crate::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
 
     fn trial(outcome: Final, tool_call_count: usize) -> TrialResult {
@@ -588,10 +627,12 @@ mod exit_code_tests {
         // indeterminate `run`.
         let base = report(vec![ScenarioResult::from_trials(
             "s".into(),
+            Kind::Regression,
             vec![trial(Final::Pass, 0)],
         )]);
         let cand = report(vec![ScenarioResult::from_trials(
             "s".into(),
+            Kind::Regression,
             vec![trial(Final::Indeterminate, 0)],
         )]);
         let c = compare(&base, &cand, 0.05);
@@ -607,10 +648,12 @@ mod exit_code_tests {
         // question, not an environment failure.
         let base = report(vec![ScenarioResult::from_trials(
             "only-in-base".into(),
+            Kind::Regression,
             vec![trial(Final::Pass, 0)],
         )]);
         let cand = report(vec![ScenarioResult::from_trials(
             "only-in-cand".into(),
+            Kind::Regression,
             vec![trial(Final::Pass, 0)],
         )]);
         let c = compare(&base, &cand, 0.05);
@@ -621,10 +664,12 @@ mod exit_code_tests {
     fn regression_is_exit_1() {
         let base = report(vec![ScenarioResult::from_trials(
             "s".into(),
+            Kind::Regression,
             vec![trial(Final::Pass, 0)],
         )]);
         let cand = report(vec![ScenarioResult::from_trials(
             "s".into(),
+            Kind::Regression,
             vec![trial(Final::Fail, 0)],
         )]);
         let c = compare(&base, &cand, 0.05);
@@ -635,10 +680,12 @@ mod exit_code_tests {
     fn stable_comparison_is_exit_0() {
         let base = report(vec![ScenarioResult::from_trials(
             "s".into(),
+            Kind::Regression,
             vec![trial(Final::Pass, 0)],
         )]);
         let cand = report(vec![ScenarioResult::from_trials(
             "s".into(),
+            Kind::Regression,
             vec![trial(Final::Pass, 0)],
         )]);
         let c = compare(&base, &cand, 0.05);
@@ -654,6 +701,7 @@ mod exit_code_tests {
         // regressed.
         let base = report(vec![ScenarioResult::from_trials(
             "s".into(),
+            Kind::Regression,
             vec![
                 trial(Final::Pass, 0),
                 trial(Final::Pass, 0),
@@ -662,6 +710,7 @@ mod exit_code_tests {
         )]);
         let cand = report(vec![ScenarioResult::from_trials(
             "s".into(),
+            Kind::Regression,
             vec![
                 trial(Final::Pass, 0),
                 trial(Final::Pass, 0),
@@ -679,6 +728,7 @@ mod exit_code_tests {
         // already tighter than what one flipped trial could trigger.
         let base = report(vec![ScenarioResult::from_trials(
             "s".into(),
+            Kind::Regression,
             vec![
                 trial(Final::Pass, 0),
                 trial(Final::Pass, 0),
@@ -687,6 +737,7 @@ mod exit_code_tests {
         )]);
         let cand = report(vec![ScenarioResult::from_trials(
             "s".into(),
+            Kind::Regression,
             vec![
                 trial(Final::Pass, 0),
                 trial(Final::Pass, 0),
@@ -703,9 +754,11 @@ mod exit_code_tests {
         // candidate is exactly "measuring yourself with a ruler you moved"
         // (AGENTS.md) — make it visible instead of silently comparing two
         // different tests under the same id.
-        let mut base_result = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
+        let mut base_result =
+            ScenarioResult::from_trials("s".into(), Kind::Regression, vec![trial(Final::Pass, 0)]);
         base_result.content_hash = "aaaa".into();
-        let mut cand_result = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
+        let mut cand_result =
+            ScenarioResult::from_trials("s".into(), Kind::Regression, vec![trial(Final::Pass, 0)]);
         cand_result.content_hash = "bbbb".into();
         let base = report(vec![base_result]);
         let cand = report(vec![cand_result]);
@@ -721,9 +774,11 @@ mod exit_code_tests {
         // so there is no longer a pre-field baseline to tolerate); plain
         // inequality already gives the right answer here since equal hashes
         // are equal whether or not they happen to be `""`.
-        let mut same_a = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
+        let mut same_a =
+            ScenarioResult::from_trials("s".into(), Kind::Regression, vec![trial(Final::Pass, 0)]);
         same_a.content_hash = "aaaa".into();
-        let mut same_b = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
+        let mut same_b =
+            ScenarioResult::from_trials("s".into(), Kind::Regression, vec![trial(Final::Pass, 0)]);
         same_b.content_hash = "aaaa".into();
         let c = compare(&report(vec![same_a]), &report(vec![same_b]), 0.05);
         assert!(c.definition_changed.is_empty());
@@ -738,6 +793,7 @@ mod exit_code_tests {
             "anthropic/claude-sonnet-4-6",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass, 0)],
             )],
         );
@@ -745,6 +801,7 @@ mod exit_code_tests {
             "openrouter/some-model",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass, 0)],
             )],
         );
@@ -760,12 +817,20 @@ mod exit_code_tests {
         // harness error; partial errored scenarios are already excluded
         // from regression by `compare` itself.
         let base = report(vec![
-            ScenarioResult::from_trials("ok".into(), vec![trial(Final::Pass, 0)]),
-            ScenarioResult::from_trials("broken".into(), vec![trial(Final::Pass, 0)]),
+            ScenarioResult::from_trials("ok".into(), Kind::Regression, vec![trial(Final::Pass, 0)]),
+            ScenarioResult::from_trials(
+                "broken".into(),
+                Kind::Regression,
+                vec![trial(Final::Pass, 0)],
+            ),
         ]);
         let cand = report(vec![
-            ScenarioResult::from_trials("ok".into(), vec![trial(Final::Pass, 0)]),
-            ScenarioResult::from_trials("broken".into(), vec![trial(Final::Indeterminate, 0)]),
+            ScenarioResult::from_trials("ok".into(), Kind::Regression, vec![trial(Final::Pass, 0)]),
+            ScenarioResult::from_trials(
+                "broken".into(),
+                Kind::Regression,
+                vec![trial(Final::Indeterminate, 0)],
+            ),
         ]);
         let c = compare(&base, &cand, 0.05);
         assert_eq!(c.errored, vec!["broken".to_string()]);
@@ -777,6 +842,7 @@ mod exit_code_tests {
 #[cfg(test)]
 mod warning_tests {
     use super::*;
+    use crate::scenario::Kind;
     use crate::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult, ZsIdentity};
 
     fn trial(outcome: Final, tool_call_count: usize) -> TrialResult {
@@ -801,7 +867,20 @@ mod warning_tests {
     }
 
     fn passing_scenario(id: &str) -> ScenarioResult {
-        ScenarioResult::from_trials(id.into(), vec![trial(Final::Pass, 0)])
+        ScenarioResult::from_trials(id.into(), Kind::Regression, vec![trial(Final::Pass, 0)])
+    }
+
+    /// Parameters for [`full_report`]: this module's tests need to vary six
+    /// independent knobs at once (model, pack identity, zerostack identity,
+    /// truncation), more than positional args read cleanly as a call site.
+    struct ReportSpec<'a> {
+        model: &'a str,
+        prompts_pack: &'a str,
+        prompts_hash: &'a str,
+        budget_truncated: bool,
+        zs_version: &'a str,
+        zs_bin_sha256: &'a str,
+        scenarios: Vec<ScenarioResult>,
     }
 
     /// A `Report` with every field this module's tests need to vary: model
@@ -809,33 +888,24 @@ mod warning_tests {
     /// `report_with_pack`/`report_for_model` in the sibling test modules —
     /// this module needs more knobs at once, so it gets its own builder
     /// rather than stacking theirs.
-    #[allow(clippy::too_many_arguments)]
-    fn full_report(
-        model: &str,
-        prompts_pack: &str,
-        prompts_hash: &str,
-        budget_truncated: bool,
-        zs_version: &str,
-        zs_bin_sha256: &str,
-        scenarios: Vec<ScenarioResult>,
-    ) -> Report {
+    fn full_report(spec: ReportSpec) -> Report {
         Report::build(
             ReportMeta {
                 tag: "t".into(),
-                model: model.into(),
+                model: spec.model.into(),
                 backend: "b".into(),
                 trials: 1,
-                budget_truncated,
-                prompts_pack: prompts_pack.into(),
-                prompts_hash: prompts_hash.into(),
+                budget_truncated: spec.budget_truncated,
+                prompts_pack: spec.prompts_pack.into(),
+                prompts_hash: spec.prompts_hash.into(),
                 zs: ZsIdentity {
-                    zs_version: zs_version.into(),
-                    zs_bin_sha256: zs_bin_sha256.into(),
+                    zs_version: spec.zs_version.into(),
+                    zs_bin_sha256: spec.zs_bin_sha256.into(),
                     ..Default::default()
                 },
                 ..Default::default()
             },
-            scenarios,
+            spec.scenarios,
         )
     }
 
@@ -864,24 +934,24 @@ mod warning_tests {
 
     #[test]
     fn compare_carries_each_sides_budget_truncated_flag() {
-        let base = full_report(
-            "m",
-            "",
-            "",
-            true,
-            "zerostack 1.7.1",
-            "hash",
-            vec![passing_scenario("s")],
-        );
-        let cand = full_report(
-            "m",
-            "",
-            "",
-            false,
-            "zerostack 1.7.1",
-            "hash",
-            vec![passing_scenario("s")],
-        );
+        let base = full_report(ReportSpec {
+            model: "m",
+            prompts_pack: "",
+            prompts_hash: "",
+            budget_truncated: true,
+            zs_version: "zerostack 1.7.1",
+            zs_bin_sha256: "hash",
+            scenarios: vec![passing_scenario("s")],
+        });
+        let cand = full_report(ReportSpec {
+            model: "m",
+            prompts_pack: "",
+            prompts_hash: "",
+            budget_truncated: false,
+            zs_version: "zerostack 1.7.1",
+            zs_bin_sha256: "hash",
+            scenarios: vec![passing_scenario("s")],
+        });
         let c = compare(&base, &cand, 0.05);
         assert!(c.base_budget_truncated);
         assert!(!c.cand_budget_truncated);
@@ -890,27 +960,28 @@ mod warning_tests {
 
     #[test]
     fn truncation_coexists_with_a_regression_exit_code() {
-        let base = full_report(
-            "m",
-            "",
-            "",
-            true,
-            "zerostack 1.7.1",
-            "hash",
-            vec![passing_scenario("s")],
-        );
-        let cand = full_report(
-            "m",
-            "",
-            "",
-            true,
-            "zerostack 1.7.1",
-            "hash",
-            vec![ScenarioResult::from_trials(
+        let base = full_report(ReportSpec {
+            model: "m",
+            prompts_pack: "",
+            prompts_hash: "",
+            budget_truncated: true,
+            zs_version: "zerostack 1.7.1",
+            zs_bin_sha256: "hash",
+            scenarios: vec![passing_scenario("s")],
+        });
+        let cand = full_report(ReportSpec {
+            model: "m",
+            prompts_pack: "",
+            prompts_hash: "",
+            budget_truncated: true,
+            zs_version: "zerostack 1.7.1",
+            zs_bin_sha256: "hash",
+            scenarios: vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Fail, 0)],
             )],
-        );
+        });
         let c = compare(&base, &cand, 0.05);
         assert!(c.base_budget_truncated && c.cand_budget_truncated);
         assert_eq!(c.exit_code(), 1);
@@ -923,24 +994,24 @@ mod warning_tests {
     fn zs_mismatch_true_on_same_version_different_hash() {
         // The 07-26 incident, caught mechanically: both sides print
         // `zerostack 1.7.1` but ran different binaries.
-        let base = full_report(
-            "m",
-            "",
-            "",
-            false,
-            "zerostack 1.7.1",
-            "hash-a",
-            vec![passing_scenario("s")],
-        );
-        let cand = full_report(
-            "m",
-            "",
-            "",
-            false,
-            "zerostack 1.7.1",
-            "hash-b",
-            vec![passing_scenario("s")],
-        );
+        let base = full_report(ReportSpec {
+            model: "m",
+            prompts_pack: "",
+            prompts_hash: "",
+            budget_truncated: false,
+            zs_version: "zerostack 1.7.1",
+            zs_bin_sha256: "hash-a",
+            scenarios: vec![passing_scenario("s")],
+        });
+        let cand = full_report(ReportSpec {
+            model: "m",
+            prompts_pack: "",
+            prompts_hash: "",
+            budget_truncated: false,
+            zs_version: "zerostack 1.7.1",
+            zs_bin_sha256: "hash-b",
+            scenarios: vec![passing_scenario("s")],
+        });
         let c = compare(&base, &cand, 0.05);
         assert!(c.zs_mismatch);
         assert_eq!(c.exit_code(), 0);
@@ -948,48 +1019,48 @@ mod warning_tests {
 
     #[test]
     fn zs_mismatch_true_on_differing_version_and_hash() {
-        let base = full_report(
-            "m",
-            "",
-            "",
-            false,
-            "zerostack 1.7.1",
-            "hash-a",
-            vec![passing_scenario("s")],
-        );
-        let cand = full_report(
-            "m",
-            "",
-            "",
-            false,
-            "zerostack 1.7.2",
-            "hash-b",
-            vec![passing_scenario("s")],
-        );
+        let base = full_report(ReportSpec {
+            model: "m",
+            prompts_pack: "",
+            prompts_hash: "",
+            budget_truncated: false,
+            zs_version: "zerostack 1.7.1",
+            zs_bin_sha256: "hash-a",
+            scenarios: vec![passing_scenario("s")],
+        });
+        let cand = full_report(ReportSpec {
+            model: "m",
+            prompts_pack: "",
+            prompts_hash: "",
+            budget_truncated: false,
+            zs_version: "zerostack 1.7.2",
+            zs_bin_sha256: "hash-b",
+            scenarios: vec![passing_scenario("s")],
+        });
         let c = compare(&base, &cand, 0.05);
         assert!(c.zs_mismatch);
     }
 
     #[test]
     fn zs_mismatch_false_when_hash_identical() {
-        let base = full_report(
-            "m",
-            "",
-            "",
-            false,
-            "zerostack 1.7.1",
-            "hash-a",
-            vec![passing_scenario("s")],
-        );
-        let cand = full_report(
-            "m",
-            "",
-            "",
-            false,
-            "zerostack 1.7.1",
-            "hash-a",
-            vec![passing_scenario("s")],
-        );
+        let base = full_report(ReportSpec {
+            model: "m",
+            prompts_pack: "",
+            prompts_hash: "",
+            budget_truncated: false,
+            zs_version: "zerostack 1.7.1",
+            zs_bin_sha256: "hash-a",
+            scenarios: vec![passing_scenario("s")],
+        });
+        let cand = full_report(ReportSpec {
+            model: "m",
+            prompts_pack: "",
+            prompts_hash: "",
+            budget_truncated: false,
+            zs_version: "zerostack 1.7.1",
+            zs_bin_sha256: "hash-a",
+            scenarios: vec![passing_scenario("s")],
+        });
         let c = compare(&base, &cand, 0.05);
         assert!(!c.zs_mismatch);
     }
@@ -1003,29 +1074,31 @@ mod warning_tests {
         // trip definition_changed, evidence_warnings, and low_resolution all
         // at once; report-level fields differ enough to trip target_mismatch,
         // pack_mismatch, zs_mismatch, and the truncation warning.
-        let mut base_s = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 1)]);
+        let mut base_s =
+            ScenarioResult::from_trials("s".into(), Kind::Regression, vec![trial(Final::Pass, 1)]);
         base_s.content_hash = "aaaa".into();
-        let mut cand_s = ScenarioResult::from_trials("s".into(), vec![trial(Final::Pass, 0)]);
+        let mut cand_s =
+            ScenarioResult::from_trials("s".into(), Kind::Regression, vec![trial(Final::Pass, 0)]);
         cand_s.content_hash = "bbbb".into();
 
-        let lit_base = full_report(
-            "model-a",
-            "packs/a",
-            "aaaaaaaaaaaaaaaa",
-            true,
-            "zerostack 1.7.1",
-            "buildhash-a",
-            vec![base_s],
-        );
-        let lit_cand = full_report(
-            "model-b",
-            "packs/b",
-            "bbbbbbbbbbbbbbbb",
-            false,
-            "zerostack 1.7.1",
-            "buildhash-b",
-            vec![cand_s],
-        );
+        let lit_base = full_report(ReportSpec {
+            model: "model-a",
+            prompts_pack: "packs/a",
+            prompts_hash: "aaaaaaaaaaaaaaaa",
+            budget_truncated: true,
+            zs_version: "zerostack 1.7.1",
+            zs_bin_sha256: "buildhash-a",
+            scenarios: vec![base_s],
+        });
+        let lit_cand = full_report(ReportSpec {
+            model: "model-b",
+            prompts_pack: "packs/b",
+            prompts_hash: "bbbbbbbbbbbbbbbb",
+            budget_truncated: false,
+            zs_version: "zerostack 1.7.1",
+            zs_bin_sha256: "buildhash-b",
+            scenarios: vec![cand_s],
+        });
         let lit = compare(&lit_base, &lit_cand, 0.05);
 
         assert!(lit.target_mismatch);
@@ -1042,29 +1115,31 @@ mod warning_tests {
         // matching hash, matching evidence, enough trials to clear the
         // resolution floor, matching model/pack/zs/truncation on both sides.
         let quiet_trials = || (0..25).map(|_| trial(Final::Pass, 1)).collect::<Vec<_>>();
-        let mut quiet_base_s = ScenarioResult::from_trials("s".into(), quiet_trials());
+        let mut quiet_base_s =
+            ScenarioResult::from_trials("s".into(), Kind::Regression, quiet_trials());
         quiet_base_s.content_hash = "same".into();
-        let mut quiet_cand_s = ScenarioResult::from_trials("s".into(), quiet_trials());
+        let mut quiet_cand_s =
+            ScenarioResult::from_trials("s".into(), Kind::Regression, quiet_trials());
         quiet_cand_s.content_hash = "same".into();
 
-        let quiet_base = full_report(
-            "m",
-            "packs/a",
-            "aaaaaaaaaaaaaaaa",
-            false,
-            "zerostack 1.7.1",
-            "buildhash-a",
-            vec![quiet_base_s],
-        );
-        let quiet_cand = full_report(
-            "m",
-            "packs/a",
-            "aaaaaaaaaaaaaaaa",
-            false,
-            "zerostack 1.7.1",
-            "buildhash-a",
-            vec![quiet_cand_s],
-        );
+        let quiet_base = full_report(ReportSpec {
+            model: "m",
+            prompts_pack: "packs/a",
+            prompts_hash: "aaaaaaaaaaaaaaaa",
+            budget_truncated: false,
+            zs_version: "zerostack 1.7.1",
+            zs_bin_sha256: "buildhash-a",
+            scenarios: vec![quiet_base_s],
+        });
+        let quiet_cand = full_report(ReportSpec {
+            model: "m",
+            prompts_pack: "packs/a",
+            prompts_hash: "aaaaaaaaaaaaaaaa",
+            budget_truncated: false,
+            zs_version: "zerostack 1.7.1",
+            zs_bin_sha256: "buildhash-a",
+            scenarios: vec![quiet_cand_s],
+        });
         let quiet = compare(&quiet_base, &quiet_cand, 0.05);
 
         assert!(!quiet.target_mismatch);

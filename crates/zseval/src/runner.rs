@@ -272,14 +272,14 @@ pub fn run_suite(
         for tr in &trial_results {
             spent += tr.cost_usd;
         }
+        // Record the scenario's kind verbatim on the result, so matrix and the
+        // Day-2 site group from report JSON alone (scenario-kind spec / D4).
         let mut sr = ScenarioResult::from_trials_with_hash(
             sc.id.clone(),
+            sc.kind,
             sc.content_hash.clone(),
             trial_results,
         );
-        // Record the scenario's kind verbatim on the result, so matrix and the
-        // Day-2 site group from report JSON alone (scenario-kind spec / D4).
-        sr.kind = sc.kind;
         let (prompt_name, prompt_source) =
             resolve_prompt(sc, pack, config_default_prompt.as_deref());
         sr.prompt_name = prompt_name;

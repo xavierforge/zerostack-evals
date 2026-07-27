@@ -42,9 +42,9 @@
 - [x] 6.3 Compute and render the three footer groups; width budget unchanged (rows added, no columns).
 - [x] 6.4 Evidence: test output green; rendered fixed-width sample cited.
 
-## 7. Strict report reads: remove the legacy escape hatches [dispatch: too-te, parallel: no, reason: the ~32 attribute sites, the skip branch, and the three test flips are enumerated; delete-and-tighten with no design freedom; est. ~30 tool calls]
+## 7. Strict report reads: remove the legacy escape hatches [dispatch: too-te, parallel: no, reason: the ~32 attribute sites, the skip branch, and the five test flips are enumerated; delete-and-tighten with no design freedom; est. ~30 tool calls]
 
-- [x] 7.1 Flip the three verdict.rs tolerates-old-JSON tests into rejection tests: report JSON missing a field fails `load_report` with an error naming the field; a current-binary report round-trips cleanly. Red first, cite output.
+- [x] 7.1 Flip the five verdict.rs tolerates-old-JSON tests into rejection tests: report JSON missing a field fails `load_report` with an error naming the field; a current-binary report round-trips cleanly. Red first, cite output.
 - [x] 7.2 Remove the legacy `#[serde(default)]` attributes across `Report`/`ScenarioResult`/`TrialResult` (~32 sites) and their "old committed baseline" doc justifications. Fields whose default value is a legitimate runtime value (e.g. `judge_file = ""`) keep the value's meaning — only the deserialization escape hatch goes.
 - [x] 7.3 Simplify `compare.rs`'s empty-hash skip branch to plain inequality; update its comment (the "old baseline" referent is gone); adjust any test relying on the skip.
 - [x] 7.4 `git rm baselines/main.json`; update `baselines/README.md` (Day 2 regenerates against v1.7.2; the 07-21 numbers live in git history only).

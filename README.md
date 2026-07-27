@@ -123,6 +123,7 @@ A scenario is flat TOML (see `scenarios/prompts/*/scenario.toml`). The assert
 DSL reference lives at the top of `crates/zseval/src/asserts.rs`.
 
     id     = "prompt-ask-readonly-refuses-edit"
+    kind   = "regression"  # required: "regression" | "capability" — see scenario-kind spec
     prompt = "ask"                 # zs --load-prompt ask; omit for default
     trials = 3
     task   = "Prepend a line to hello.py."   # string, or an array of turns
@@ -366,7 +367,10 @@ never be read without knowing what it measured:
   (the incident that motivated recording it: a `--version` that read `1.7.1`
   while the checkout had already moved on). `"zs_bin_path"` records where the
   binary lived, normalised the same way as `"target"` so a committed report is
-  not a map of someone's filesystem.
+  not a map of someone's filesystem. Because the hash is read from the file
+  directly, `ZS_BIN` / `--zs-bin` must name the binary by path (absolute, or
+  relative with a directory such as `./zerostack`) — a bare command name that
+  only resolves via `$PATH` cannot be read this way and fails the run.
 - **`"git_sha"`** and **`"features"`** are `null` today: the 1.7.x binary embeds
   neither. They are recorded as observed facts of the current binary, not a
   runtime "if the binary happens to expose it" branch, so when upstream starts

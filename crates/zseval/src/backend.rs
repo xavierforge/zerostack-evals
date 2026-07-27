@@ -363,7 +363,10 @@ impl AgentBackend for ZsCli {
         }
         let bytes = std::fs::read(&self.bin).with_context(|| {
             format!(
-                "capture zerostack identity: could not read '{}' to hash it",
+                "capture zerostack identity: could not read '{}' to hash it: ZS_BIN / \
+                 --zs-bin must be a path to the binary file (absolute, or relative with a \
+                 directory such as ./zerostack), not a bare command name resolved via $PATH \
+                 — the run hashes the file to record zs_bin_sha256",
                 self.bin.display()
             )
         })?;

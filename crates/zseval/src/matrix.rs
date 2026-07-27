@@ -527,6 +527,16 @@ fn kind_footer_cell_markdown(v: Option<f64>) -> String {
     }
 }
 
+/// This kind's footer figures for one column (regression/capability) — the
+/// single accessor the footer loops below read through, so neither renderer
+/// special-cases the field name per kind.
+fn kind_footer(col: &Column, kind: Kind) -> Option<ColumnFooter> {
+    match kind {
+        Kind::Regression => col.regression_footer,
+        Kind::Capability => col.capability_footer,
+    }
+}
+
 /// Header text for one column: its label plus a trailing `*` when the
 /// column is incomplete (ran fewer scenarios than the suite defines) — the
 /// visible trace of a budget-truncated run.
@@ -611,34 +621,25 @@ pub fn render_fixed_width(m: &Matrix) -> String {
         }
     }
 
-    out.push_str(&format!("{:<ID_COL$}", "regression pass@k"));
-    for col in &m.columns {
-        out.push_str(&kind_footer_cell_fixed_width(
-            col.regression_footer.map(|f| f.pass_at_k),
-        ));
+    for (label, kind) in [
+        ("regression", Kind::Regression),
+        ("capability", Kind::Capability),
+    ] {
+        out.push_str(&format!("{:<ID_COL$}", format!("{label} pass@k")));
+        for col in &m.columns {
+            out.push_str(&kind_footer_cell_fixed_width(
+                kind_footer(col, kind).map(|f| f.pass_at_k),
+            ));
+        }
+        out.push('\n');
+        out.push_str(&format!("{:<ID_COL$}", format!("{label} pass^k")));
+        for col in &m.columns {
+            out.push_str(&kind_footer_cell_fixed_width(
+                kind_footer(col, kind).map(|f| f.pass_hat_k),
+            ));
+        }
+        out.push('\n');
     }
-    out.push('\n');
-    out.push_str(&format!("{:<ID_COL$}", "regression pass^k"));
-    for col in &m.columns {
-        out.push_str(&kind_footer_cell_fixed_width(
-            col.regression_footer.map(|f| f.pass_hat_k),
-        ));
-    }
-    out.push('\n');
-    out.push_str(&format!("{:<ID_COL$}", "capability pass@k"));
-    for col in &m.columns {
-        out.push_str(&kind_footer_cell_fixed_width(
-            col.capability_footer.map(|f| f.pass_at_k),
-        ));
-    }
-    out.push('\n');
-    out.push_str(&format!("{:<ID_COL$}", "capability pass^k"));
-    for col in &m.columns {
-        out.push_str(&kind_footer_cell_fixed_width(
-            col.capability_footer.map(|f| f.pass_hat_k),
-        ));
-    }
-    out.push('\n');
     out.push_str(&format!("{:<ID_COL$}", "pass@k"));
     for col in &m.columns {
         out.push_str(&footer_cell_fixed_width(col.footer.map(|f| f.pass_at_k)));
@@ -752,46 +753,31 @@ pub fn render_markdown(m: &Matrix) -> String {
             out.push('\n');
         }
     }
-    out.push_str("| regression pass@k |");
-    for col in &m.columns {
-        out.push_str(&kind_footer_cell_markdown(
-            col.regression_footer.map(|f| f.pass_at_k),
-        ));
+    for (label, kind) in [
+        ("regression", Kind::Regression),
+        ("capability", Kind::Capability),
+    ] {
+        out.push_str(&format!("| {label} pass@k |"));
+        for col in &m.columns {
+            out.push_str(&kind_footer_cell_markdown(
+                kind_footer(col, kind).map(|f| f.pass_at_k),
+            ));
+        }
+        if any_marks {
+            out.push_str(" |");
+        }
+        out.push('\n');
+        out.push_str(&format!("| {label} pass^k |"));
+        for col in &m.columns {
+            out.push_str(&kind_footer_cell_markdown(
+                kind_footer(col, kind).map(|f| f.pass_hat_k),
+            ));
+        }
+        if any_marks {
+            out.push_str(" |");
+        }
+        out.push('\n');
     }
-    if any_marks {
-        out.push_str(" |");
-    }
-    out.push('\n');
-    out.push_str("| regression pass^k |");
-    for col in &m.columns {
-        out.push_str(&kind_footer_cell_markdown(
-            col.regression_footer.map(|f| f.pass_hat_k),
-        ));
-    }
-    if any_marks {
-        out.push_str(" |");
-    }
-    out.push('\n');
-    out.push_str("| capability pass@k |");
-    for col in &m.columns {
-        out.push_str(&kind_footer_cell_markdown(
-            col.capability_footer.map(|f| f.pass_at_k),
-        ));
-    }
-    if any_marks {
-        out.push_str(" |");
-    }
-    out.push('\n');
-    out.push_str("| capability pass^k |");
-    for col in &m.columns {
-        out.push_str(&kind_footer_cell_markdown(
-            col.capability_footer.map(|f| f.pass_hat_k),
-        ));
-    }
-    if any_marks {
-        out.push_str(" |");
-    }
-    out.push('\n');
     out.push_str("| pass@k |");
     for col in &m.columns {
         out.push_str(&footer_cell_markdown(col.footer.map(|f| f.pass_at_k)));
@@ -971,8 +957,16 @@ mod tests {
             "targets/opus.toml",
             "run-a",
             vec![
-                ScenarioResult::from_trials("zebra".into(), vec![trial(Final::Pass)]),
-                ScenarioResult::from_trials("apple".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "zebra".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "apple".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
             ],
         );
         let b = report(
@@ -980,6 +974,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "mango".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -997,6 +992,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Fail), trial(Final::Fail)],
             )],
         );
@@ -1005,6 +1001,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Indeterminate)],
             )],
         );
@@ -1026,16 +1023,32 @@ mod tests {
             "targets/opus.toml",
             "run-a",
             vec![
-                ScenarioResult::from_trials("shared".into(), vec![trial(Final::Pass)]),
-                ScenarioResult::from_trials("only-a".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "shared".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "only-a".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
             ],
         );
         let b = report(
             "targets/sonnet.toml",
             "run-b",
             vec![
-                ScenarioResult::from_trials("shared".into(), vec![trial(Final::Fail)]),
-                ScenarioResult::from_trials("only-b".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "shared".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Fail)],
+                ),
+                ScenarioResult::from_trials(
+                    "only-b".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
             ],
         );
         let m = build(&[&a, &b]);
@@ -1056,8 +1069,16 @@ mod tests {
     fn footer_matches_each_reports_own_summary_when_suites_are_identical() {
         let scenarios = || {
             vec![
-                ScenarioResult::from_trials("one".into(), vec![trial(Final::Pass)]),
-                ScenarioResult::from_trials("two".into(), vec![trial(Final::Fail)]),
+                ScenarioResult::from_trials(
+                    "one".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "two".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Fail)],
+                ),
             ]
         };
         let a = report("targets/opus.toml", "run-a", scenarios());
@@ -1087,6 +1108,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1095,6 +1117,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Indeterminate)],
             )],
         );
@@ -1136,6 +1159,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1181,6 +1205,7 @@ mod tests {
             "run-earlier",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1189,6 +1214,7 @@ mod tests {
             "run-later",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Fail)],
             )],
         );
@@ -1210,6 +1236,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass), trial(Final::Pass)],
             )],
         );
@@ -1218,6 +1245,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Fail), trial(Final::Fail)],
             )],
         );
@@ -1235,6 +1263,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![
                     trial(Final::Pass),
                     trial(Final::Fail),
@@ -1248,6 +1277,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![
                     trial(Final::Fail),
                     trial(Final::Fail),
@@ -1272,6 +1302,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1292,6 +1323,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials_with_hash(
                 "s".into(),
+                Kind::Regression,
                 "hash-old".into(),
                 vec![trial(Final::Pass)],
             )],
@@ -1301,6 +1333,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials_with_hash(
                 "s".into(),
+                Kind::Regression,
                 "hash-new".into(),
                 vec![trial(Final::Pass)],
             )],
@@ -1364,8 +1397,16 @@ mod tests {
             "targets/opus.toml",
             "run-a",
             vec![
-                ScenarioResult::from_trials("one".into(), vec![trial(Final::Pass)]),
-                ScenarioResult::from_trials("two".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "one".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "two".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
             ],
         );
         let mut truncated = report(
@@ -1373,6 +1414,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "one".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1399,8 +1441,16 @@ mod tests {
             "targets/opus.toml",
             "run-a",
             vec![
-                ScenarioResult::from_trials("one".into(), vec![trial(Final::Pass)]),
-                ScenarioResult::from_trials("two".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "one".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "two".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
             ],
         );
         // A committed baseline that only ever defined "one" — reached in full,
@@ -1410,6 +1460,7 @@ mod tests {
             "main",
             vec![ScenarioResult::from_trials(
                 "one".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1453,6 +1504,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass), trial(Final::Pass)],
             )],
         );
@@ -1461,6 +1513,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Fail), trial(Final::Fail)],
             )],
         );
@@ -1486,6 +1539,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1502,6 +1556,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "greet".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass), trial(Final::Fail)],
             )],
         );
@@ -1694,13 +1749,17 @@ mod tests {
     // under its own marker, capability rows after under theirs.
     #[test]
     fn rows_render_in_two_sections_regression_first_fixed_width() {
-        let mut cap = ScenarioResult::from_trials("cap-a".into(), vec![trial(Final::Pass)]);
-        cap.kind = Kind::Capability;
+        let cap =
+            ScenarioResult::from_trials("cap-a".into(), Kind::Capability, vec![trial(Final::Pass)]);
         let a = report(
             "targets/opus.toml",
             "run-a",
             vec![
-                ScenarioResult::from_trials("reg-a".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "reg-a".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
                 cap,
             ],
         );
@@ -1729,13 +1788,17 @@ mod tests {
     // dropped by GFM parsers, so the marker has to sit in a real cell).
     #[test]
     fn rows_render_in_two_sections_regression_first_markdown() {
-        let mut cap = ScenarioResult::from_trials("cap-a".into(), vec![trial(Final::Pass)]);
-        cap.kind = Kind::Capability;
+        let cap =
+            ScenarioResult::from_trials("cap-a".into(), Kind::Capability, vec![trial(Final::Pass)]);
         let a = report(
             "targets/opus.toml",
             "run-a",
             vec![
-                ScenarioResult::from_trials("reg-a".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "reg-a".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
                 cap,
             ],
         );
@@ -1764,15 +1827,19 @@ mod tests {
     // computed over the common gradable set filtered to that kind.
     #[test]
     fn footer_renders_three_groups_over_the_common_set_filtered_by_kind() {
-        let mut a_cap = ScenarioResult::from_trials("cap".into(), vec![trial(Final::Fail)]);
-        a_cap.kind = Kind::Capability;
-        let mut b_cap = ScenarioResult::from_trials("cap".into(), vec![trial(Final::Pass)]);
-        b_cap.kind = Kind::Capability;
+        let a_cap =
+            ScenarioResult::from_trials("cap".into(), Kind::Capability, vec![trial(Final::Fail)]);
+        let b_cap =
+            ScenarioResult::from_trials("cap".into(), Kind::Capability, vec![trial(Final::Pass)]);
         let a = report(
             "targets/opus.toml",
             "run-a",
             vec![
-                ScenarioResult::from_trials("reg".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "reg".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
                 a_cap,
             ],
         );
@@ -1780,7 +1847,11 @@ mod tests {
             "targets/sonnet.toml",
             "run-b",
             vec![
-                ScenarioResult::from_trials("reg".into(), vec![trial(Final::Fail)]),
+                ScenarioResult::from_trials(
+                    "reg".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Fail)],
+                ),
                 b_cap,
             ],
         );
@@ -1833,6 +1904,7 @@ mod tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "reg".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1841,6 +1913,7 @@ mod tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "reg".into(),
+                Kind::Regression,
                 vec![trial(Final::Fail)],
             )],
         );
@@ -1866,13 +1939,17 @@ mod tests {
     // concern only, never a JSON nesting.
     #[test]
     fn json_rows_stay_flat_with_kind_per_row() {
-        let mut cap = ScenarioResult::from_trials("cap-a".into(), vec![trial(Final::Pass)]);
-        cap.kind = Kind::Capability;
+        let cap =
+            ScenarioResult::from_trials("cap-a".into(), Kind::Capability, vec![trial(Final::Pass)]);
         let a = report(
             "targets/opus.toml",
             "run-a",
             vec![
-                ScenarioResult::from_trials("reg-a".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "reg-a".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
                 cap,
             ],
         );

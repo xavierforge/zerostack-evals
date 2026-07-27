@@ -563,34 +563,25 @@ fn print_run_report_summaries(
         // renders last, since a number that averages expected-low capability
         // probes into contract regressions is the least interpretable of the
         // three (design D5).
-        writeln!(
-            err,
-            "\nregression: {} scenarios ({} gradable) | pass@k {} | pass^k {}",
-            report.summary.regression.n_scenarios,
-            report.summary.regression.n_gradable,
-            rate(
-                report.summary.regression.pass_at_k,
-                report.summary.regression.n_gradable
-            ),
-            rate(
-                report.summary.regression.pass_hat_k,
-                report.summary.regression.n_gradable
-            ),
-        )?;
-        writeln!(
-            err,
-            "capability: {} scenarios ({} gradable) | pass@k {} | pass^k {}",
-            report.summary.capability.n_scenarios,
-            report.summary.capability.n_gradable,
-            rate(
-                report.summary.capability.pass_at_k,
-                report.summary.capability.n_gradable
-            ),
-            rate(
-                report.summary.capability.pass_hat_k,
-                report.summary.capability.n_gradable
-            ),
-        )?;
+        for (i, (label, kind_summary)) in [
+            ("regression", &report.summary.regression),
+            ("capability", &report.summary.capability),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            // Only the first per-kind line carries the leading blank line
+            // that separates this report from whatever printed before it.
+            let prefix = if i == 0 { "\n" } else { "" };
+            writeln!(
+                err,
+                "{prefix}{label}: {} scenarios ({} gradable) | pass@k {} | pass^k {}",
+                kind_summary.n_scenarios,
+                kind_summary.n_gradable,
+                rate(kind_summary.pass_at_k, kind_summary.n_gradable),
+                rate(kind_summary.pass_hat_k, kind_summary.n_gradable),
+            )?;
+        }
         writeln!(
             err,
             "overall: {} scenarios ({} gradable) | pass@k {} | pass^k {} | \
@@ -1571,9 +1562,7 @@ mod run_summary_tests {
     }
 
     fn scenario(id: &str, kind: Kind, trials: Vec<TrialResult>) -> ScenarioResult {
-        let mut sr = ScenarioResult::from_trials(id.into(), trials);
-        sr.kind = kind;
-        sr
+        ScenarioResult::from_trials(id.into(), kind, trials)
     }
 
     fn report(scenarios: Vec<ScenarioResult>) -> Report {
@@ -1658,6 +1647,7 @@ mod run_summary_tests {
 #[cfg(test)]
 mod matrix_cmd_tests {
     use super::*;
+    use zseval::scenario::Kind;
     use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
 
     fn trial(outcome: Final) -> TrialResult {
@@ -1734,6 +1724,7 @@ mod matrix_cmd_tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1756,6 +1747,7 @@ mod matrix_cmd_tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1775,6 +1767,7 @@ mod matrix_cmd_tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "apple".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1783,6 +1776,7 @@ mod matrix_cmd_tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "mango".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1802,8 +1796,16 @@ mod matrix_cmd_tests {
             "targets/opus.toml",
             "run-a",
             vec![
-                ScenarioResult::from_trials("shared".into(), vec![trial(Final::Pass)]),
-                ScenarioResult::from_trials("only-a".into(), vec![trial(Final::Pass)]),
+                ScenarioResult::from_trials(
+                    "shared".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "only-a".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
             ],
         );
         let b = report(
@@ -1811,6 +1813,7 @@ mod matrix_cmd_tests {
             "run-b",
             vec![ScenarioResult::from_trials(
                 "shared".into(),
+                Kind::Regression,
                 vec![trial(Final::Pass)],
             )],
         );
@@ -1830,6 +1833,7 @@ mod matrix_cmd_tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Fail), trial(Final::Fail)],
             )],
         );
@@ -1848,6 +1852,7 @@ mod matrix_cmd_tests {
             "run-a",
             vec![ScenarioResult::from_trials(
                 "s".into(),
+                Kind::Regression,
                 vec![trial(Final::Indeterminate)],
             )],
         );
