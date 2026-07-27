@@ -53,11 +53,11 @@
 
 ## 8. Compare warning policy: two new warnings under one rule [dispatch: too-te, parallel: no, reason: policy, warning semantics, invariant test shape, and ADR content are all pre-decided in design D6; est. ~35 tool calls]
 
-- [ ] 8.1 Write failing tests: truncation warning fires when either side (or both) recorded `budget_truncated`, naming the side(s), exit code unmoved (0 without regressions, 1 with); `zs_mismatch` fires on differing `zs_bin_sha256` including same-version-different-hash, quiet on identical; the all-warnings-lit invariant — a `Comparison` with every warning kind set has the same exit code as the same comparison with none. Cite red output.
-- [ ] 8.2 Implement both warnings on `Comparison`; render all warnings through one block in fixed order.
-- [ ] 8.3 Acceptance check: `exit_code()` body untouched by this section (cite the diff).
-- [ ] 8.4 Write the repo's first ADR at `docs/adr/0001-compare-always-warns-matrix-owns-multivar.md`: the policy (exit code answers only the gate question; every comparability threat is a warning), the structural anchors (pure `exit_code()`, invariant test, single render block), and the exit-3 reservation (future aggregate predicate inside `exit_code()`, built only when the CI gate consumes it). Update `compare.rs`'s "build is always moved, for now" doc comment to cite the ADR and the now-recorded build identity; archived change design docs stay untouched (historical record).
-- [ ] 8.5 Evidence: test output green including the invariant test.
+- [x] 8.1 Write failing tests: truncation warning fires when either side (or both) recorded `budget_truncated`, naming the side(s), exit code unmoved (0 without regressions, 1 with); `zs_mismatch` fires on differing `zs_bin_sha256` including same-version-different-hash, quiet on identical; the all-warnings-lit invariant — a `Comparison` with every warning kind set has the same exit code as the same comparison with none. Cite red output.
+- [x] 8.2 Implement both warnings on `Comparison`; render all warnings through one block in fixed order.
+- [x] 8.3 Acceptance check: `exit_code()` body untouched by this section (cite the diff).
+- [x] 8.4 Write the repo's first ADR at `docs/adr/0001-compare-always-warns-matrix-owns-multivar.md`: the policy (exit code answers only the gate question; every comparability threat is a warning), the structural anchors (pure `exit_code()`, invariant test, single render block), and the exit-3 reservation (future aggregate predicate inside `exit_code()`, built only when the CI gate consumes it). Update `compare.rs`'s "build is always moved, for now" doc comment to cite the ADR and the now-recorded build identity; archived change design docs stay untouched (historical record).
+- [x] 8.5 Evidence: test output green including the invariant test.
 
 ## 9. Build identity displayed wherever it can differ [dispatch: too-te, parallel: no, reason: display shape copies the existing pack_identity precedent verbatim (helper + two call sites); est. ~15 tool calls]
 
