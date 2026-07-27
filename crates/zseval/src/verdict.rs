@@ -392,6 +392,22 @@ pub struct ZsIdentity {
     pub features: Option<Vec<String>>,
 }
 
+/// A `Summary`'s per-kind view: the same `n_scenarios`/`n_gradable`/
+/// `pass_at_k`/`pass_hat_k` shape as the overall summary, computed over one
+/// kind's scenarios only (design D5). `Summary` carries exactly two of these,
+/// named `regression` and `capability` — not a map keyed by kind: the kind
+/// enum is closed and two-valued, so adding a third kind must be a loud
+/// schema decision (a new named field), never a quiet new map key.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KindSummary {
+    pub n_scenarios: usize,
+    /// Scenarios of this kind with at least one graded trial (the pass-rate
+    /// denominator for this kind).
+    pub n_gradable: usize,
+    pub pass_at_k: f64,
+    pub pass_hat_k: f64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Summary {
     pub n_scenarios: usize,
@@ -404,6 +420,12 @@ pub struct Summary {
     pub indeterminate_trials: usize,
     pub total_cost_usd: f64,
     pub avg_wall_secs: f64,
+    /// The same four numbers above, computed over regression scenarios only.
+    /// The fields above stay the historical blended yardstick, unmoved by
+    /// this — see design D5.
+    pub regression: KindSummary,
+    /// The same four numbers above, computed over capability scenarios only.
+    pub capability: KindSummary,
 }
 
 /// How an artifact records the judge file it was graded with: where the file
@@ -537,6 +559,8 @@ impl Report {
         } else {
             all_trials.iter().map(|t| t.wall_secs).sum::<f64>() / all_trials.len() as f64
         };
+        let regression = kind_summary(&scenarios, Kind::Regression);
+        let capability = kind_summary(&scenarios, Kind::Capability);
         Report {
             schema_version: REPORT_SCHEMA_VERSION,
             tag: meta.tag,
@@ -566,6 +590,8 @@ impl Report {
                 indeterminate_trials,
                 total_cost_usd: round4(total_cost_usd),
                 avg_wall_secs: round4(avg_wall_secs),
+                regression,
+                capability,
             },
             scenarios,
         }
@@ -595,6 +621,29 @@ impl Report {
 
 fn round4(x: f64) -> f64 {
     (x * 10_000.0).round() / 10_000.0
+}
+
+/// `Summary::regression`/`Summary::capability`'s computation: the same
+/// gradable-scenarios-only averaging `Report::build` does for the overall
+/// numbers (design D5), filtered to one kind first. `n_gradable == 0` divides
+/// by the same `.max(1)` guard as the overall computation, so an empty kind's
+/// rates are `0.0` on the wire — the display-only `n/a` is
+/// `print_run_report_summaries`'s job, not this function's.
+fn kind_summary(scenarios: &[ScenarioResult], kind: Kind) -> KindSummary {
+    let n_scenarios = scenarios.iter().filter(|s| s.kind == kind).count();
+    let gradable: Vec<&ScenarioResult> = scenarios
+        .iter()
+        .filter(|s| s.kind == kind && s.is_gradable())
+        .collect();
+    let g = gradable.len().max(1) as f64;
+    let pass_at_k = gradable.iter().map(|s| s.pass_at_k).sum::<f64>() / g;
+    let pass_hat_k = gradable.iter().map(|s| s.pass_hat_k).sum::<f64>() / g;
+    KindSummary {
+        n_scenarios,
+        n_gradable: gradable.len(),
+        pass_at_k: round4(pass_at_k),
+        pass_hat_k: round4(pass_hat_k),
+    }
 }
 
 /// ISO-8601 UTC timestamp, pure std.
@@ -780,7 +829,9 @@ mod exit_code_tests {
             "summary": {
                 "n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0,
                 "indeterminate_scenarios": 0, "indeterminate_trials": 0,
-                "total_cost_usd": 0.0, "avg_wall_secs": 0.0
+                "total_cost_usd": 0.0, "avg_wall_secs": 0.0,
+                "regression": {"n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0},
+                "capability": {"n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0}
             }
         }"#;
         let report: Report = serde_json::from_str(old).unwrap();
@@ -926,7 +977,9 @@ mod target_field_tests {
             "summary": {
                 "n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0,
                 "indeterminate_scenarios": 0, "indeterminate_trials": 0,
-                "total_cost_usd": 0.0, "avg_wall_secs": 0.0
+                "total_cost_usd": 0.0, "avg_wall_secs": 0.0,
+                "regression": {"n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0},
+                "capability": {"n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0}
             }
         }"#;
         let report: Report = serde_json::from_str(old).unwrap();
@@ -1001,7 +1054,9 @@ mod prompts_pack_field_tests {
             "summary": {
                 "n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0,
                 "indeterminate_scenarios": 0, "indeterminate_trials": 0,
-                "total_cost_usd": 0.0, "avg_wall_secs": 0.0
+                "total_cost_usd": 0.0, "avg_wall_secs": 0.0,
+                "regression": {"n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0},
+                "capability": {"n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0}
             }
         }"#;
         let report: Report = serde_json::from_str(old).unwrap();
@@ -1077,7 +1132,9 @@ mod zs_identity_field_tests {
             "summary": {
                 "n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0,
                 "indeterminate_scenarios": 0, "indeterminate_trials": 0,
-                "total_cost_usd": 0.0, "avg_wall_secs": 0.0
+                "total_cost_usd": 0.0, "avg_wall_secs": 0.0,
+                "regression": {"n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0},
+                "capability": {"n_scenarios": 0, "n_gradable": 0, "pass_at_k": 0.0, "pass_hat_k": 0.0}
             }
         }"#;
         let err = serde_json::from_str::<Report>(missing_version).unwrap_err();
@@ -1241,5 +1298,145 @@ mod judge_file_ref_tests {
         let none = JudgeFileRef::default();
         assert_eq!(none.path, "");
         assert_eq!(none.hash, None);
+    }
+}
+
+#[cfg(test)]
+mod kind_summary_tests {
+    use super::*;
+
+    fn meta() -> ReportMeta {
+        ReportMeta {
+            tag: "t".into(),
+            model: "m".into(),
+            backend: "b".into(),
+            trials: 1,
+            ..Default::default()
+        }
+    }
+
+    fn trial(outcome: Final) -> TrialResult {
+        TrialResult {
+            trial: 0,
+            outcome,
+            reasons: vec![],
+            asserts: vec![],
+            judge: None,
+            judge_file: String::new(),
+            judge_hash: None,
+            judge_model: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            judge_input_tokens: 0,
+            judge_output_tokens: 0,
+            cost_usd: 0.0,
+            wall_secs: 0.0,
+            tool_call_count: 0,
+            run_dir: String::new(),
+        }
+    }
+
+    fn scenario(id: &str, kind: Kind, trials: Vec<TrialResult>) -> ScenarioResult {
+        let mut sr = ScenarioResult::from_trials(id.into(), trials);
+        sr.kind = kind;
+        sr
+    }
+
+    /// trustworthy-numbers 5.1: `Summary::regression`/`Summary::capability`
+    /// are computed over that kind's own scenarios only, independent of the
+    /// other kind and of the unchanged, blended overall.
+    #[test]
+    fn per_kind_numbers_are_independent_of_each_other_and_of_overall() {
+        let report = Report::build(
+            meta(),
+            vec![
+                // regression: one scenario a clean pass (pass@k 1, pass^k 1),
+                // one a clean fail (pass@k 0, pass^k 0) — averaged, 0.5/0.5.
+                scenario("reg-pass", Kind::Regression, vec![trial(Final::Pass)]),
+                scenario("reg-fail", Kind::Regression, vec![trial(Final::Fail)]),
+                // capability: one clean pass — pass@k 1, pass^k 1.
+                scenario("cap-pass", Kind::Capability, vec![trial(Final::Pass)]),
+            ],
+        );
+
+        assert_eq!(report.summary.regression.n_scenarios, 2);
+        assert_eq!(report.summary.regression.n_gradable, 2);
+        assert_eq!(report.summary.regression.pass_at_k, 0.5);
+        assert_eq!(report.summary.regression.pass_hat_k, 0.5);
+
+        assert_eq!(report.summary.capability.n_scenarios, 1);
+        assert_eq!(report.summary.capability.n_gradable, 1);
+        assert_eq!(report.summary.capability.pass_at_k, 1.0);
+        assert_eq!(report.summary.capability.pass_hat_k, 1.0);
+
+        // The blended overall stays exactly what it always was: unaffected
+        // by the per-kind split existing alongside it.
+        assert_eq!(report.summary.n_scenarios, 3);
+        assert_eq!(report.summary.n_gradable, 3);
+        assert_eq!(report.summary.pass_at_k, round4((1.0 + 0.0 + 1.0) / 3.0));
+        assert_eq!(report.summary.pass_hat_k, round4((1.0 + 0.0 + 1.0) / 3.0));
+    }
+
+    /// trustworthy-numbers 5.1: a fully-indeterminate scenario is excluded
+    /// from its own kind's gradable count and rate — the same "never counted
+    /// as a 0" rule `ScenarioResult::is_gradable` already enforces overall.
+    #[test]
+    fn a_fully_indeterminate_scenario_is_excluded_from_its_kinds_rate() {
+        let report = Report::build(
+            meta(),
+            vec![
+                scenario(
+                    "cap-broken",
+                    Kind::Capability,
+                    vec![trial(Final::Indeterminate)],
+                ),
+                scenario("cap-pass", Kind::Capability, vec![trial(Final::Pass)]),
+            ],
+        );
+        assert_eq!(report.summary.capability.n_scenarios, 2);
+        assert_eq!(report.summary.capability.n_gradable, 1);
+        assert_eq!(report.summary.capability.pass_at_k, 1.0);
+    }
+
+    /// trustworthy-numbers 5.1 / design D5: a kind with `n_gradable == 0`
+    /// serializes its rates as `0.0` on the wire — matching the current
+    /// overall behavior, never a third representation. (The `n/a` rendering
+    /// is `print_run_report_summaries`'s display-only convention, not this
+    /// struct's.)
+    #[test]
+    fn an_empty_kind_serializes_its_rates_as_zero() {
+        let report = Report::build(
+            meta(),
+            vec![scenario(
+                "reg-pass",
+                Kind::Regression,
+                vec![trial(Final::Pass)],
+            )],
+        );
+        assert_eq!(report.summary.capability.n_scenarios, 0);
+        assert_eq!(report.summary.capability.n_gradable, 0);
+        assert_eq!(report.summary.capability.pass_at_k, 0.0);
+        assert_eq!(report.summary.capability.pass_hat_k, 0.0);
+
+        let json = serde_json::to_value(&report.summary.capability).unwrap();
+        assert_eq!(json["pass_at_k"], serde_json::json!(0.0));
+        assert_eq!(json["pass_hat_k"], serde_json::json!(0.0));
+    }
+
+    /// trustworthy-numbers 5.1: grouping by kind is a render-time concern
+    /// only — the `scenarios` array on the report itself keeps discovery
+    /// order regardless of how kinds interleave.
+    #[test]
+    fn scenarios_array_order_is_unchanged_by_kind() {
+        let report = Report::build(
+            meta(),
+            vec![
+                scenario("cap-1", Kind::Capability, vec![trial(Final::Pass)]),
+                scenario("reg-1", Kind::Regression, vec![trial(Final::Pass)]),
+                scenario("cap-2", Kind::Capability, vec![trial(Final::Pass)]),
+            ],
+        );
+        let ids: Vec<&str> = report.scenarios.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids, vec!["cap-1", "reg-1", "cap-2"]);
     }
 }

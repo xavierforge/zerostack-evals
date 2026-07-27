@@ -30,10 +30,10 @@
 
 ## 5. Per-kind summary metrics in report output [dispatch: too-te, parallel: yes, reason: struct shape, field names, n/a convention, and line order are all pinned in spec and design D5; est. ~20 tool calls]
 
-- [ ] 5.1 Write failing tests: `Summary` carries fixed `regression`/`capability` sub-structs (`n_scenarios`, `n_gradable`, `pass_at_k`, `pass_hat_k`) computed over that kind only; a kind with `n_gradable = 0` serializes rates as `0.0`; `scenarios` array order unchanged from discovery order. Cite red output.
-- [ ] 5.2 Implement the per-kind computation in `Summary` construction; overall metrics stay at top level, untouched.
-- [ ] 5.3 Run summary prints three lines — regression, capability, overall, in that order — with `n/a` rendering for an empty kind (existing `rate()` convention).
-- [ ] 5.4 Evidence: test output green; a mock-backend run's stderr showing the three-line summary.
+- [x] 5.1 Write failing tests: `Summary` carries fixed `regression`/`capability` sub-structs (`n_scenarios`, `n_gradable`, `pass_at_k`, `pass_hat_k`) computed over that kind only; a kind with `n_gradable = 0` serializes rates as `0.0`; `scenarios` array order unchanged from discovery order. Cite red output.
+- [x] 5.2 Implement the per-kind computation in `Summary` construction; overall metrics stay at top level, untouched.
+- [x] 5.3 Run summary prints three lines — regression, capability, overall, in that order — with `n/a` rendering for an empty kind (existing `rate()` convention).
+- [x] 5.4 Evidence: test output green; a mock-backend run's stderr showing the three-line summary.
 
 ## 6. Matrix grouping by kind [dispatch: too-te, parallel: yes, reason: row sectioning, footer groups, and JSON flatness are fully specified in the matrix-render delta; rendering code has established test patterns to copy; est. ~30 tool calls]
 

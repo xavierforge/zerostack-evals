@@ -548,22 +548,57 @@ fn print_run_report_summaries(
     err: &mut impl std::io::Write,
 ) -> anyhow::Result<()> {
     for (i, report) in reports.iter().enumerate() {
-        // Rates are undefined when nothing was gradable — show n/a rather than 0.
-        let rate = |v: f64| {
-            if report.summary.n_gradable == 0 {
+        // Rates are undefined when nothing was gradable — show n/a rather
+        // than 0, per line: an empty kind must not borrow the overall
+        // report's gradable count to decide its own n/a (trustworthy-numbers
+        // design D5).
+        let rate = |v: f64, n_gradable: usize| {
+            if n_gradable == 0 {
                 "  n/a".to_string()
             } else {
                 format!("{v:.3}")
             }
         };
+        // Three lines, in this fixed order: the historical blended overall
+        // renders last, since a number that averages expected-low capability
+        // probes into contract regressions is the least interpretable of the
+        // three (design D5).
         writeln!(
             err,
-            "\n{} scenarios ({} gradable) | pass@k {} | pass^k {} | \
+            "\nregression: {} scenarios ({} gradable) | pass@k {} | pass^k {}",
+            report.summary.regression.n_scenarios,
+            report.summary.regression.n_gradable,
+            rate(
+                report.summary.regression.pass_at_k,
+                report.summary.regression.n_gradable
+            ),
+            rate(
+                report.summary.regression.pass_hat_k,
+                report.summary.regression.n_gradable
+            ),
+        )?;
+        writeln!(
+            err,
+            "capability: {} scenarios ({} gradable) | pass@k {} | pass^k {}",
+            report.summary.capability.n_scenarios,
+            report.summary.capability.n_gradable,
+            rate(
+                report.summary.capability.pass_at_k,
+                report.summary.capability.n_gradable
+            ),
+            rate(
+                report.summary.capability.pass_hat_k,
+                report.summary.capability.n_gradable
+            ),
+        )?;
+        writeln!(
+            err,
+            "overall: {} scenarios ({} gradable) | pass@k {} | pass^k {} | \
              indeterminate {} scenario(s), {} trial(s) | ${:.4}",
             report.summary.n_scenarios,
             report.summary.n_gradable,
-            rate(report.summary.pass_at_k),
-            rate(report.summary.pass_hat_k),
+            rate(report.summary.pass_at_k, report.summary.n_gradable),
+            rate(report.summary.pass_hat_k, report.summary.n_gradable),
             report.summary.indeterminate_scenarios,
             report.summary.indeterminate_trials,
             report.summary.total_cost_usd,
@@ -1505,6 +1540,118 @@ mod multi_target_tests {
         for t in &targets {
             std::fs::remove_dir_all(t.parent().unwrap()).ok();
         }
+    }
+}
+
+#[cfg(test)]
+mod run_summary_tests {
+    use super::*;
+    use zseval::scenario::Kind;
+    use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
+
+    fn trial(outcome: Final) -> TrialResult {
+        TrialResult {
+            trial: 0,
+            outcome,
+            reasons: vec![],
+            asserts: vec![],
+            judge: None,
+            judge_file: String::new(),
+            judge_hash: None,
+            judge_model: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            judge_input_tokens: 0,
+            judge_output_tokens: 0,
+            cost_usd: 0.0,
+            wall_secs: 0.0,
+            tool_call_count: 0,
+            run_dir: String::new(),
+        }
+    }
+
+    fn scenario(id: &str, kind: Kind, trials: Vec<TrialResult>) -> ScenarioResult {
+        let mut sr = ScenarioResult::from_trials(id.into(), trials);
+        sr.kind = kind;
+        sr
+    }
+
+    fn report(scenarios: Vec<ScenarioResult>) -> Report {
+        Report::build(
+            ReportMeta {
+                tag: "t".into(),
+                model: "m".into(),
+                backend: "mock".into(),
+                trials: 1,
+                ..Default::default()
+            },
+            scenarios,
+        )
+    }
+
+    fn cfg(name: &str) -> MultiTargetConfig {
+        MultiTargetConfig {
+            tag: "t".into(),
+            no_judge: true,
+            results_root: std::env::temp_dir().join(format!(
+                "zseval-run-summary-results-{name}-{}",
+                std::process::id()
+            )),
+            max_total_usd: None,
+            jobs: 1,
+            judge_file: None,
+            trials_override: None,
+        }
+    }
+
+    /// trustworthy-numbers 5.3: the human run summary prints three lines, in
+    /// order: regression, capability, then the historical blended overall —
+    /// each carrying that line's own scenario/gradable counts and rates.
+    #[test]
+    fn run_summary_prints_regression_capability_overall_in_order() {
+        let r = report(vec![
+            scenario("reg-1", Kind::Regression, vec![trial(Final::Pass)]),
+            scenario("cap-1", Kind::Capability, vec![trial(Final::Pass)]),
+        ]);
+
+        let mut err = Vec::new();
+        print_run_report_summaries(&[r], &[], false, &cfg("order"), &mut err).unwrap();
+        let text = String::from_utf8(err).unwrap();
+
+        let reg_pos = text.find("regression:").unwrap_or_else(|| {
+            panic!("no regression: line in {text}");
+        });
+        let cap_pos = text.find("capability:").unwrap_or_else(|| {
+            panic!("no capability: line in {text}");
+        });
+        let overall_pos = text.find("overall:").unwrap_or_else(|| {
+            panic!("no overall: line in {text}");
+        });
+        assert!(reg_pos < cap_pos, "{text}");
+        assert!(cap_pos < overall_pos, "{text}");
+        assert!(text.contains("1 scenarios (1 gradable)"), "{text}");
+    }
+
+    /// trustworthy-numbers 5.3 / D5: a kind with nothing gradable renders its
+    /// rates as `n/a` on that kind's own line — the existing `rate()`
+    /// convention, now applied per line instead of only to the overall one.
+    #[test]
+    fn an_empty_kinds_line_renders_n_a() {
+        let r = report(vec![scenario(
+            "reg-1",
+            Kind::Regression,
+            vec![trial(Final::Pass)],
+        )]);
+
+        let mut err = Vec::new();
+        print_run_report_summaries(&[r], &[], false, &cfg("empty-kind"), &mut err).unwrap();
+        let text = String::from_utf8(err).unwrap();
+
+        let cap_line = text
+            .lines()
+            .find(|l| l.starts_with("capability:"))
+            .unwrap_or_else(|| panic!("no capability: line in {text}"));
+        assert!(cap_line.contains("n/a"), "{cap_line}");
     }
 }
 
