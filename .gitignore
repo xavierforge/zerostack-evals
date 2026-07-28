@@ -31,5 +31,6 @@ __pycache__/
 # versioned record of a change is its own markdown, not these.
 openspec/changes/**/diff-review.*
 openspec/changes/**/review.html
+openspec/changes/**/review-quiz.json
 openspec/changes/**/diff.patch
 openspec/changes/**/gloss.*.json
