@@ -1,0 +1,11 @@
+{
+  "layer": "cross-check",
+  "fixed_point": "main",
+  "findings": [
+    {"axis": "standards", "title": "duplicated per-kind footer blocks across render_fixed_width and render_markdown (matrix.rs:614-641,755-793)", "severity": "judgement", "actioned": true},
+    {"axis": "standards", "title": "long parameter list on test helper full_report, 7 args with #[allow(too_many_arguments)] (compare.rs:812-813)", "severity": "judgement", "actioned": true},
+    {"axis": "standards", "title": "hand-rolled SHA-256, ~90 lines, load-bearing for build identity (util.rs:63)", "severity": "judgement", "actioned": false},
+    {"axis": "standards", "title": "duplicated regression/capability/overall writeln blocks in print_run_report_summaries (main.rs:566-604)", "severity": "judgement", "actioned": true},
+    {"axis": "spec", "title": "design.md item 30 / tasks.md 7.1 say three verdict.rs tests flip to rejection; diff flips five (doc understatement, not a code defect)", "severity": "judgement", "actioned": true}
+  ]
+}
