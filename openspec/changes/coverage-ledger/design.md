@@ -40,6 +40,16 @@ Two existing decisions constrain the shape. `backend.rs` stores the `--version` 
 
 `domain` is taken: `scenario.toml`'s `domains = [...]` opts a scenario into a subsystem's seed sugar and post-run drift check, with `KNOWN_DOMAINS` in `domains/mod.rs` as the closed list. Three names — memory, subagents, mcp — would exist in both vocabularies meaning different things, and `domains/mod.rs`'s own doc says nothing outside that file names a specific domain. `area` costs one word and removes the collision permanently.
 
+### D3a: `project-instructions` is its own area, not folded into `context-window`
+
+The 2026-07-16 carve-out gave 12 areas; `mcp` and `loop` joined because they already had scenarios. `scenarios/context/` is the same case and was missed: its two scenarios (`context-follows-agents-md`, `context-no-overapply`) exercise `context::load()`'s upward `AGENTS.md` walk and the scoping of the rules it finds, a calibration pair on whether a rule scoped to `.py` leaks onto other files.
+
+Folding them into `context-window` was the tempting shortcut, since the source directory is named `context`. It is wrong, and expensively so: `context-window` in PLAN.md means the model catalog and window sizing (`context-window-catalog-autodetect`, `context-window-unknown-model-fallback`), which no scenario touches. Merging would let two `AGENTS.md` scenarios report the context window as tested, which is the precise failure this ledger exists to prevent, in the ledger's own denominator. The two areas share a directory name and nothing else.
+
+The alternative, leaving the pair unclaimed, contradicts the bidirectional drift check: every scenario under `scenario_roots` owes exactly one `covered` claim, so an unclaimed pair is a permanently red test.
+
+The area set is therefore 15, with 8 areas holding `covered` claims and 7 at zero coverage.
+
 ### D4: `covered` is existence, not passing and not run membership
 
 Three candidate meanings: a scenario exists; a scenario exists and passes; a scenario exists and ran in the report being rendered. The second conflates coverage with results — a 0% scenario is coverage, and often the most valuable kind, since it is reporting a real defect; `kind` already answers whether that 0% is a problem. The third makes the ledger stale after every partial run.
@@ -54,13 +64,13 @@ The alternative is to allow repeats and de-duplicate when counting. That moves a
 
 `audit_matches(banner)` is `banner.contains(audited_against)`. No parse, no assumption about the banner's shape, no new coupling to upstream's release formatting. If upstream reshapes the banner, the worst case is a spurious mismatch line on the page — never a wrong version claim, never a blocked publish.
 
-The version relationship is disclosed, never enforced: failing the page when the ledger is older than the binary means no results can be published for a new zerostack until 14 areas are re-audited, and that gate would be commented out within a release or two, exactly as `evals.yml`'s prompts-gate already is.
+The version relationship is disclosed, never enforced: failing the page when the ledger is older than the binary means no results can be published for a new zerostack until 15 areas are re-audited, and that gate would be commented out within a release or two, exactly as `evals.yml`'s prompts-gate already is.
 
 One consequence differs from the conversation that produced this design, and is deliberate: a mock-backend report records `mock` as its banner and therefore mismatches. Skipping the comparison for mock was the earlier instinct; disclosure is better. A page rendered from mock numbers must say so loudly, and "audited against 1.7.2, results from mock" is precisely the sentence a reader needs.
 
 ### D7: No coverage percentage anywhere, which is what licenses asymmetric granularity
 
-`covered` claims are fine-grained (each names its scenarios); `uncovered` claims are coarse, because an area nobody has tested cannot be sliced with any confidence. That asymmetry is fine for a status list and fatal for a ratio: re-slicing the same facts moves the percentage, and nothing can detect it. The headline figure is instead "7 of 14 areas have no scenario at all", which no re-slicing moves.
+`covered` claims are fine-grained (each names its scenarios); `uncovered` claims are coarse, because an area nobody has tested cannot be sliced with any confidence. That asymmetry is fine for a status list and fatal for a ratio: re-slicing the same facts moves the percentage, and nothing can detect it. The headline figure is instead "7 of 15 areas have no scenario at all", which no re-slicing moves.
 
 ### D8: Enforced by `cargo test`, exposed by no subcommand
 
@@ -72,7 +82,7 @@ The ledger is internal: it serves this repo's honesty and feeds one renderer. A 
 
 The schema is backend-neutral — areas are strings, claims are strings, statuses are generic. What is zerostack-specific is the *content*, and that lives in `scenarios/coverage.toml`, which is data alongside the scenario tree. When the core is extracted into its own crate (ROADMAP mid-term), `coverage.rs` travels with the core and the TOML stays with the zerostack scenario set. `domains/` is for code that encodes a particular zerostack subsystem's layout; this is not that.
 
-### D10: The drift test joins `tests/harness.rs`
+### D10: The drift test joins `crates/zseval/tests/harness.rs`
 
 Not a second test binary: the 2026-07-23 decision is one integration binary, split into modules later (ROADMAP item 7). Schema rejection paths (missing evidence, unknown status, duplicate id) are unit tests inside `coverage.rs` with inline fixtures; the tree-vs-ledger test is the integration one, because its input is the real repo.
 

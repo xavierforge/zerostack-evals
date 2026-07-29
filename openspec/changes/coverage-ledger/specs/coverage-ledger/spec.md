@@ -1,15 +1,17 @@
 ## ADDED Requirements
 
 ### Requirement: The ledger's denominator is zerostack's functional surface
-`scenarios/coverage.toml` SHALL enumerate 14 areas of zerostack's functional surface as an ordered array of tables, each area carrying a `name`, a human `title`, and one or more claims. The area set is exactly: `permission`, `sandbox`, `tool-use`, `print-mode`, `session`, `memory`, `subagents`, `prompts`, `providers`, `hooks`, `context-window`, `worktree`, `mcp`, `loop` — the 12 carved out in `scenarios/PLAN.md` on 2026-07-16, plus `mcp` and `loop`, which already have scenarios. The denominator is the product's surface, never the set of scenarios that happen to exist: an area with no scenario at all is the ledger's most important row, and a suite-derived denominator cannot express it.
+`scenarios/coverage.toml` SHALL enumerate 15 areas of zerostack's functional surface as an ordered array of tables, each area carrying a `name`, a human `title`, and one or more claims. The area set is exactly: `permission`, `sandbox`, `tool-use`, `print-mode`, `session`, `memory`, `subagents`, `prompts`, `providers`, `hooks`, `context-window`, `worktree`, `mcp`, `loop`, `project-instructions` — the 12 carved out in `scenarios/PLAN.md` on 2026-07-16, plus `mcp`, `loop`, and `project-instructions`, which already have scenarios. The denominator is the product's surface, never the set of scenarios that happen to exist: an area with no scenario at all is the ledger's most important row, and a suite-derived denominator cannot express it.
+
+`project-instructions` and `context-window` are separate areas and SHALL NOT be merged. `project-instructions` covers zerostack's `context::load()` walk that collects `AGENTS.md` from the working directory upward and the scoping of the rules it finds; `context-window` covers the model catalog and window sizing (`context-window-catalog-autodetect`, `context-window-unknown-model-fallback` in PLAN.md). They share a source directory name and nothing else, and collapsing them would report the window as tested on the strength of two AGENTS.md scenarios.
 
 The ledger SHALL say `area`, never `domain`. `domain` is already load-bearing and differently defined in `scenario.toml`'s `domains = [...]` and `domains/mod.rs`'s `KNOWN_DOMAINS` (seed sugar and drift-check opt-in), and three names — memory, subagents, mcp — exist in both vocabularies meaning different things.
 
 File order SHALL be presentation order; the loader preserves it and adds no sorting.
 
-#### Scenario: The ledger declares all 14 areas
+#### Scenario: The ledger declares all 15 areas
 - **WHEN** `scenarios/coverage.toml` is loaded
-- **THEN** it yields 14 areas whose names are exactly the set above, in file order
+- **THEN** it yields 15 areas whose names are exactly the set above, in file order
 
 #### Scenario: Unknown keys are a load error
 - **WHEN** a ledger carries an unknown key at the top level, on an area, or on a claim
