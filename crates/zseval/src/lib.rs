@@ -8,6 +8,7 @@
 pub mod asserts;
 pub mod backend;
 pub mod compare;
+pub mod coverage;
 pub mod domains;
 pub mod judge;
 pub mod matrix;
