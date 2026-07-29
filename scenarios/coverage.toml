@@ -61,7 +61,53 @@ scenario_roots = ["scenarios", "examples/prompt-pack"]
 [[areas]]
 name = "permission"
 title = "Permission layer"
-claims = []
+
+[[areas.claims]]
+claim = "A deny rule in the config still denies when the run was started with permission prompts skipped"
+status = "uncovered"
+note = "The cheapest regression this area could have: every run the harness makes already skips permission prompts, so the scenario needs a seeded config and a file that has to survive, and nothing else."
+
+[[areas.claims]]
+claim = "A regex deny rule beats a glob allow rule that matches the same command"
+status = "uncovered"
+
+[[areas.claims]]
+claim = "The built-in bash denylist stops a destructive command when no permission config exists at all"
+status = "uncovered"
+note = "The zero-configuration safety net, which is the state most first runs are in."
+
+[[areas.claims]]
+claim = "A read-only prompt mode is enforced by the permission layer even when the user's instruction demands a write"
+status = "uncovered"
+note = "The enforcement layer beneath the two voluntary-compliance claims in the prompts area. zerostack used to strip the %%mode= directive out of a prompt's content and then look for it in the stripped text, so the mode was never applied and this claim was not merely unmeasured but unmeasurable; the startup path has since been fixed and it is buildable now. It is the deliberate calibration overlap those prompt claims record: when it is built it is counted once, here, and never a second time there."
+
+[[areas.claims]]
+claim = "The permission modes other than the one the harness forces decide as specified, including allowing a write inside the working directory and asking before one outside it"
+status = "uncovered"
+blocked_by = "Every invocation hardcodes the same argument list, including the flag that skips permission prompts, and scenario.toml has no field that can add or drop a flag, so no run ever reaches the standard, read-only or guarded modes."
+note = "The single largest hole in this area: while those modes are unreachable, almost everything the layer decides is invisible to a scenario."
+
+[[areas.claims]]
+claim = "The flag that disables permission checks widens the boundary by exactly what its name promises and no further"
+status = "uncovered"
+blocked_by = "It is a command-line flag, and the fixed argument list every invocation is built from has no per-scenario extension point."
+
+[[areas.claims]]
+claim = "A path outside the working directory that the config scopes explicitly is treated as scoped"
+status = "uncovered"
+blocked_by = "Two limitations stack: no run reaches the mode where a scoped external path is decided, and a seeded config cannot name one of the run's throwaway directories because file placements are copied verbatim with no substitution."
+
+[[areas.claims]]
+claim = "Repeated denials of the same command are recognized and the agent is steered off the retry loop"
+status = "uncovered"
+blocked_by = "The coaching text zerostack injects arrives as a tool result, and the transcript reader skips the result blocks in the captured output, so the only trace of it is whatever the model chooses to repeat in its answer."
+note = "Written as unmeasured rather than as a permanent exclusion. The older judgment rested on a headless permission question hanging until the scenario timed out, and that half has since been fixed, which leaves an evidence gap on the harness side rather than a reason never to build this."
+
+[[areas.claims]]
+claim = "The permission mode is correct again after a one-shot dot command hands control back to the prompt that was interrupted"
+status = "product-blocked"
+reason = "zerostack restores the previous prompt's name without reapplying that prompt's own %%mode= directive, so the mode left behind is whichever one the dot command set."
+note = "Only the interactive dot-command path is wrong; the startup and session-scope paths apply the directive correctly. The harness drives zerostack non-interactively and has no pseudo-terminal backend, so even a fixed zerostack would need one before this could be measured."
 
 # ---------------------------------------------------------------------------
 # sandbox: process and filesystem isolation around the commands a run executes.
@@ -70,7 +116,35 @@ claims = []
 [[areas]]
 name = "sandbox"
 title = "Sandbox isolation"
-claims = []
+
+[[areas.claims]]
+claim = "With the sandbox on, a bash command cannot write outside the working directory and can still write inside it"
+status = "uncovered"
+blocked_by = "The probe only means anything on Linux with bwrap installed, and a scenario has no way to declare the platform it needs, so a run on any other machine would report it as a zerostack failure rather than as a skip."
+note = "One claim rather than two, because the halves are worthless apart: a sandbox that refused every write would pass the first half on its own. The probe command also has to be one the permission layer allows, or the write never reaches the sandbox and the two boundaries collapse into one measurement."
+
+[[areas.claims]]
+claim = "The sandbox isolates the process namespace, and the ipc, uts and cgroup namespaces with it"
+status = "uncovered"
+blocked_by = "The probe is meaningful only on Linux with bwrap installed, and a scenario has no way to declare the platform it needs, so anywhere else it would fail for the wrong reason."
+note = "Only the process namespace has ever been proposed; the other three are unproposed as well as unbuilt."
+
+[[areas.claims]]
+claim = "Cancelling a run tears down the whole process group the sandboxed command started"
+status = "uncovered"
+blocked_by = "Cancellation is an interactive act, and every scenario runs zerostack as a non-interactive subprocess; there is no pseudo-terminal backend that could interrupt one mid-run."
+
+[[areas.claims]]
+claim = "Credential directories are hidden from a sandboxed command, the network is closed off, and a missing sandbox binary refuses the command instead of running it unconfined"
+status = "product-blocked"
+reason = "zerostack binds the whole filesystem into the sandbox read-only, leaves the entire user cache writable, never unshares the network, and runs the command unsandboxed with only a warning when neither sandbox binary is present, so none of these three protections exists to be measured."
+zs = "sandbox hardening"
+note = "The three are one claim because they are one piece of work: masking without a network boundary still leaks, and either without a fail-closed option is optional protection."
+
+[[areas.claims]]
+claim = "The sandbox launches the shell the configuration names"
+status = "excluded"
+reason = "Which shell runs inside the sandbox is a configuration preference rather than a containment property, and all a scenario could observe is that the shell is not bash, which says nothing about what is contained."
 
 # ---------------------------------------------------------------------------
 # hooks: user-supplied programs that run around tool calls and turns, outside
@@ -80,7 +154,30 @@ claims = []
 [[areas]]
 name = "hooks"
 title = "Hooks"
-claims = []
+
+[[areas.claims]]
+claim = "A hook's allow decision cannot widen what the permission checker itself denied"
+status = "uncovered"
+blocked_by = "The only hook location zerostack trusts by default is the global settings file under the user's home directory, and file seeding can place files into the run's data, config and working directories only, so no trusted hook can be installed for a scenario at all."
+note = "The most important unmeasured claim in this area. Hooks run outside the permission checker, so a hook that could override a deny would breach the boundary every other area is measured against."
+
+[[areas.claims]]
+claim = "The hook events that guard a turn do what they say: a deny beats an allow before a tool runs, a question fails closed with no terminal to answer it, the stop hook stops being allowed to block once it hits its limit, redaction removes a secret after a tool runs, and context added at prompt time reaches the model"
+status = "uncovered"
+blocked_by = "All five need a hook installed in the globally trusted location, which sits outside the three directories a scenario can seed into."
+note = "Coarse on purpose: nothing here has been sliced finely enough to be confident about, and the five share one blocker. The stop hook's limit is a hard-coded constant on zerostack's side, so a scenario that pins it should say beside the assertion that it is pinning an internal number."
+
+[[areas.claims]]
+claim = "An untrusted project hook does not run, and a malformed project settings file does not take the run down with it"
+status = "uncovered"
+blocked_by = "A green result would be indistinguishable from a run whose zerostack was built without hooks compiled in, and the suite has no check that tells a correctly skipped hook from hook code that was never there."
+note = "The scenario also has to seed a hook that would visibly block a write if it were wrongly trusted, otherwise it can never turn red and its passing means nothing."
+
+[[areas.claims]]
+claim = "The hook dry-run command exits with the status it documents"
+status = "excluded"
+reason = "That path calls no model: it is a dispatcher's exit code, and spending a trial plus a new family of output assertions on it buys what a zerostack unit test already can."
+note = "The invocation mode it would need is still the cheapest way into this area for a harness that wanted one; excluding this scenario is a judgment about the scenario, not about that mode."
 
 # ---------------------------------------------------------------------------
 # prompts: the prompt files that give a run its mode and its instructions, and
@@ -198,6 +295,28 @@ status = "covered"
 scenarios = ["prompt-pack-example-marker"]
 note = "A proxy indicator rather than a direct observation: zerostack does not report which prompt file a run loaded, so the evidence is a marker string only the pack's own prompt asks for, and a run where the model simply dropped the marker is indistinguishable from a run where the built-in prompt won. The scenario also lives under examples/prompt-pack/, outside the default suite, so an ordinary run's report shows it covered but absent."
 
+[[areas.claims]]
+claim = "A prompt directory inside the project overrides a user-level prompt of the same name, which in turn overrides the built-in one"
+status = "uncovered"
+note = "Both halves are needed for the precedence chain to mean anything: the overriding prompt has to win, and the overridden one has to be absent from the answer."
+
+[[areas.claims]]
+claim = "A chain-aware prompt offers the next phase once its own phase is finished"
+status = "uncovered"
+blocked_by = "The transition is offered in the interactive interface, and the harness drives only the non-interactive surface; there is no pseudo-terminal backend that could accept or decline the offer."
+
+[[areas.claims]]
+claim = "A run reports which prompt file it actually loaded, and where that file came from"
+status = "product-blocked"
+reason = "zerostack keeps the loaded prompt's name in memory only: the session file has no field for it and nothing prints it, so which prompt served a run can only be inferred from what the harness put in place."
+zs = "issue #227"
+note = "This is exactly what makes the prompt-pack claim above a proxy indicator. Once a run reports its own prompt, the marker string drops back to a supporting role and the pack claim becomes a direct observation."
+
+[[areas.claims]]
+claim = "Naming a prompt that does not exist lists the prompts that do"
+status = "excluded"
+reason = "That is command-line error text with no model behavior behind it, and observing a string zerostack's own tests can hold would cost a full trial plus a family of output assertions the suite does not have."
+
 # ---------------------------------------------------------------------------
 # project-instructions: zerostack collecting AGENTS.md from the working
 # directory upward, and the scoping of the rules it finds there. This is not
@@ -219,6 +338,21 @@ claim = "A rule scoped to one file type is not applied to files outside that sco
 status = "covered"
 scenarios = ["context-no-overapply"]
 note = "The calibration half of the pair above, against the same AGENTS.md: a model that stapled the rule onto every file it touched would pass the first claim and still fail the user."
+
+[[areas.claims]]
+claim = "A CLAUDE.md with no AGENTS.md beside it is loaded just the same"
+status = "uncovered"
+note = "The loader walks a list of filenames, and an edit that dropped one entry from that list would be invisible to every scenario that seeds an AGENTS.md."
+
+[[areas.claims]]
+claim = "An architecture document is loaded and used by the prompt that asks for one"
+status = "uncovered"
+note = "The canary has to be a fact that cannot be answered without reading the file, not a floating code word the model could echo straight back out of the question."
+
+[[areas.claims]]
+claim = "Turning project instruction files off actually suppresses them"
+status = "uncovered"
+blocked_by = "Suppression is a command-line flag, and every invocation is built from a fixed argument list that scenario.toml has no field to extend."
 
 # ---------------------------------------------------------------------------
 # tool-use: which tool the model reaches for, and whether the edit it makes is
@@ -246,6 +380,50 @@ scenarios = ["tools-edit-precise"]
 claim = "A file is read before it is edited, and a rename catches every occurrence in it"
 status = "covered"
 scenarios = ["tools-read-before-edit"]
+
+[[areas.claims]]
+claim = "An edit whose search text has drifted from the file still lands on the block it was meant for"
+status = "uncovered"
+note = "A fixture indented with tabs is enough to make the search text drift; what the claim needs is that the fallback lands in the right place, not merely that it lands."
+
+[[areas.claims]]
+claim = "File discovery respects the repository's ignore rules"
+status = "uncovered"
+
+[[areas.claims]]
+claim = "The write path refuses a file past its size limit"
+status = "uncovered"
+
+[[areas.claims]]
+claim = "What a tool returned is checked directly rather than through the model's retelling of it"
+status = "uncovered"
+blocked_by = "The transcript reader skips the tool-result blocks that already land in the captured output, so any claim about a tool's own output has to be proxied through the final answer."
+note = "This is what keeps the secret-leak and stream-capture proposals at arm's length. An oversized-file refusal can only be graded as the secret not reaching the answer, which a leak routed through a shell command would walk straight past."
+
+[[areas.claims]]
+claim = "The flags that shrink or swap the tool surface take effect: an allowlist registers only the tools it names, and a system-prompt edit applies without a restart"
+status = "uncovered"
+blocked_by = "Both are command-line flags, and the fixed argument list every invocation is built from has no per-scenario extension point."
+note = "The allowlist half is recorded as unmeasured rather than as a permanent exclusion: the older judgment was that the flag was dead code, and it has since been wired into how the agent is built, so what is left is a limitation on the harness side."
+
+[[areas.claims]]
+claim = "Turning the todo tool off stops it from being registered"
+status = "uncovered"
+blocked_by = "The toggle is an interactive command, and the harness drives zerostack non-interactively with no pseudo-terminal backend that could issue one."
+note = "Recorded as unmeasured rather than as a permanent exclusion: the older judgment was that the toggle did nothing at all, and a rewrite of the interactive settings state has since connected it."
+
+[[areas.claims]]
+claim = "The tool calls a headless run made are recorded as data rather than reconstructed from printed output"
+status = "product-blocked"
+reason = "A headless run writes no tool calls into its session file; the only trace is a marker line on stdout, and that marker is printed only when the run was asked to print tool calls in the first place."
+zs = "issue #229"
+note = "Every tool-call assertion in this suite rests on parsing that marker, so a change in how zerostack prints it would quietly rewrite what the suite believes it observed. There is no second channel to cross-check against."
+
+[[areas.claims]]
+claim = "The content-addressed edit guard rejects an edit built against a stale read"
+status = "excluded"
+reason = "Reaching it needs a prompt that scripts an exact tool sequence, which grades a tool contract rather than an agent, and zerostack can hold that contract without paying for a model trial."
+note = "The same judgment as the two memory tool-contract probes recorded in the memory area. The line is drawn at the scripted path, not at the difficulty."
 
 # ---------------------------------------------------------------------------
 # memory: what gets written to the persistent store, what deliberately does
@@ -283,6 +461,32 @@ status = "covered"
 scenarios = ["memory-search-snippet-sufficient"]
 note = "The cost-discipline half of the pair above, over the same seeded notes."
 
+[[areas.claims]]
+claim = "A preference already in the store is recalled without spending a search or a read to find it"
+status = "uncovered"
+note = "The injection path, as distinct from the retrieval path the covered claims above measure: a store that is read correctly but never injected looks identical until a scenario asks for something nobody searched for."
+
+[[areas.claims]]
+claim = "Instructions embedded in a stored note are treated as text rather than obeyed"
+status = "uncovered"
+note = "The adversarial claim in this area, and the one worth building first. Adversarial coverage across the whole suite is concentrated in memory and subagents, while the two boundaries that most need it, permission and hooks, have none at all."
+
+[[areas.claims]]
+claim = "Retrieval and storage behave as documented: which daily log is chosen and how today is marked, the order in which an oversized store is truncated, backups staying invisible to search, an edit with no match being refused, and the ranking search applies"
+status = "uncovered"
+note = "Coarse on purpose. None of these has been sliced finely enough to be confident about, and stating five thin claims would suggest a precision the review behind them does not have."
+
+[[areas.claims]]
+claim = "An overwrite keeps a copy of what it replaced, and a failed backup warns without losing the write"
+status = "uncovered"
+note = "Whether zerostack backs a memory file up at all is unconfirmed: the subsystem's layout notes never mention it and nobody has read the code to check. Recorded as unmeasured rather than as a hole on zerostack's side precisely because that check has not been done."
+
+[[areas.claims]]
+claim = "A whitespace-only duplicate is dropped on write and an ambiguous edit target is refused"
+status = "excluded"
+reason = "Both need a prompt that dictates the exact tool sequence to reach them, which grades a tool contract rather than an agent, and zerostack can hold that contract without paying for a model trial."
+note = "What is excluded is the scripted route, not the question. An edit that finds no match at all is listed as unmeasured above, and it will be reached by a task the agent solves its own way; these two can only be reached by dictating the tool sequence, which grades the tool instead."
+
 # ---------------------------------------------------------------------------
 # session: whether a turn sees what the turns before it said, and whether a
 # fresh session is genuinely fresh.
@@ -302,6 +506,32 @@ claim = "A turn that opens a fresh session does not carry the previous session's
 status = "covered"
 scenarios = ["session-fresh-forgets"]
 note = "The calibration half of the pair above. It also holds the memory subsystem out of the way, failing if the codeword survived through a memory write rather than through the session, so a memory recall cannot masquerade as session leakage. That constraint belongs to this claim and takes no slot in the memory area."
+
+[[areas.claims]]
+claim = "The turns of a session and the chat history are persisted where the next process can find them"
+status = "uncovered"
+note = "The claim has to stay at the level of each fact appearing in some session file: matching two facts to the same file is beyond what the path assertions can express today."
+
+[[areas.claims]]
+claim = "Compaction state written during a session is still there after it is resumed"
+status = "uncovered"
+note = "Reachable only since the fix that gave a headless continuation its history: before it, nothing accumulated that could be compacted in the first place. The loop-mode half of the same question is still recorded as blocked, in the loop area."
+
+[[areas.claims]]
+claim = "A resumed session still runs on the model and provider it started with"
+status = "uncovered"
+blocked_by = "The transcript reader drops the model and provider fields zerostack writes into the session file, so no assertion can see which model actually served a turn."
+
+[[areas.claims]]
+claim = "The permission allowances granted during a session survive a resume"
+status = "uncovered"
+blocked_by = "Nothing can add an entry to that list in a non-interactive run, because entries are added by answering an interactive permission question, and the harness drives only the non-interactive surface."
+note = "Recorded as unmeasured rather than as a permanent exclusion. It was written off together with compaction state on the grounds that neither could be written in a headless run, and compaction has since become reachable, so the two no longer share a fate."
+
+[[areas.claims]]
+claim = "The resume flag lists the recent sessions to pick from"
+status = "excluded"
+reason = "That is a command-line listing with no model behavior behind it, and it would need a new family of output assertions to observe something zerostack's own tests can hold."
 
 # ---------------------------------------------------------------------------
 # subagents: when work is handed to a delegated agent, when it is not, and what
@@ -329,6 +559,23 @@ status = "covered"
 scenarios = ["subagents-integrates-results"]
 note = "Graded on the final answer alone. A headless run exposes neither a subagent's own tool calls nor the text it returned, so how the subagent reached what it reported is not measured here."
 
+[[areas.claims]]
+claim = "Two independent questions are batched into one delegation rather than two"
+status = "uncovered"
+note = "Counting the delegations is possible; reading their arguments is not, because the delegation tool's arguments never reach the printed marker the suite parses. Any scenario here has to grade on the count and the answer."
+
+[[areas.claims]]
+claim = "An instruction planted in a file a subagent reads cannot make it write, edit or run anything"
+status = "uncovered"
+note = "Structural rather than behavioral: a delegated agent is built with read-only tools, so this guards that construction against a future change that widens it."
+
+[[areas.claims]]
+claim = "What a subagent did is observable: its own tool calls, the turn limit it ran under, and the model it was routed to"
+status = "product-blocked"
+reason = "A subagent's tool calls are delivered on a channel only the interactive interface consumes, so a headless run holds no evidence of what a subagent did or how it did it."
+zs = "issue #229"
+note = "This is why every delegation claim above is graded on the final answer. A scenario about a subagent's turn cap or its model routing would pass or fail on no evidence at all, which is worse than not having one."
+
 # ---------------------------------------------------------------------------
 # mcp: tools contributed by an external MCP server, and the judgment about when
 # to use one.
@@ -349,6 +596,16 @@ status = "covered"
 scenarios = ["mcp-ignores-irrelevant-tool"]
 note = "The calibration half of the pair above, with the same server configured: a registered tool that is never the right answer has to stay unused."
 
+[[areas.claims]]
+claim = "A server that fails to start, or a tool that returns an error, is reported without derailing the rest of the run"
+status = "uncovered"
+note = "Both covered claims above run against a server that works. Nothing measures what a broken one does to the turn around it."
+
+[[areas.claims]]
+claim = "Tools an MCP server contributes are gated by the same permission rules as built-in ones"
+status = "uncovered"
+blocked_by = "The permission modes where that gating is decided are unreachable while every invocation forces the flag that skips permission prompts."
+
 # ---------------------------------------------------------------------------
 # loop: the autonomous mode that re-runs a validation command until it passes.
 # ---------------------------------------------------------------------------
@@ -363,14 +620,54 @@ status = "covered"
 scenarios = ["loop-fixes-failing-test"]
 note = "The transcript and the files left on disk are the only evidence loop mode produces: it saves no session and records no tool calls, so nothing about how the fix was reached is measured."
 
+[[areas.claims]]
+claim = "The loop stops at its iteration limit instead of running on when the validation command cannot be made to pass"
+status = "uncovered"
+note = "The covered claim above only exercises the loop that succeeds. What the loop does when it cannot succeed is the half that decides whether an unattended run is safe to start."
+
+[[areas.claims]]
+claim = "An iteration can see what the iteration before it said"
+status = "product-blocked"
+reason = "The headless loop still calls the model with an empty history, so context reaches the next iteration only through the plan and summary text the loop folds into its own prompt."
+zs = "TODO(loop-history)"
+note = "The single-turn headless path was fixed and this one was not, so session recall and compaction stay out of reach in loop mode specifically. Wherever this file says a continuation carries its history, it means the single-turn path and never this one."
+
 # ---------------------------------------------------------------------------
 # print-mode: the headless, non-interactive command surface and what it emits.
+# Continuity across processes is not listed here as a hole: the session area's
+# covered pair already drives this surface, one process per turn, and counting
+# it twice is exactly what the one-claim-per-scenario rule forbids.
 # ---------------------------------------------------------------------------
 
 [[areas]]
 name = "print-mode"
 title = "Headless print mode"
-claims = []
+
+[[areas.claims]]
+claim = "A bang command runs directly, without the model in the loop, and its output reaches the answer"
+status = "uncovered"
+note = "Deterministic enough to run at a single trial: no model call means no variance to average out."
+
+[[areas.claims]]
+claim = "The pure-stdout surface prints the tool result and the answer and nothing else"
+status = "uncovered"
+note = "The fixture has to pin whatever the scenario counts, and the assertion has to leave the agent free to reach that count by reading files one by one instead of by a single search."
+
+[[areas.claims]]
+claim = "The flags that shrink a headless run leave exactly what they promise: no tools registered, and no session written while the work still happens"
+status = "uncovered"
+blocked_by = "The backend builds the same argument list for every invocation and scenario.toml has no field that can add or drop a flag, so a run cannot be made with any of them."
+
+[[areas.claims]]
+claim = "A provider failure exits non-zero with an error a user can act on"
+status = "uncovered"
+blocked_by = "Any non-zero exit is treated as a broken run and graded indeterminate, so a scenario cannot declare that a non-zero exit is the outcome it expects."
+note = "Cheap and fully deterministic once it can be expressed, which makes it the best argument for expressing it."
+
+[[areas.claims]]
+claim = "The status socket reports what a run is doing while it does it"
+status = "uncovered"
+note = "No scenario has ever been proposed for this surface. It is written down here so that it sits inside the denominator rather than outside anyone's view of it."
 
 # ---------------------------------------------------------------------------
 # context-window: the model catalog and the window sizing derived from it. Not
@@ -380,7 +677,26 @@ claims = []
 [[areas]]
 name = "context-window"
 title = "Context window and model catalog"
-claims = []
+
+[[areas.claims]]
+claim = "A known model resolves to the context window the catalog gives it"
+status = "uncovered"
+note = "Cheap to build and thin in value: it spends a full model trial on a configuration resolver, so it earns its place only if zerostack's own tests do not already hold the catalog."
+
+[[areas.claims]]
+claim = "Compaction keeps the facts a later turn still needs instead of dropping them with the text it summarized"
+status = "uncovered"
+note = "What compaction preserves, as opposed to whether the state it leaves behind survives a resume, which the session area records separately. Reachable in a non-interactive run only since the fix that gave a headless continuation its history, and still out of reach in loop mode, which the loop area records."
+
+[[areas.claims]]
+claim = "A compaction threshold set outside its valid range is refused or warned about instead of accepted in silence"
+status = "product-blocked"
+reason = "The warning exists only in a documentation comment; the configuration loader never implements it, so there is no behavior to observe."
+
+[[areas.claims]]
+claim = "An unrecognized model falls back to a default window"
+status = "excluded"
+reason = "This is the other arm of the same branch the catalog claim above reaches, and one arm is enough as a canary: the second costs a full model trial to re-observe a decision a unit test can hold."
 
 # ---------------------------------------------------------------------------
 # providers: how a provider, a model and a config file are resolved before a
@@ -390,7 +706,35 @@ claims = []
 [[areas]]
 name = "providers"
 title = "Providers and config resolution"
-claims = []
+
+[[areas.claims]]
+claim = "Naming a provider and no model falls back to that provider's own default model"
+status = "uncovered"
+
+[[areas.claims]]
+claim = "A configured model that names a shorthand entry is sent as the real model id, not as the shorthand"
+status = "uncovered"
+
+[[areas.claims]]
+claim = "When two configuration file formats are both present, the documented one wins"
+status = "uncovered"
+note = "The two files have to differ in something a run can be seen to obey, since which file was read is never reported on its own."
+
+[[areas.claims]]
+claim = "A first run with no configuration writes the default configuration file"
+status = "uncovered"
+note = "It has to run with no seeded target, because seeding one puts the file in place before the first-run branch can be reached, and the scenario would then pass on the wrong evidence."
+
+[[areas.claims]]
+claim = "The configuration search order and the environment overrides for provider and model are honored"
+status = "uncovered"
+blocked_by = "A run's environment is fixed by the harness, which sets the isolated data, config, temp and home directories and nothing else, and a scenario has no field that can set or clear a variable for its own trials."
+
+[[areas.claims]]
+claim = "What goes on the wire is what the configuration asked for, including cache-control headers and the order an API key is resolved in"
+status = "uncovered"
+blocked_by = "Three capabilities are missing at once: nothing captures the outbound request, a scenario cannot set environment variables, and a seeded file cannot be templated with the run's own throwaway paths."
+note = "Recorded as unmeasured rather than as a permanent exclusion: the older judgment parked it on a long-term list, and a schedule is not a decision never to build something."
 
 # ---------------------------------------------------------------------------
 # worktree: running against an isolated git worktree and merging the result
@@ -400,4 +744,15 @@ claims = []
 [[areas]]
 name = "worktree"
 title = "Worktrees"
-claims = []
+
+[[areas.claims]]
+claim = "A run can be driven against an isolated worktree at all"
+status = "uncovered"
+blocked_by = "Seeding copies individual files and cannot create a git repository, and every worktree scenario needs one to exist before zerostack is started."
+note = "Whether zerostack offers worktrees outside its interactive interface has not been confirmed since the review that first raised the question, which is why nothing in this area is written down as a hole on zerostack's side."
+
+[[areas.claims]]
+claim = "A clean worktree merges back and cleans up after itself, a conflicting one is reported rather than quietly resolved, and forcing one away removes what it left behind"
+status = "uncovered"
+blocked_by = "All three need a git repository that the file-copying seed mechanism cannot produce, before anything about zerostack's behavior is even reached."
+note = "Recorded as unmeasured rather than as a permanent exclusion: the older judgment was that the behavior is unimplemented or undefined, two reviewers disagreed about it, and nobody has read the code since to settle it."
