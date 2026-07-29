@@ -3777,3 +3777,38 @@ fn the_coverage_ledger_declares_exactly_the_specified_areas() {
     assert_eq!(names, EXPECTED);
     assert_eq!(ledger.scenario_roots, ["scenarios", "examples/prompt-pack"]);
 }
+
+/// specs/coverage-ledger/spec.md's "A malformed ledger does not break a run"
+/// scenario: no run-path code reads `coverage.toml`, so it is deliberately
+/// invisible there, and a syntactically invalid one must not affect
+/// `zseval list` over the same tree.
+#[test]
+fn a_malformed_coverage_ledger_does_not_break_a_run() {
+    let dir = std::env::temp_dir().join(format!(
+        "zseval-test-malformed-ledger-{}",
+        std::process::id()
+    ));
+    let sc_dir = dir.join("only-scenario");
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    std::fs::write(
+        sc_dir.join("scenario.toml"),
+        "id = \"only-scenario\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("coverage.toml"),
+        "audited_against = \"1.7.2\"\n[[areas\n",
+    )
+    .unwrap();
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args(["list", dir.to_str().unwrap()])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "stderr: {stderr}");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("only-scenario"), "stdout: {stdout}");
+}
