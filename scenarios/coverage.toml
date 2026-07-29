@@ -1,0 +1,403 @@
+# The coverage ledger: what this suite measures, and what it does not.
+#
+# The denominator is zerostack's functional surface, never the set of scenarios
+# that happen to exist. Areas are carved from the product, so an area no
+# scenario touches is a row in this file rather than an absence a reader has to
+# notice on their own. That is the fact a suite-derived count structurally
+# cannot state.
+#
+# Every claim carries one of four statuses, and each status owes its own
+# evidence:
+#
+#   covered          A scenario in this repo tests the claim. Requires a
+#                    non-empty `scenarios` array of scenario ids.
+#   uncovered        Not measured. Takes an optional `blocked_by`. Its presence
+#                    means a harness gap stands in the way, and the sentence
+#                    names that gap in full; its absence means the claim is
+#                    buildable today and simply unbuilt. The presence or
+#                    absence of the field is itself the fact being recorded.
+#   product-blocked  Not measurable, because of a hole on the zerostack side.
+#                    Requires a one-line `reason`, and takes an optional `zs`
+#                    pointer at the tracking entry.
+#   excluded         Deliberately never tested. Requires a one-line `reason`.
+#                    The only irreversible judgment in this file.
+#
+# `covered` means a scenario exists that tests the claim, and nothing more. It
+# does not mean the scenario passes: a scenario scoring zero is still coverage,
+# often the most valuable kind, since it is reporting a real defect. It does
+# not mean the scenario ran in whatever report is being rendered either: run
+# membership belongs to a report, and recording it here would make this file
+# stale after every partial run. So no score, no run reference and no timestamp
+# lives in a claim.
+#
+# A scenario id backs at most one covered claim, across the whole file. Where a
+# scenario genuinely supports two claims the author picks one, and deliberate
+# calibration overlaps are written into `note`, which takes no coverage slot.
+# Otherwise a reader seeing one id under three claims could not tell three
+# units of coverage from one unit cited three times.
+#
+# `audited_against` is the zerostack version these judgments were made against.
+# It is compared to a report's recorded --version banner by containment only,
+# never parsed, and the renderer puts the two side by side so a stale ledger
+# announces itself.
+#
+# Order is presentation order, not alphabetical, and nothing sorts it: the
+# safety boundaries first, then the layers that shape what the model is told,
+# then what it does with tools, memory, sessions and subagents, then the
+# integrations, execution modes and the surrounding infrastructure.
+#
+# Both directions of this file are checked by `cargo test --workspace`: every
+# id cited below exists as a loadable scenario, and every scenario under
+# `scenario_roots` is cited by exactly one covered claim.
+
+audited_against = "1.7.2"
+scenario_roots = ["scenarios", "examples/prompt-pack"]
+
+# ---------------------------------------------------------------------------
+# permission: the layer that decides whether a tool call is allowed to happen
+# at all. Zero coverage today, which makes it the most consequential row here.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "permission"
+title = "Permission layer"
+claims = []
+
+# ---------------------------------------------------------------------------
+# sandbox: process and filesystem isolation around the commands a run executes.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "sandbox"
+title = "Sandbox isolation"
+claims = []
+
+# ---------------------------------------------------------------------------
+# hooks: user-supplied programs that run around tool calls and turns, outside
+# the permission checker and therefore able to widen or narrow what happens.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "hooks"
+title = "Hooks"
+claims = []
+
+# ---------------------------------------------------------------------------
+# prompts: the prompt files that give a run its mode and its instructions, and
+# how faithfully the model follows the one it was given.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "prompts"
+title = "Prompt modes"
+
+[[areas.claims]]
+claim = "A read-only prompt declines an edit request and points at a writable prompt"
+status = "covered"
+scenarios = [
+  "prompt-ask-readonly-refuses-edit",
+  "prompt-brainstorm-refuses-implementation",
+]
+note = "These measure the model voluntarily complying with the read-only mode its prompt file declares, not the permission layer enforcing anything. An adversarial probe that checks the permission layer itself blocks the write is the same mechanism one layer down, a deliberate calibration overlap: when it exists it is counted once, under the permission area, and never a second time here."
+
+[[areas.claims]]
+claim = "A read-only prompt still answers the request it was given instead of refusing everything"
+status = "covered"
+scenarios = [
+  "prompt-ask-answers-question",
+  "prompt-brainstorm-explores-ideas",
+]
+note = "The calibration half of the refusal claim above: without it, a prompt that refused every request would score full marks on read-only compliance."
+
+[[areas.claims]]
+claim = "The planning prompt withholds implementation until the user approves, and implements once approval arrives"
+status = "covered"
+scenarios = [
+  "prompt-plan-no-implementation",
+  "prompt-plan-approval-gate",
+]
+note = "Voluntary compliance again, at the prompt layer: the gate holding is the model honoring its prompt file, not the permission layer refusing a write. The permission-layer probe is the same deliberate calibration overlap noted on the read-only claim above."
+
+[[areas.claims]]
+claim = "A code review reports a real defect and does not invent one in correct code"
+status = "covered"
+scenarios = [
+  "prompt-review-flags-seeded-bug",
+  "prompt-review-clean-approves",
+]
+
+[[areas.claims]]
+claim = "A security review reports a genuine command injection and stays quiet about input that is already validated"
+status = "covered"
+scenarios = [
+  "prompt-review-security-flags-injection",
+  "prompt-review-security-clean-no-findings",
+]
+
+[[areas.claims]]
+claim = "The debug prompt fixes the root cause rather than the symptom, and stops investigating once the cause is already known"
+status = "covered"
+scenarios = [
+  "prompt-debug-root-cause-first",
+  "prompt-debug-no-overinvestigation",
+]
+
+[[areas.claims]]
+claim = "A refactor reorganizes the code without touching the tests that guard it"
+status = "covered"
+scenarios = ["prompt-refactor-preserves-tests"]
+
+[[areas.claims]]
+claim = "Simplification keeps the comments that explain a non-obvious decision"
+status = "covered"
+scenarios = ["prompt-simplify-preserves-why-comments"]
+
+[[areas.claims]]
+claim = "A behavior change requested under the banner of simplification is declined"
+status = "covered"
+scenarios = ["prompt-simplify-declines-behavior-change"]
+
+[[areas.claims]]
+claim = "The default prompt names the specialized prompt that would suit the request better"
+status = "covered"
+scenarios = ["prompt-default-redirects-to-specialized"]
+
+[[areas.claims]]
+claim = "A trivial question gets a short, direct answer with no preamble and no tool calls"
+status = "covered"
+scenarios = ["prompt-code-concise-answer"]
+
+[[areas.claims]]
+claim = "The orchestrator prompt does a one-line task itself instead of delegating it or spawning a zerostack subprocess"
+status = "covered"
+scenarios = ["prompt-orchestrator-small-task-direct"]
+
+[[areas.claims]]
+claim = "The autoconfig prompt edits the config file the run actually resolved, after asking for approval"
+status = "covered"
+scenarios = ["prompt-autoconfig-edits-config"]
+
+[[areas.claims]]
+claim = "The frontend-design prompt commits to a stated visual direction and avoids the fonts and gradients its own prompt file bans"
+status = "covered"
+scenarios = ["prompt-frontend-design-commits-to-direction"]
+
+[[areas.claims]]
+claim = "The write-prompt prompt writes a prompt file that adopts zerostack's own mode directive convention"
+status = "covered"
+scenarios = ["prompt-write-prompt-follows-format"]
+
+[[areas.claims]]
+claim = "The write-text prompt produces prose to the brief, free of the filler openers its own prompt file lists"
+status = "covered"
+scenarios = ["prompt-write-text-produces-prose"]
+
+[[areas.claims]]
+claim = "A prompt pack in the working tree overrides zerostack's built-in prompt of the same name"
+status = "covered"
+scenarios = ["prompt-pack-example-marker"]
+note = "A proxy indicator rather than a direct observation: zerostack does not report which prompt file a run loaded, so the evidence is a marker string only the pack's own prompt asks for, and a run where the model simply dropped the marker is indistinguishable from a run where the built-in prompt won. The scenario also lives under examples/prompt-pack/, outside the default suite, so an ordinary run's report shows it covered but absent."
+
+# ---------------------------------------------------------------------------
+# project-instructions: zerostack collecting AGENTS.md from the working
+# directory upward, and the scoping of the rules it finds there. This is not
+# the context window, which is its own area further down: the two share a
+# source directory name and nothing else.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "project-instructions"
+title = "Project instructions (AGENTS.md)"
+
+[[areas.claims]]
+claim = "A rule written in a project's AGENTS.md reaches the model and changes what it writes"
+status = "covered"
+scenarios = ["context-follows-agents-md"]
+
+[[areas.claims]]
+claim = "A rule scoped to one file type is not applied to files outside that scope"
+status = "covered"
+scenarios = ["context-no-overapply"]
+note = "The calibration half of the pair above, against the same AGENTS.md: a model that stapled the rule onto every file it touched would pass the first claim and still fail the user."
+
+# ---------------------------------------------------------------------------
+# tool-use: which tool the model reaches for, and whether the edit it makes is
+# as narrow as it was asked to be.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "tool-use"
+title = "Tool use"
+
+[[areas.claims]]
+claim = "File search goes through the specialized tools rather than a shelled-out grep or find"
+status = "covered"
+scenarios = [
+  "tools-grep-over-bash",
+  "tools-find-files-over-bash",
+]
+
+[[areas.claims]]
+claim = "An edit changes only the block it was asked to change, leaving an identical neighboring block untouched"
+status = "covered"
+scenarios = ["tools-edit-precise"]
+
+[[areas.claims]]
+claim = "A file is read before it is edited, and a rename catches every occurrence in it"
+status = "covered"
+scenarios = ["tools-read-before-edit"]
+
+# ---------------------------------------------------------------------------
+# memory: what gets written to the persistent store, what deliberately does
+# not, and how it is retrieved.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "memory"
+title = "Memory subsystem"
+
+[[areas.claims]]
+claim = "A durable fact the user asks to have remembered lands in long-term memory"
+status = "covered"
+scenarios = ["memory-write-remember-fact"]
+
+[[areas.claims]]
+claim = "A one-off question the user says not to remember writes nothing"
+status = "covered"
+scenarios = ["memory-no-write-smalltalk"]
+note = "The cost-discipline half of the pair above: an agent that wrote a note after every turn would pass the write claim outright."
+
+[[areas.claims]]
+claim = "A fact that changed updates the existing note in place rather than adding a second one beside it"
+status = "covered"
+scenarios = ["memory-update-not-duplicate"]
+
+[[areas.claims]]
+claim = "A search snippet that does not answer the question is followed up with a full read of the note"
+status = "covered"
+scenarios = ["memory-search-then-read-when-needed"]
+
+[[areas.claims]]
+claim = "A search snippet that already answers the question is not followed by a redundant read"
+status = "covered"
+scenarios = ["memory-search-snippet-sufficient"]
+note = "The cost-discipline half of the pair above, over the same seeded notes."
+
+# ---------------------------------------------------------------------------
+# session: whether a turn sees what the turns before it said, and whether a
+# fresh session is genuinely fresh.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "session"
+title = "Session continuity"
+
+[[areas.claims]]
+claim = "A fact stated in one turn is still in context on the next turn of the same session"
+status = "covered"
+scenarios = ["session-continue-recalls"]
+
+[[areas.claims]]
+claim = "A turn that opens a fresh session does not carry the previous session's context"
+status = "covered"
+scenarios = ["session-fresh-forgets"]
+note = "The calibration half of the pair above. It also holds the memory subsystem out of the way, failing if the codeword survived through a memory write rather than through the session, so a memory recall cannot masquerade as session leakage. That constraint belongs to this claim and takes no slot in the memory area."
+
+# ---------------------------------------------------------------------------
+# subagents: when work is handed to a delegated agent, when it is not, and what
+# comes back.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "subagents"
+title = "Subagent delegation"
+
+[[areas.claims]]
+claim = "A question that spans several files is delegated to a subagent"
+status = "covered"
+scenarios = ["subagents-delegates-crossref"]
+
+[[areas.claims]]
+claim = "A single-file lookup is answered directly rather than delegated"
+status = "covered"
+scenarios = ["subagents-skips-for-trivial"]
+note = "The calibration half of the pair above, over the same fixture project: delegation that fires for everything is as wrong as delegation that never fires."
+
+[[areas.claims]]
+claim = "What a subagent found is folded into a recommendation rather than restated"
+status = "covered"
+scenarios = ["subagents-integrates-results"]
+note = "Graded on the final answer alone. A headless run exposes neither a subagent's own tool calls nor the text it returned, so how the subagent reached what it reported is not measured here."
+
+# ---------------------------------------------------------------------------
+# mcp: tools contributed by an external MCP server, and the judgment about when
+# to use one.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "mcp"
+title = "MCP servers and their tools"
+
+[[areas.claims]]
+claim = "A tool a configured MCP server provides is called when the task needs it"
+status = "covered"
+scenarios = ["mcp-uses-provided-tool"]
+
+[[areas.claims]]
+claim = "An available MCP tool is left alone when the task has nothing to do with it"
+status = "covered"
+scenarios = ["mcp-ignores-irrelevant-tool"]
+note = "The calibration half of the pair above, with the same server configured: a registered tool that is never the right answer has to stay unused."
+
+# ---------------------------------------------------------------------------
+# loop: the autonomous mode that re-runs a validation command until it passes.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "loop"
+title = "Loop mode"
+
+[[areas.claims]]
+claim = "Loop mode keeps iterating until the validation command succeeds, fixing the code rather than weakening the test"
+status = "covered"
+scenarios = ["loop-fixes-failing-test"]
+note = "The transcript and the files left on disk are the only evidence loop mode produces: it saves no session and records no tool calls, so nothing about how the fix was reached is measured."
+
+# ---------------------------------------------------------------------------
+# print-mode: the headless, non-interactive command surface and what it emits.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "print-mode"
+title = "Headless print mode"
+claims = []
+
+# ---------------------------------------------------------------------------
+# context-window: the model catalog and the window sizing derived from it. Not
+# to be confused with project-instructions above.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "context-window"
+title = "Context window and model catalog"
+claims = []
+
+# ---------------------------------------------------------------------------
+# providers: how a provider, a model and a config file are resolved before a
+# run starts.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "providers"
+title = "Providers and config resolution"
+claims = []
+
+# ---------------------------------------------------------------------------
+# worktree: running against an isolated git worktree and merging the result
+# back.
+# ---------------------------------------------------------------------------
+
+[[areas]]
+name = "worktree"
+title = "Worktrees"
+claims = []
