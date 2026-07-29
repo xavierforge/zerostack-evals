@@ -3743,6 +3743,12 @@ fn the_coverage_ledger_matches_the_real_scenario_tree() {
 /// The set is pinned, not the order. File order is presentation order by
 /// design (the author sequences the page), so re-sequencing stays free; what
 /// must not move is which areas the page accounts for.
+///
+/// The same argument applies one level up to `scenario_roots`: the drift test
+/// above compares scenario ids, so it is blind to a root that stops being
+/// walked at all, and dropping a root together with the covered claims that
+/// cited scenarios under it would keep both tests green while a whole
+/// scenario tree silently left coverage accounting.
 #[test]
 fn the_coverage_ledger_declares_exactly_the_specified_areas() {
     const EXPECTED: [&str; 15] = [
@@ -3769,4 +3775,5 @@ fn the_coverage_ledger_declares_exactly_the_specified_areas() {
     names.sort_unstable();
 
     assert_eq!(names, EXPECTED);
+    assert_eq!(ledger.scenario_roots, ["scenarios", "examples/prompt-pack"]);
 }
