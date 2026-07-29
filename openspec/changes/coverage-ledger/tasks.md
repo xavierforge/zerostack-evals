@@ -24,9 +24,9 @@
 
 ## 4. Enforcement: the drift test [dispatch: too-te, parallel: no, reason: one integration test against the real tree, with the module API and both failure directions already built in section 1]
 
-- [ ] 4.1 Add the drift test to `crates/zseval/tests/harness.rs` (not a second test binary — the 2026-07-23 single-binary decision): load `scenarios/coverage.toml`, run the bidirectional check against the repo's real `scenarios/` and `examples/prompt-pack/`, assert clean. Failure output must name the offending ids.
-- [ ] 4.2 Prove both directions fail loudly: temporarily point a claim at a nonexistent id (dead reference) and temporarily drop a claim covering a real scenario (unclaimed scenario), citing the failure message each time, then restore.
-- [ ] 4.3 Evidence: `cargo test --workspace` green; confirm no CI workflow edit is needed (`evals.yml`'s `harness-tests` already runs it).
+- [x] 4.1 Add the drift test to `crates/zseval/tests/harness.rs` (not a second test binary — the 2026-07-23 single-binary decision): load `scenarios/coverage.toml`, run the bidirectional check against the repo's real `scenarios/` and `examples/prompt-pack/`, assert clean. Failure output must name the offending ids.
+- [x] 4.2 Prove both directions fail loudly: temporarily point a claim at a nonexistent id (dead reference) and temporarily drop a claim covering a real scenario (unclaimed scenario), citing the failure message each time, then restore.
+- [x] 4.3 Evidence: `cargo test --workspace` green; confirm no CI workflow edit is needed (`evals.yml`'s `harness-tests` already runs it).
 
 ## 5. Verification and hand-off [dispatch: too-te, parallel: no, reason: mechanical checks against pre-stated criteria]
 
