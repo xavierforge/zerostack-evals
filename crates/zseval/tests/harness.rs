@@ -3732,3 +3732,41 @@ fn the_coverage_ledger_matches_the_real_scenario_tree() {
         .check_drift(&root)
         .unwrap_or_else(|e| panic!("{e:#}"));
 }
+
+/// The denominator is the product's surface, so the area set is fixed by the
+/// spec rather than derived from the suite. The drift test above compares
+/// scenario ids, which leaves it blind to an area carrying none: dropping one
+/// of the seven zero-coverage areas would keep `cargo test` green while the
+/// coverage page quietly reported a smaller denominator, and those rows are
+/// the ones the ledger exists to publish.
+///
+/// The set is pinned, not the order. File order is presentation order by
+/// design (the author sequences the page), so re-sequencing stays free; what
+/// must not move is which areas the page accounts for.
+#[test]
+fn the_coverage_ledger_declares_exactly_the_specified_areas() {
+    const EXPECTED: [&str; 15] = [
+        "context-window",
+        "hooks",
+        "loop",
+        "mcp",
+        "memory",
+        "permission",
+        "print-mode",
+        "project-instructions",
+        "prompts",
+        "providers",
+        "sandbox",
+        "session",
+        "subagents",
+        "tool-use",
+        "worktree",
+    ];
+
+    let root = repo_root();
+    let ledger = Ledger::load(&root.join("scenarios/coverage.toml")).unwrap();
+    let mut names: Vec<&str> = ledger.areas.iter().map(|a| a.name.as_str()).collect();
+    names.sort_unstable();
+
+    assert_eq!(names, EXPECTED);
+}
