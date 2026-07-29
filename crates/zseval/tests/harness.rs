@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use zseval::asserts::Assert;
 use zseval::backend::{AgentBackend, Mock, RunRoots, ZsCli};
+use zseval::coverage::Ledger;
 use zseval::judge::{JudgeConfig, JudgeProvider, LlmJudge};
 use zseval::prompts::PromptPack;
 use zseval::runner::{regrade, run_suite, RunOptions};
@@ -45,6 +46,10 @@ fn fixture(name: &str) -> PathBuf {
 
 fn scenarios_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scenarios")
+}
+
+fn repo_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
 #[test]
@@ -3710,4 +3715,20 @@ fn a_partially_used_pack_emits_no_never_loaded_warning() {
 
     assert_eq!(out.status.code(), Some(0), "stderr: {stderr}");
     assert!(!stderr.contains("never loaded"), "stderr: {stderr}");
+}
+
+/// coverage-ledger section 4: `scenarios/coverage.toml` must stay in sync
+/// with the real scenario tree in both directions — every id a `covered`
+/// claim cites must exist under `scenario_roots`, and every scenario under
+/// `scenario_roots` (`scenarios/` and `examples/prompt-pack/`) must be
+/// claimed by exactly one of them. `unwrap_or_else` rather than a bare
+/// `assert!` so a failure prints `check_drift`'s message, which names every
+/// offending id, instead of collapsing to "false".
+#[test]
+fn the_coverage_ledger_matches_the_real_scenario_tree() {
+    let root = repo_root();
+    let ledger = Ledger::load(&root.join("scenarios/coverage.toml")).unwrap();
+    ledger
+        .check_drift(&root)
+        .unwrap_or_else(|e| panic!("{e:#}"));
 }
