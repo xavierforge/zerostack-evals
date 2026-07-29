@@ -729,6 +729,48 @@ scenarios = ["ask-readonly-refuses-edit"]"#,
         assert!(msg.contains("scenarios"), "{msg}");
     }
 
+    /// `reject_foreign_evidence`'s four call sites are hand-maintained tables
+    /// with no shared derivation (`:176`, `:196`, `:208`, `:225`), enumerating
+    /// the complement of each status's own evidence. A dropped or mistyped
+    /// entry would silently reopen the "silently ignored field" hole the
+    /// helper exists to close, so this walks all eleven status/foreign-field
+    /// pairs rather than trusting the single case above to catch a
+    /// regression in any of the other ten.
+    #[test]
+    fn every_status_rejects_every_other_statuss_evidence() {
+        // (status, its own required evidence, a foreign field, that field's value)
+        let cases: &[(&str, &str, &str, &str)] = &[
+            ("covered", r#"scenarios = ["x"]"#, "blocked_by", r#""b""#),
+            ("covered", r#"scenarios = ["x"]"#, "reason", r#""r""#),
+            ("covered", r#"scenarios = ["x"]"#, "zs", r#""z""#),
+            ("uncovered", "", "scenarios", r#"["s"]"#),
+            ("uncovered", "", "reason", r#""r""#),
+            ("uncovered", "", "zs", r#""z""#),
+            (
+                "product-blocked",
+                r#"reason = "r""#,
+                "scenarios",
+                r#"["s"]"#,
+            ),
+            ("product-blocked", r#"reason = "r""#, "blocked_by", r#""b""#),
+            ("excluded", r#"reason = "r""#, "scenarios", r#"["s"]"#),
+            ("excluded", r#"reason = "r""#, "blocked_by", r#""b""#),
+            ("excluded", r#"reason = "r""#, "zs", r#""z""#),
+        ];
+        for (status, own_evidence, foreign_key, foreign_value) in cases {
+            let keys = format!(
+                "claim = \"x\"\nstatus = \"{status}\"\n{own_evidence}\n{foreign_key} = \
+                 {foreign_value}"
+            );
+            let text = one_claim(&keys);
+            let msg = err(&text);
+            assert!(
+                msg.contains(foreign_key),
+                "status '{status}' + foreign field '{foreign_key}' should fail naming it: {msg}"
+            );
+        }
+    }
+
     #[test]
     fn an_unknown_status_fails_naming_it() {
         let text = one_claim(
