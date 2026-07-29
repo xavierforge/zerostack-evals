@@ -262,6 +262,20 @@ impl Ledger {
 
     pub fn parse(text: &str) -> Result<Ledger> {
         let raw: RawLedger = toml::from_str(text)?;
+        if raw.audited_against.trim().is_empty() {
+            bail!(
+                "coverage ledger: audited_against must not be empty — it is compared to a \
+                 report's banner by containment, and an empty string is contained in every \
+                 banner, so it would silently claim the ledger was audited against whatever it \
+                 is compared to"
+            );
+        }
+        if raw.scenario_roots.is_empty() {
+            bail!(
+                "coverage ledger: scenario_roots must not be empty — an empty root list makes \
+                 the drift check enumerate no scenarios"
+            );
+        }
         let mut areas = Vec::with_capacity(raw.areas.len());
         for area in raw.areas {
             let RawArea {
@@ -592,6 +606,57 @@ status = "uncovered"
     fn a_missing_scenario_roots_fails_naming_it() {
         let text = r#"
 audited_against = "1.7.2"
+
+[[areas]]
+name = "permission"
+title = "Permission layer"
+
+[[areas.claims]]
+claim = "ask mode refuses an edit"
+status = "uncovered"
+"#;
+        assert!(err(text).contains("scenario_roots"), "{}", err(text));
+    }
+
+    #[test]
+    fn an_empty_audited_against_fails_naming_it() {
+        let text = r#"
+audited_against = ""
+scenario_roots = ["scenarios"]
+
+[[areas]]
+name = "permission"
+title = "Permission layer"
+
+[[areas.claims]]
+claim = "ask mode refuses an edit"
+status = "uncovered"
+"#;
+        assert!(err(text).contains("audited_against"), "{}", err(text));
+    }
+
+    #[test]
+    fn a_whitespace_only_audited_against_fails_naming_it() {
+        let text = r#"
+audited_against = "   "
+scenario_roots = ["scenarios"]
+
+[[areas]]
+name = "permission"
+title = "Permission layer"
+
+[[areas.claims]]
+claim = "ask mode refuses an edit"
+status = "uncovered"
+"#;
+        assert!(err(text).contains("audited_against"), "{}", err(text));
+    }
+
+    #[test]
+    fn an_empty_scenario_roots_fails_naming_it() {
+        let text = r#"
+audited_against = "1.7.2"
+scenario_roots = []
 
 [[areas]]
 name = "permission"
