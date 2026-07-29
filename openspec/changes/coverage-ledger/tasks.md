@@ -30,6 +30,6 @@
 
 ## 5. Verification and hand-off [dispatch: too-te, parallel: no, reason: mechanical checks against pre-stated criteria]
 
-- [ ] 5.1 Confirm the ledger is invisible to the run path: `zseval list` and a mock-backend `zseval run` over `scenarios/` behave identically with the ledger present and with it temporarily malformed (no CLI subcommand added, no README change, no `zseval --help` delta).
-- [ ] 5.2 Confirm the counts the site will headline: 15 areas, 7 with zero `covered` claims, 42 scenarios claimed exactly once (41 under `scenarios/`, 1 under `examples/prompt-pack/`). Cite the numbers.
-- [ ] 5.3 Hand the two review-focus blocks to the author: the seven zero-coverage areas and every `excluded` entry (agreed review split; the covered half is guarded by section 4's test).
+- [x] 5.1 Confirm the ledger is invisible to the run path: `zseval list` and a mock-backend `zseval run` over `scenarios/` behave identically with the ledger present and with it temporarily malformed (no CLI subcommand added, no README change, no `zseval --help` delta).
+- [x] 5.2 Confirm the counts the site will headline: 15 areas, 7 with zero `covered` claims, 42 scenarios claimed exactly once (41 under `scenarios/`, 1 under `examples/prompt-pack/`). Cite the numbers.
+- [x] 5.3 Hand the two review-focus blocks to the author: the seven zero-coverage areas and every `excluded` entry (agreed review split; the covered half is guarded by section 4's test).
