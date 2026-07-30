@@ -3895,8 +3895,13 @@ fn the_coverage_ledger_declares_exactly_the_specified_areas() {
 
 /// specs/coverage-ledger/spec.md's "A malformed ledger does not break a run"
 /// scenario: no run-path code reads `coverage.toml`, so it is deliberately
-/// invisible there, and a syntactically invalid one must not affect
-/// `zseval list` over the same tree.
+/// invisible there and a syntactically invalid one must change nothing.
+///
+/// Both surfaces, because they fail in different places. `list` proves
+/// discovery walks past the file; `run` is the command the spec scenario and
+/// tasks.md 5.1 actually name, and it reaches suite loading, the trial loop and
+/// report writing, none of which `list` touches. The mock backend replays a
+/// canned session, so covering the real command costs no API key and no spend.
 #[test]
 fn a_malformed_coverage_ledger_does_not_break_a_run() {
     let dir = std::env::temp_dir().join(format!(
@@ -3907,7 +3912,7 @@ fn a_malformed_coverage_ledger_does_not_break_a_run() {
     std::fs::create_dir_all(&sc_dir).unwrap();
     std::fs::write(
         sc_dir.join("scenario.toml"),
-        "id = \"only-scenario\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n",
+        "id = \"only-scenario\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = [\"tool_not_called write\"]\n",
     )
     .unwrap();
     std::fs::write(
@@ -3916,14 +3921,45 @@ fn a_malformed_coverage_ledger_does_not_break_a_run() {
     )
     .unwrap();
 
-    let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+    let listed = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
         .args(["list", dir.to_str().unwrap()])
         .output()
         .unwrap();
-    std::fs::remove_dir_all(&dir).ok();
 
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert_eq!(out.status.code(), Some(0), "stderr: {stderr}");
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains("only-scenario"), "stdout: {stdout}");
+    let results = std::env::temp_dir().join(format!(
+        "zseval-test-malformed-ledger-results-{}",
+        std::process::id()
+    ));
+    let ran = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            dir.to_str().unwrap(),
+            "--backend",
+            &format!("mock={}", fixture("session-ask-readonly.json").display()),
+            "--results",
+            results.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::remove_dir_all(&results).ok();
+
+    let list_err = String::from_utf8_lossy(&listed.stderr);
+    assert_eq!(listed.status.code(), Some(0), "stderr: {list_err}");
+    let list_out = String::from_utf8_lossy(&listed.stdout);
+    assert!(list_out.contains("only-scenario"), "stdout: {list_out}");
+
+    // The run is not merely unbroken but wholly unaffected: it exits clean and
+    // grades the one scenario, which is exactly what it does with no
+    // `coverage.toml` beside the suite at all. Mock replays a canned session,
+    // so the trial's verdict is deterministic and worth asserting. Progress
+    // goes to stderr; stdout carries only `--json`, which is not asked for.
+    let run_err = String::from_utf8_lossy(&ran.stderr);
+    assert_eq!(ran.status.code(), Some(0), "stderr: {run_err}");
+    assert!(
+        run_err.contains("[PASS] only-scenario"),
+        "stderr: {run_err}"
+    );
+    // Unseen, not merely tolerated: nothing the run emits mentions the ledger.
+    assert!(!run_err.contains("coverage"), "stderr: {run_err}");
 }
