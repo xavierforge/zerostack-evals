@@ -134,6 +134,10 @@ No run path reads the ledger: a malformed ledger SHALL NOT be able to fail a `zs
 
 The failure direction is deliberate: if upstream reshapes its banner, the worst outcome is a spurious mismatch notice, never a wrong version claim and never a blocked publish.
 
+Holding that second half true takes one rule beyond plain containment. The test SHALL refuse a hit that is glued to a character which could extend a version: a digit or `.` on either side of the match, and additionally `-` or `+` immediately after it, where a pre-release or build suffix sits. Without the rule the comparison is not merely loose but wrong in the exact direction this requirement forbids — `1.7.2` is a substring of `zerostack 1.7.20`, so a *newer* binary would report as a match and the page would claim the ledger was audited against the version that actually ran. A separator can extend a version to the right but never begin one, which is why `-` and `+` are checked on one side only and `zerostack-1.7.2` still matches.
+
+That rule is a boundary check, not a parse: nothing splits the banner on dots, compares or orders two versions, or assumes where in the line the version sits. Anything it gets wrong still fails as a mismatch.
+
 #### Scenario: Matching version is contained in the banner
 - **WHEN** the ledger records `1.7.2` and a report's banner is `zerostack 1.7.2`
 - **THEN** the containment test reports a match
@@ -141,6 +145,18 @@ The failure direction is deliberate: if upstream reshapes its banner, the worst 
 #### Scenario: A newer zerostack does not match
 - **WHEN** the ledger records `1.7.2` and a report's banner is `zerostack 1.7.4`
 - **THEN** the containment test reports a mismatch
+
+#### Scenario: A longer version the audited one only begins does not match
+- **WHEN** the ledger records `1.7.2` and a report's banner is `zerostack 1.7.20`
+- **THEN** the containment test reports a mismatch
+
+#### Scenario: A pre-release of the audited version does not match
+- **WHEN** the ledger records `1.7.2` and a report's banner is `zerostack 1.7.2-rc1`
+- **THEN** the containment test reports a mismatch
+
+#### Scenario: A separator before the version is still a match
+- **WHEN** the ledger records `1.7.2` and a report's banner is `zerostack-1.7.2`
+- **THEN** the containment test reports a match
 
 #### Scenario: Mock identity does not match
 - **WHEN** the ledger records `1.7.2` and a report's banner is `mock`
