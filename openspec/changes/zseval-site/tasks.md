@@ -22,10 +22,10 @@
 
 ## 4. Results section: a third renderer in `matrix.rs` [dispatch: sai-hu, parallel: no, reason: it must reuse the private cell, hole, footer and mark formatting rather than restate it, and it must not recompute any figure; this is also the section that makes `matrix-render`'s spec change true]
 
-- [ ] 4.1 Write the failing tests first in `crates/zseval/src/matrix.rs`: a scenario with no gradable trial renders as a hole and not as a zero; rows are grouped by kind; for one model, the HTML renderer's cells and footer figures agree with `render_markdown`'s for the same model; `footer_excluded` is disclosed rather than silently narrowing the denominator. Cite red output.
-- [ ] 4.2 Implement `render_html` beside `render_fixed_width` and `render_markdown`, reusing the existing private formatting helpers. Do not duplicate any formatting rule, and do not add a public helper solely to let another module restate one.
-- [ ] 4.3 Assert `matrix`'s own surface is unchanged: no HTML flag, `--markdown` and `--json` behave exactly as before.
-- [ ] 4.4 Evidence: 4.1 and 4.3 green, `cargo test --workspace` green.
+- [x] 4.1 Write the failing tests first in `crates/zseval/src/matrix.rs`: a scenario with no gradable trial renders as a hole and not as a zero; rows are grouped by kind; for one model, the HTML renderer's cells and footer figures agree with `render_markdown`'s for the same model; `footer_excluded` is disclosed rather than silently narrowing the denominator. Cite red output.
+- [x] 4.2 Implement `render_html` beside `render_fixed_width` and `render_markdown`, reusing the existing private formatting helpers. Do not duplicate any formatting rule, and do not add a public helper solely to let another module restate one.
+- [x] 4.3 Assert `matrix`'s own surface is unchanged: no HTML flag, `--markdown` and `--json` behave exactly as before.
+- [x] 4.4 Evidence: 4.1 and 4.3 green, `cargo test --workspace` green.
 
 ## 5. The `site` subcommand: gates, exit codes, `--json` [dispatch: sai-hu, parallel: no, reason: the two failure modes are deliberately unlike each other (drift aborts, a version mismatch discloses) and are the easiest part of the spec to implement backwards; the ordering guarantee that nothing is written before the gate passes is also load-bearing]
 

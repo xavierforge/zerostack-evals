@@ -155,7 +155,7 @@ pub fn render(report: &Report, ledger: &Ledger) -> String {
     );
     render_header(&mut page, report);
     render_coverage(&mut page, report, ledger);
-    render_results(&mut page);
+    render_results(&mut page, report);
     page.raw(
         r#"</body>
 </html>
@@ -425,11 +425,25 @@ fn render_evidence(page: &mut Page, status: &Status, exercised: &BTreeSet<&str>)
     }
 }
 
-fn render_results(page: &mut Page) {
+/// This run's scenario table: `matrix`'s own model builder over the one report
+/// the page describes, rendered by the HTML renderer that lives beside
+/// `matrix`'s other two (design D4, spec: "The results section reuses the
+/// matrix model and its meanings").
+///
+/// The page contributes the section container and nothing else. Cells, holes,
+/// the per-kind grouping, the footer over the common gradable set, the marks
+/// and the footer-excluded disclosure all keep the meanings `matrix-render`
+/// defines for them, because this computes none of them: a second, differently
+/// defined pass rate is exactly what going through `matrix::build` refuses.
+fn render_results(page: &mut Page, report: &Report) {
     page.raw(
         r#"<section id="results">
 <h2>Results</h2>
-</section>
+"#,
+    );
+    crate::matrix::render_html(page, &crate::matrix::build(&[report]));
+    page.raw(
+        r#"</section>
 "#,
     );
 }

@@ -1,8 +1,17 @@
-//! Scenario x target table: a pure model built from `Report`s, plus two
-//! renderers over the same model (fixed-width terminal, markdown for
-//! records). `matrix` (the subcommand, target-matrix section 7) and `run`'s
-//! end-of-run table (section 8) both go through [`build`] and the render
-//! functions here — neither owns its own table logic.
+//! Scenario x target table: a pure model built from `Report`s, plus three
+//! renderers over the same model (fixed-width terminal, markdown for records,
+//! HTML for the site page). `matrix` (the subcommand, target-matrix section
+//! 7), `run`'s end-of-run table (section 8) and `site`'s results section
+//! (zseval-site section 4) all go through [`build`] and the render functions
+//! here — none of them owns its own table logic.
+//!
+//! The HTML renderer lives here rather than beside `site` because how a cell,
+//! a hole, a footer figure and a row mark are written is private to this
+//! module (design D4): a renderer outside it would have to restate that
+//! formatting, and three independent answers to "how is a hole written" drift
+//! apart on the first change. `matrix`'s own command-line surface is unchanged
+//! by it — there is no `--html` flag, and [`render_html`] is reachable only
+//! through `site`.
 //!
 //! A cell is a scenario's `trial_pass_rate()` for one column, *if* that
 //! column actually graded it: `trial_pass_rate()` alone cannot tell "ran, all
@@ -17,6 +26,7 @@ use std::path::Path;
 use serde::Serialize;
 
 use crate::scenario::Kind;
+use crate::site::Page;
 use crate::verdict::{Report, ScenarioResult};
 
 /// One scenario's outcome in one column. Never a bare `f64` — see the module
@@ -489,42 +499,47 @@ fn format_cell(c: Cell) -> String {
     }
 }
 
-/// One footer figure in the fixed-width table: right-aligned to `NUM_COL`,
-/// a bare `-` when there is no shared gradable basis (`None`).
-fn footer_cell_fixed_width(v: Option<f64>) -> String {
+/// One overall footer figure as text, before any renderer pads or delimits
+/// it: three decimals, or a bare `-` when there is no shared gradable basis
+/// (`None`). The three renderers differ only in the layout around it, so the
+/// figure itself is written in exactly one place.
+fn footer_figure(v: Option<f64>) -> String {
     match v {
-        Some(v) => format!("{v:>NUM_COL$.3}"),
-        None => format!("{:>NUM_COL$}", "-"),
+        Some(v) => format!("{v:.3}"),
+        None => "-".to_string(),
     }
 }
 
-/// One footer figure in the markdown table: a `-` when there is no shared
-/// gradable basis (`None`).
-fn footer_cell_markdown(v: Option<f64>) -> String {
-    match v {
-        Some(v) => format!(" {v:.3} |"),
-        None => " - |".to_string(),
-    }
-}
-
-/// One footer figure for a per-kind group row (regression/capability), fixed
-/// width: `n/a`, not the bare `-` the overall group uses, when the common
-/// gradable set contains no scenario of this kind — the same textual
-/// convention `print_run_report_summaries` uses for an empty kind's own line
+/// The same figure for a per-kind group row (regression/capability): `n/a`,
+/// not the bare `-` the overall group uses, when the common gradable set
+/// contains no scenario of this kind — the same textual convention
+/// `print_run_report_summaries` uses for an empty kind's own line
 /// (matrix-render spec, "A kind absent from the common set is n/a").
-fn kind_footer_cell_fixed_width(v: Option<f64>) -> String {
+fn kind_footer_figure(v: Option<f64>) -> String {
     match v {
-        Some(v) => format!("{v:>NUM_COL$.3}"),
-        None => format!("{:>NUM_COL$}", "n/a"),
+        Some(v) => format!("{v:.3}"),
+        None => "n/a".to_string(),
     }
 }
 
-/// Markdown counterpart of [`kind_footer_cell_fixed_width`].
+/// One footer figure in the fixed-width table: right-aligned to `NUM_COL`.
+fn footer_cell_fixed_width(v: Option<f64>) -> String {
+    format!("{:>NUM_COL$}", footer_figure(v))
+}
+
+/// One footer figure in the markdown table.
+fn footer_cell_markdown(v: Option<f64>) -> String {
+    format!(" {} |", footer_figure(v))
+}
+
+/// Per-kind counterpart of [`footer_cell_fixed_width`].
+fn kind_footer_cell_fixed_width(v: Option<f64>) -> String {
+    format!("{:>NUM_COL$}", kind_footer_figure(v))
+}
+
+/// Per-kind counterpart of [`footer_cell_markdown`].
 fn kind_footer_cell_markdown(v: Option<f64>) -> String {
-    match v {
-        Some(v) => format!(" {v:.3} |"),
-        None => " n/a |".to_string(),
-    }
+    format!(" {} |", kind_footer_figure(v))
 }
 
 /// This kind's footer figures for one column (regression/capability) — the
@@ -568,6 +583,13 @@ fn row_marks(row: &Row) -> String {
     marks
 }
 
+/// Does any row carry a SPREAD/DRIFT mark? The two renderers that put marks
+/// in a cell of their own (markdown's `notes`, HTML's) add that cell only when
+/// something would fill it, so an unmarked table keeps its tidy shape.
+fn any_row_marks(m: &Matrix) -> bool {
+    m.rows.iter().any(|r| !row_marks(r).trim().is_empty())
+}
+
 fn format_judge(j: &JudgeState) -> String {
     match j {
         JudgeState::Unknown => "unknown".to_string(),
@@ -578,6 +600,16 @@ fn format_judge(j: &JudgeState) -> String {
 
 const ID_COL: usize = 30;
 const NUM_COL: usize = 12;
+
+/// The two kinds, in the order every renderer sections and footers them:
+/// regression first, capability second, each under the label used for its row
+/// marker and its footer group. One list, so the three renderers cannot drift
+/// apart on the order or the wording (matrix-render spec, "Rows are grouped by
+/// kind").
+const KINDS: [(&str, Kind); 2] = [
+    ("regression", Kind::Regression),
+    ("capability", Kind::Capability),
+];
 
 /// This kind's rows, in the same order they already appear in `m.rows`
 /// (scenario-id order) — grouping into sections is a render-time filter
@@ -602,10 +634,7 @@ pub fn render_fixed_width(m: &Matrix) -> String {
         out.push_str(&format!("{:>NUM_COL$}", column_header(col)));
     }
     out.push('\n');
-    for (label, kind) in [
-        ("regression", Kind::Regression),
-        ("capability", Kind::Capability),
-    ] {
+    for (label, kind) in KINDS {
         let rows = rows_of_kind(m, kind);
         if rows.is_empty() {
             continue;
@@ -621,10 +650,7 @@ pub fn render_fixed_width(m: &Matrix) -> String {
         }
     }
 
-    for (label, kind) in [
-        ("regression", Kind::Regression),
-        ("capability", Kind::Capability),
-    ] {
+    for (label, kind) in KINDS {
         out.push_str(&format!("{:<ID_COL$}", format!("{label} pass@k")));
         for col in &m.columns {
             out.push_str(&kind_footer_cell_fixed_width(
@@ -703,7 +729,7 @@ pub fn render_markdown(m: &Matrix) -> String {
     // dropped by GFM table parsers, so the marks would vanish from the very
     // records this renderer exists to keep. Only add the column when some row
     // actually carries a mark, so unmarked tables stay clean.
-    let any_marks = m.rows.iter().any(|r| !row_marks(r).trim().is_empty());
+    let any_marks = any_row_marks(m);
 
     let mut out = String::new();
     out.push_str("| scenario |");
@@ -722,10 +748,7 @@ pub fn render_markdown(m: &Matrix) -> String {
         out.push_str("---|");
     }
     out.push('\n');
-    for (label, kind) in [
-        ("regression", Kind::Regression),
-        ("capability", Kind::Capability),
-    ] {
+    for (label, kind) in KINDS {
         let rows = rows_of_kind(m, kind);
         if rows.is_empty() {
             continue;
@@ -753,10 +776,7 @@ pub fn render_markdown(m: &Matrix) -> String {
             out.push('\n');
         }
     }
-    for (label, kind) in [
-        ("regression", Kind::Regression),
-        ("capability", Kind::Capability),
-    ] {
+    for (label, kind) in KINDS {
         out.push_str(&format!("| {label} pass@k |"));
         for col in &m.columns {
             out.push_str(&kind_footer_cell_markdown(
@@ -831,6 +851,175 @@ pub fn render_markdown(m: &Matrix) -> String {
         "\n_SPREAD, DRIFT, and MULTI-VAR are display heuristics, not statistical or authoritative claims._\n",
     );
     out
+}
+
+/// HTML table, for `site`'s results section (design D4). Same model, same
+/// meanings as its two siblings: cells and holes from [`format_cell`], the two
+/// kind sections from [`KINDS`], the three footer groups from
+/// [`footer_figure`] and [`kind_footer_figure`], the row marks from
+/// [`row_marks`], and the same footer-excluded disclosure. Nothing here
+/// recomputes a figure, and there is no second, differently-defined pass rate.
+///
+/// It writes into the caller's [`Page`] rather than returning a `String`
+/// because raw markup enters that buffer only as a `&'static str` literal
+/// (design D9): a renderer handing back assembled markup would need a second
+/// way in, and a second way in is what that rule exists to refuse.
+///
+/// No identity legend, unlike the other two: the only caller renders exactly
+/// one report and states that report's model, target, judge and build in the
+/// page's own header section, so a legend here would restate the header. The
+/// per-column facts that are *not* identity are kept, and each of them is
+/// spelled out in [`render_html_column_marks`] — dropping the legend must not
+/// drop the meaning of a mark the header still shows.
+pub(crate) fn render_html(page: &mut Page, m: &Matrix) {
+    let any_marks = any_row_marks(m);
+    // The scenario column, one per target column, and the notes column when
+    // some row actually carries a mark.
+    let span = m.columns.len() + 1 + usize::from(any_marks);
+
+    page.raw("<table>\n<thead>\n<tr><th>scenario</th>");
+    for col in &m.columns {
+        page.raw("<th>");
+        page.text(&column_header(col));
+        page.raw("</th>");
+    }
+    if any_marks {
+        page.raw("<th>notes</th>");
+    }
+    page.raw("</tr>\n</thead>\n<tbody>\n");
+
+    for (label, kind) in KINDS {
+        let rows = rows_of_kind(m, kind);
+        if rows.is_empty() {
+            continue;
+        }
+        page.raw("<tr><th colspan=\"");
+        page.text(&span.to_string());
+        page.raw("\">");
+        page.text(label);
+        page.raw("</th></tr>\n");
+        for row in rows {
+            page.raw("<tr><td>");
+            page.text(&row.id);
+            page.raw("</td>");
+            for cell in &row.cells {
+                page.raw("<td>");
+                page.text(&format_cell(*cell));
+                page.raw("</td>");
+            }
+            if any_marks {
+                page.raw("<td>");
+                page.text(row_marks(row).trim());
+                page.raw("</td>");
+            }
+            page.raw("</tr>\n");
+        }
+    }
+    page.raw("</tbody>\n<tfoot>\n");
+
+    for (label, kind) in KINDS {
+        let figures = kind_footer_figures(m, kind, |f| f.pass_at_k);
+        html_footer_row(page, &format!("{label} pass@k"), &figures, any_marks);
+        let figures = kind_footer_figures(m, kind, |f| f.pass_hat_k);
+        html_footer_row(page, &format!("{label} pass^k"), &figures, any_marks);
+    }
+    let figures = footer_figures(m, |f| f.pass_at_k);
+    html_footer_row(page, "pass@k", &figures, any_marks);
+    let figures = footer_figures(m, |f| f.pass_hat_k);
+    html_footer_row(page, "pass^k", &figures, any_marks);
+    let figures = footer_figures(m, |f| f.total_cost_usd);
+    html_footer_row(page, "cost usd", &figures, any_marks);
+    page.raw("</tfoot>\n</table>\n");
+
+    if !m.footer_excluded.is_empty() {
+        page.raw(r#"<p class="evidence">Excluded from footer (not gradable in every column): "#);
+        page.text(&m.footer_excluded.join(", "));
+        page.raw("</p>\n");
+    }
+    render_html_column_marks(page, m);
+    // The caveat only where there is a mark to caveat: on a one-column page
+    // no mark can fire, and a standing note about absent marks explains
+    // nothing. The wording is the renderers' one wording, not a second one.
+    if any_marks || m.columns.iter().any(has_column_mark) {
+        page.raw(r#"<p class="mark">"#);
+        page.raw(LEGEND_CAVEAT);
+        page.raw("</p>\n");
+    }
+}
+
+/// One overall footer metric across the columns, as text.
+fn footer_figures(m: &Matrix, metric: fn(&ColumnFooter) -> f64) -> Vec<String> {
+    m.columns
+        .iter()
+        .map(|col| footer_figure(col.footer.as_ref().map(metric)))
+        .collect()
+}
+
+/// One per-kind footer metric across the columns, as text — `n/a` rather than
+/// `-` where the kind is absent from the common gradable set.
+fn kind_footer_figures(m: &Matrix, kind: Kind, metric: fn(&ColumnFooter) -> f64) -> Vec<String> {
+    m.columns
+        .iter()
+        .map(|col| kind_footer_figure(kind_footer(col, kind).as_ref().map(metric)))
+        .collect()
+}
+
+/// One footer row: the metric's label, one cell per column, and an empty
+/// notes cell when the table carries that column.
+fn html_footer_row(page: &mut Page, label: &str, figures: &[String], any_marks: bool) {
+    page.raw("<tr><td>");
+    page.text(label);
+    page.raw("</td>");
+    for figure in figures {
+        page.raw("<td>");
+        page.text(figure);
+        page.raw("</td>");
+    }
+    if any_marks {
+        page.raw("<td></td>");
+    }
+    page.raw("</tr>\n");
+}
+
+/// The per-column marks the other two renderers carry on their legend lines,
+/// `incomplete` among them. [`column_header`] puts a `*` on an incomplete
+/// column here as it does there, but this renderer has no legend for the word
+/// the `*` stands for, and on a single-report page `incomplete` is the one
+/// column mark that can fire at all — so without this line a budget-truncated
+/// run renders a glyph the page never keys (matrix-render: the renderers keep
+/// the same meanings over the same model). Each line names its column exactly
+/// as the table's header spells it, `*` and all, so the mark and its meaning
+/// are read together. Same facts, same order, same words as the other two
+/// legends.
+fn render_html_column_marks(page: &mut Page, m: &Matrix) {
+    for col in m
+        .columns
+        .iter()
+        .filter(|c| c.incomplete || has_column_mark(c))
+    {
+        page.raw(r#"<p class="mark">"#);
+        page.text(&column_header(col));
+        page.raw(":");
+        if col.incomplete {
+            page.raw(" incomplete");
+        }
+        if col.judge_drift {
+            page.raw(" judge-drift");
+        }
+        if col.multi_variable {
+            page.raw(" MULTI-VAR");
+        }
+        page.raw("</p>\n");
+    }
+}
+
+/// Does this column carry a mark [`LEGEND_CAVEAT`] speaks for? Only the
+/// display heuristics. `incomplete` is a recorded fact (the report's
+/// `budget_truncated`), not a heuristic, so it is stated without pulling a
+/// caveat about SPREAD, DRIFT and MULTI-VAR onto a page where none of them
+/// fired.
+fn has_column_mark(col: &Column) -> bool {
+    col.judge_drift || col.multi_variable
 }
 
 #[cfg(test)]
@@ -1351,6 +1540,52 @@ mod tests {
         for g in &row.drift {
             assert!(!g.timestamps.is_empty());
         }
+    }
+
+    // 6.3 — the same content_hash mismatch, asserted against `render_html`
+    // rather than the model: [`row_marks`] is the one function all three
+    // renderers call for a row's mark (matrix-render spec, "Every renderer
+    // reads the same model"), but until now nothing pinned its `DRIFT[...]`
+    // text in the HTML table's own notes cell.
+    #[test]
+    fn html_carries_the_row_drift_mark_for_a_content_hash_mismatch() {
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials_with_hash(
+                "s".into(),
+                Kind::Regression,
+                "hash-old".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let b = report(
+            "targets/sonnet.toml",
+            "run-b",
+            vec![ScenarioResult::from_trials_with_hash(
+                "s".into(),
+                Kind::Regression,
+                "hash-new".into(),
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let m = build(&[&a, &b]);
+        assert_eq!(
+            m.rows[0].drift.len(),
+            2,
+            "two distinct hashes => two groups"
+        );
+
+        let html = html(&m);
+        assert_eq!(
+            html_row_cells(&html, "s"),
+            vec![
+                "1.000".to_string(),
+                "1.000".to_string(),
+                "DRIFT[hash-old:opus hash-new:sonnet]".to_string()
+            ],
+            "the row's DRIFT mark is not in the HTML notes cell:\n{html}"
+        );
     }
 
     // 6.4 — per-column DRIFT when judge_hash differs from the others.
@@ -1932,6 +2167,440 @@ mod tests {
         let overall_line = fixed.lines().find(|l| l.starts_with("pass@k")).unwrap();
         assert!(overall_line.contains("1.000"), "{overall_line}");
         assert!(overall_line.contains("0.000"), "{overall_line}");
+    }
+
+    /// The HTML renderer writes into the page's own buffer rather than
+    /// returning a `String` (design D9 — raw markup enters that buffer only as
+    /// a source literal), so a test renders through a scratch [`Page`] and
+    /// reads the markup back out of it.
+    fn html(m: &Matrix) -> String {
+        let mut page = Page::new();
+        render_html(&mut page, m);
+        page.finish()
+    }
+
+    /// The cells of the row whose leading cell is `label`, in column order.
+    /// Anchored on `<td>{label}</td>` so `pass@k` never matches inside
+    /// `regression pass@k`.
+    fn html_row_cells(html: &str, label: &str) -> Vec<String> {
+        let open = format!("<td>{label}</td>");
+        let at = html
+            .find(&open)
+            .unwrap_or_else(|| panic!("no row for {label}:\n{html}"));
+        let rest = &html[at + open.len()..];
+        let end = rest
+            .find("</tr>")
+            .unwrap_or_else(|| panic!("the row for {label} never closes:\n{html}"));
+        rest[..end]
+            .split("<td>")
+            .skip(1)
+            .map(|c| c.split("</td>").next().unwrap().to_string())
+            .collect()
+    }
+
+    /// The same row's cells out of the markdown table, so the two renderings
+    /// can be compared figure for figure.
+    fn markdown_row_cells(md: &str, label: &str) -> Vec<String> {
+        let prefix = format!("| {label} |");
+        let line = md
+            .lines()
+            .find(|l| l.starts_with(&prefix))
+            .unwrap_or_else(|| panic!("no row for {label}:\n{md}"));
+        line[prefix.len()..]
+            .split('|')
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty())
+            .collect()
+    }
+
+    /// The same row's cells out of the fixed-width table: `label` left-padded
+    /// to [`ID_COL`] the way `render_fixed_width` writes it, followed by one
+    /// right-aligned [`NUM_COL`]-wide field per column.
+    fn fixed_row_cells(fixed: &str, label: &str, columns: usize) -> Vec<String> {
+        let prefix = format!("{label:<ID_COL$}");
+        let line = fixed
+            .lines()
+            .find(|l| l.starts_with(&prefix))
+            .unwrap_or_else(|| panic!("no row for {label}:\n{fixed}"));
+        let rest = &line[prefix.len()..];
+        (0..columns)
+            .map(|i| rest[i * NUM_COL..(i + 1) * NUM_COL].trim().to_string())
+            .collect()
+    }
+
+    // 4.1 — a scenario no column could grade is a hole in HTML too, never a
+    // `0.000` that would read as "ran, and failed every trial".
+    #[test]
+    fn html_renders_an_ungradable_scenario_as_a_hole_not_a_zero() {
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                Kind::Regression,
+                vec![trial(Final::Indeterminate)],
+            )],
+        );
+        let m = build(&[&a]);
+        assert_eq!(m.rows[0].cells[0], Cell::Hole);
+
+        let html = html(&m);
+        assert_eq!(
+            html_row_cells(&html, "s"),
+            vec!["-".to_string()],
+            "an ungradable scenario is a hole:\n{html}"
+        );
+        assert!(
+            !html.contains("0.000"),
+            "a hole was rendered as a real zero:\n{html}"
+        );
+    }
+
+    // 4.1 — rows are grouped by kind in HTML too: regression first under its
+    // own marker row, capability after under theirs.
+    #[test]
+    fn html_rows_are_grouped_by_kind_regression_first() {
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![
+                ScenarioResult::from_trials(
+                    "reg-a".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "cap-a".into(),
+                    Kind::Capability,
+                    vec![trial(Final::Pass)],
+                ),
+            ],
+        );
+        let m = build(&[&a]);
+        let html = html(&m);
+        let at = |needle: &str| {
+            html.find(needle)
+                .unwrap_or_else(|| panic!("no {needle}:\n{html}"))
+        };
+        assert!(at(">regression<") < at("<td>reg-a</td>"), "{html}");
+        assert!(at("<td>reg-a</td>") < at(">capability<"), "{html}");
+        assert!(at(">capability<") < at("<td>cap-a</td>"), "{html}");
+    }
+
+    // 4.1 — for one model, the HTML renderer agrees with the markdown one
+    // cell for cell and figure for figure: both read the same model and
+    // neither recomputes anything (matrix-render spec, "Every renderer reads
+    // the same model").
+    #[test]
+    fn html_and_markdown_agree_on_every_cell_and_footer_figure_for_one_model() {
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![
+                ScenarioResult::from_trials(
+                    "reg-pass".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass), trial(Final::Fail)],
+                ),
+                ScenarioResult::from_trials(
+                    "reg-hole".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Indeterminate)],
+                ),
+                ScenarioResult::from_trials(
+                    "cap-fail".into(),
+                    Kind::Capability,
+                    vec![trial(Final::Fail)],
+                ),
+            ],
+        );
+        let m = build(&[&a]);
+        let html = html(&m);
+        let md = render_markdown(&m);
+
+        for label in [
+            "reg-pass",
+            "reg-hole",
+            "cap-fail",
+            "regression pass@k",
+            "regression pass^k",
+            "capability pass@k",
+            "capability pass^k",
+            "pass@k",
+            "pass^k",
+            "cost usd",
+        ] {
+            assert_eq!(
+                html_row_cells(&html, label),
+                markdown_row_cells(&md, label),
+                "the two renderers disagree on {label}\nhtml:\n{html}\nmarkdown:\n{md}"
+            );
+        }
+
+        // Not a vacuous agreement: the fixture carries a real rate and a hole,
+        // so an all-empty rendering could not pass the comparison above.
+        assert_eq!(html_row_cells(&html, "reg-pass"), vec!["0.500".to_string()]);
+        assert_eq!(html_row_cells(&html, "reg-hole"), vec!["-".to_string()]);
+    }
+
+    // 4.1 — the scenario names all three renderers, not a pair (matrix-render
+    // spec, "Every renderer reads the same model": "the same report is
+    // rendered as fixed-width, markdown, and HTML"). One model, one fixture,
+    // and every cell and footer figure checked across all three in one test
+    // body, reusing the same extraction helpers the pairwise tests above use.
+    #[test]
+    fn fixed_width_markdown_and_html_agree_on_every_cell_and_footer_figure_for_one_model() {
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![
+                ScenarioResult::from_trials(
+                    "reg-pass".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass), trial(Final::Fail)],
+                ),
+                ScenarioResult::from_trials(
+                    "reg-hole".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Indeterminate)],
+                ),
+                ScenarioResult::from_trials(
+                    "cap-fail".into(),
+                    Kind::Capability,
+                    vec![trial(Final::Fail)],
+                ),
+            ],
+        );
+        let m = build(&[&a]);
+        let fixed = render_fixed_width(&m);
+        let md = render_markdown(&m);
+        let html = html(&m);
+
+        for label in [
+            "reg-pass",
+            "reg-hole",
+            "cap-fail",
+            "regression pass@k",
+            "regression pass^k",
+            "capability pass@k",
+            "capability pass^k",
+            "pass@k",
+            "pass^k",
+            "cost usd",
+        ] {
+            let fixed_cells = fixed_row_cells(&fixed, label, m.columns.len());
+            let html_cells = html_row_cells(&html, label);
+            let md_cells = markdown_row_cells(&md, label);
+            assert_eq!(
+                fixed_cells, html_cells,
+                "fixed-width and html disagree on {label}\nfixed:\n{fixed}\nhtml:\n{html}"
+            );
+            assert_eq!(
+                html_cells, md_cells,
+                "html and markdown disagree on {label}\nhtml:\n{html}\nmarkdown:\n{md}"
+            );
+        }
+
+        // Not a vacuous agreement: the fixture carries a real rate and a hole,
+        // so an all-empty rendering could not pass the comparisons above.
+        assert_eq!(
+            fixed_row_cells(&fixed, "reg-pass", m.columns.len()),
+            vec!["0.500".to_string()]
+        );
+        assert_eq!(
+            fixed_row_cells(&fixed, "reg-hole", m.columns.len()),
+            vec!["-".to_string()]
+        );
+    }
+
+    // 4.1 — the footer's narrowed denominator is disclosed rather than
+    // silently applied: the excluded ids are named, and their rows stay in the
+    // table with the hole that excluded them.
+    #[test]
+    fn html_discloses_the_ids_excluded_from_the_footer() {
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![
+                ScenarioResult::from_trials(
+                    "shared".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "only-a".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+            ],
+        );
+        let b = report(
+            "targets/sonnet.toml",
+            "run-b",
+            vec![ScenarioResult::from_trials(
+                "shared".into(),
+                Kind::Regression,
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let m = build(&[&a, &b]);
+        assert_eq!(m.footer_excluded, vec!["only-a".to_string()]);
+
+        let html = html(&m);
+        assert!(
+            html.contains("Excluded from footer"),
+            "the narrowed denominator is not disclosed:\n{html}"
+        );
+        assert!(
+            html.contains("only-a"),
+            "the excluded id is not named:\n{html}"
+        );
+        assert_eq!(
+            html_row_cells(&html, "only-a"),
+            vec!["1.000".to_string(), "-".to_string()],
+            "the excluded scenario's own row is gone:\n{html}"
+        );
+    }
+
+    // 4.1 — the marks keep the meaning `matrix-render` gives them: a row's
+    // SPREAD lands in a real notes cell (as in markdown), a column's
+    // judge-drift is named, and both are labelled as display heuristics in the
+    // renderers' one wording rather than a second one.
+    #[test]
+    fn html_carries_row_and_column_marks_with_the_heuristics_caveat() {
+        // Two trials each => resolution 0.5; the gap here is 1.0 => SPREAD.
+        // Differing judge hashes => both columns carry judge-drift.
+        let mut a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                Kind::Regression,
+                vec![trial(Final::Pass), trial(Final::Pass)],
+            )],
+        );
+        a.judge_hash = Some("hash-a".into());
+        let mut b = report(
+            "targets/sonnet.toml",
+            "run-b",
+            vec![ScenarioResult::from_trials(
+                "s".into(),
+                Kind::Regression,
+                vec![trial(Final::Fail), trial(Final::Fail)],
+            )],
+        );
+        b.judge_hash = Some("hash-b".into());
+        let m = build(&[&a, &b]);
+        assert!(m.rows[0].spread);
+        assert!(m.columns[0].judge_drift && m.columns[1].judge_drift);
+
+        let html = html(&m);
+        assert!(html.contains("<th>notes</th>"), "no notes column:\n{html}");
+        assert_eq!(
+            html_row_cells(&html, "s"),
+            vec![
+                "1.000".to_string(),
+                "0.000".to_string(),
+                "SPREAD".to_string()
+            ],
+            "the row's mark is not in a cell of its own:\n{html}"
+        );
+        // The footer rows keep the notes column, so no figure slides under it.
+        assert_eq!(
+            html_row_cells(&html, "pass@k"),
+            vec!["1.000".to_string(), "0.000".to_string(), String::new()],
+            "a footer row lost the notes column:\n{html}"
+        );
+        assert!(
+            html.contains("opus: judge-drift") && html.contains("sonnet: judge-drift"),
+            "the columns' judge-drift is not named:\n{html}"
+        );
+        assert!(
+            html.contains("display heuristics"),
+            "the marks are not labelled as heuristics:\n{html}"
+        );
+    }
+
+    // 4.1 — the `*` `column_header` puts on a budget-truncated column is the
+    // one column mark that can fire on a single-report page, and this is the
+    // renderer that dropped the identity legend the other two explain it in.
+    // So it states the meaning itself, keyed to the column exactly as the
+    // table's header spells it — otherwise the page shows a glyph it never
+    // keys, and the three renderers stop carrying the same meanings over the
+    // same model (matrix-render spec, "Every renderer reads the same model").
+    // Gated like the other legends: a column with no mark gets no line.
+    #[test]
+    fn html_explains_the_incomplete_mark_only_when_a_column_carries_it() {
+        let scenarios = || {
+            vec![ScenarioResult::from_trials(
+                "one".into(),
+                Kind::Regression,
+                vec![trial(Final::Pass)],
+            )]
+        };
+
+        let mut truncated = report("targets/sonnet.toml", "run-a", scenarios());
+        truncated.budget_truncated = true;
+        let m = build(&[&truncated]);
+        assert!(m.columns[0].incomplete);
+        let marked = html(&m);
+        assert!(
+            marked.contains("<th>sonnet*</th>"),
+            "the column header lost the incomplete mark:\n{marked}"
+        );
+        assert!(
+            marked.contains("sonnet*: incomplete"),
+            "the `*` on the header is a glyph the page never keys:\n{marked}"
+        );
+        // `incomplete` is a recorded fact, not one of the display heuristics
+        // the caveat speaks for, and none of those fired here.
+        assert!(
+            !marked.contains("display heuristics"),
+            "a caveat about marks that did not fire:\n{marked}"
+        );
+
+        let full = report("targets/sonnet.toml", "run-a", scenarios());
+        let m = build(&[&full]);
+        assert!(!m.columns[0].incomplete);
+        let clean = html(&m);
+        assert!(
+            clean.contains("<th>sonnet</th>"),
+            "an unmarked column did not render its bare label:\n{clean}"
+        );
+        assert!(
+            !clean.contains("incomplete"),
+            "a mark nobody was shown is explained anyway:\n{clean}"
+        );
+        assert!(
+            !clean.contains(r#"class="mark""#),
+            "an unmarked table carries a legend line:\n{clean}"
+        );
+    }
+
+    // 4.2 / design D9 — the results renderer writes runtime values through the
+    // page's escaping writer like every other section, so `matrix.rs` never
+    // grows a second way into the buffer.
+    #[test]
+    fn html_escapes_a_scenario_id_carrying_markup() {
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![ScenarioResult::from_trials(
+                "<script>alert('x')</script>".into(),
+                Kind::Regression,
+                vec![trial(Final::Pass)],
+            )],
+        );
+        let m = build(&[&a]);
+        let html = html(&m);
+        assert!(
+            html.contains("&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;"),
+            "the escaped id is not in the table:\n{html}"
+        );
+        assert!(
+            !html.contains("<script>"),
+            "the raw id reached the table:\n{html}"
+        );
     }
 
     // trustworthy-numbers 6.1/6.2: `--json`'s row array stays one flat array

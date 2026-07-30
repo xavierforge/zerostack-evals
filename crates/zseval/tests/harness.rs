@@ -3140,6 +3140,87 @@ fn matrix_over_a_zero_scenario_report_exits_2() {
     );
 }
 
+/// zseval-site 4.3 (spec `matrix-render`, "`matrix` gains no HTML flag"):
+/// the third renderer is reachable only through `site`. `matrix` keeps the
+/// surface it had — fixed-width by default, markdown under `--markdown`, JSON
+/// under `--json` — and `--html` is a usage error like any other unknown flag,
+/// so no combination of `matrix`'s own flags can emit HTML.
+#[test]
+fn matrix_gains_no_html_flag_and_emits_no_html_under_its_own_flags() {
+    use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
+
+    let dir = std::env::temp_dir().join(format!("zseval-matrix-e2e-html-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let trial = TrialResult {
+        trial: 0,
+        outcome: Final::Pass,
+        reasons: vec![],
+        asserts: vec![],
+        judge: None,
+        judge_file: String::new(),
+        judge_hash: None,
+        judge_model: None,
+        input_tokens: 0,
+        output_tokens: 0,
+        judge_input_tokens: 0,
+        judge_output_tokens: 0,
+        cost_usd: 0.0,
+        wall_secs: 0.0,
+        tool_call_count: 0,
+        run_dir: String::new(),
+    };
+    let r = Report::build(
+        ReportMeta {
+            tag: "run-a".into(),
+            model: "anthropic/opus".into(),
+            backend: "zs".into(),
+            trials: 1,
+            target: "targets/opus.toml".into(),
+            ..Default::default()
+        },
+        vec![ScenarioResult::from_trials(
+            "html-surface-scenario".into(),
+            Kind::Regression,
+            vec![trial],
+        )],
+    );
+    let report_path = dir.join("a.json");
+    std::fs::write(&report_path, serde_json::to_string_pretty(&r).unwrap()).unwrap();
+    let report_path = report_path.to_str().unwrap().to_string();
+
+    let html_flag = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args(["matrix", &report_path, "--html"])
+        .output()
+        .unwrap();
+    assert_eq!(html_flag.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&html_flag.stderr);
+    assert!(stderr.contains("unknown flag '--html'"), "stderr: {stderr}");
+
+    for flags in [vec![], vec!["--markdown"], vec!["--json"]] {
+        let mut args = vec!["matrix", &report_path];
+        args.extend(flags.iter().copied());
+        let out = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+            .args(&args)
+            .output()
+            .unwrap();
+        assert_eq!(out.status.code(), Some(0), "{flags:?}");
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            stdout.contains("html-surface-scenario"),
+            "{flags:?} rendered nothing: {stdout}"
+        );
+        for markup in ["<table", "<td", "<!doctype"] {
+            assert!(
+                !stdout.to_lowercase().contains(markup),
+                "{flags:?} emitted HTML ({markup}): {stdout}"
+            );
+        }
+    }
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
 /// A prompt pack directory for the `--prompts` CLI tests: one `code.md`, plus
 /// whatever extra entries a case needs to make illegal.
 fn prompt_pack_dir(name: &str) -> PathBuf {
