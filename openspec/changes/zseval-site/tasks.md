@@ -8,9 +8,9 @@
 
 ## 2. Header section: read back, derive nothing [dispatch: too-te, parallel: no, reason: every field and its rendering rule is named in the spec, and the three cases that could go wrong (null vs empty, the two judge halves, judge_model's three states) are each stated as a scenario; no design choice is left]
 
-- [ ] 2.1 Write the failing tests first, one per spec scenario: `git_sha` and `features` being `null` render as not provided rather than as an empty string or empty list; `judge_file` with `judge_hash` and `judge_model` both appear, labelled so neither reads as the other; `judge_model` of `Some([])` says nothing was graded and does not echo the configured model; `budget_truncated` true is visible. Cite red output.
-- [ ] 2.2 Render the header from `zs_version`, `zs_bin_sha256`, `zs_bin_path`, `git_sha`, `features`, `model`, `backend`, `target`, `timestamp`, `trials`, `summary.total_cost_usd`, `budget_truncated`. Read each field verbatim: no inference, no defaulting, no computed substitute.
-- [ ] 2.3 Evidence: 2.1 green, and a grep over the header code showing no arithmetic or fallback on any report field.
+- [x] 2.1 Write the failing tests first, one per spec scenario: `git_sha` and `features` being `null` render as not provided rather than as an empty string or empty list; `judge_file` with `judge_hash` and `judge_model` both appear, labelled so neither reads as the other; `judge_model` of `Some([])` says nothing was graded and does not echo the configured model; `budget_truncated` true is visible. Cite red output.
+- [x] 2.2 Render the header from `zs_version`, `zs_bin_sha256`, `zs_bin_path`, `git_sha`, `features`, `model`, `backend`, `target`, `timestamp`, `trials`, `summary.total_cost_usd`, `budget_truncated`. Read each field verbatim: no inference, no defaulting, no computed substitute.
+- [x] 2.3 Evidence: 2.1 green, and a grep over the header code showing no arithmetic or fallback on any report field.
 
 ## 3. Coverage section [dispatch: sai-hu, parallel: no, reason: the covered-but-not-exercised derivation is new, and laying out four statuses whose evidence fields differ per status is a presentation judgment the spec constrains but does not settle]
 

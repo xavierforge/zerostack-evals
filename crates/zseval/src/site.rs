@@ -150,6 +150,11 @@ pub fn render(report: &Report, ledger: &Ledger) -> String {
     page.finish()
 }
 
+/// The run's identity, read back field by field with no inference, no
+/// defaulting, and no computed substitute (spec: "The header reads report
+/// fields back without deriving them"; design D5). Every value here is
+/// `report`'s own, verbatim; the only choice this function makes is how to
+/// spell an absent or empty one so the two are never confused.
 fn render_header(page: &mut Page, report: &Report) {
     page.raw(
         r#"<section id="header">
@@ -160,10 +165,114 @@ fn render_header(page: &mut Page, report: &Report) {
     page.text(&report.zs_version);
     page.raw(
         r#"</dd>
+<dt>binary sha256</dt><dd>"#,
+    );
+    page.text(&report.zs_bin_sha256);
+    page.raw(
+        r#"</dd>
+<dt>binary path</dt><dd>"#,
+    );
+    page.text(&report.zs_bin_path);
+    page.raw(
+        r#"</dd>
+<dt>git sha</dt><dd>"#,
+    );
+    render_opt_str(page, report.git_sha.as_deref());
+    page.raw(
+        r#"</dd>
+<dt>features</dt><dd>"#,
+    );
+    render_opt_list(page, report.features.as_deref());
+    page.raw(
+        r#"</dd>
+<dt>model</dt><dd>"#,
+    );
+    page.text(&report.model);
+    page.raw(
+        r#"</dd>
+<dt>backend</dt><dd>"#,
+    );
+    page.text(&report.backend);
+    page.raw(
+        r#"</dd>
+<dt>target</dt><dd>"#,
+    );
+    page.text(&report.target);
+    page.raw(
+        r#"</dd>
+<dt>timestamp</dt><dd>"#,
+    );
+    page.text(&report.timestamp);
+    page.raw(
+        r#"</dd>
+<dt>trials</dt><dd>"#,
+    );
+    page.text(&report.trials.to_string());
+    page.raw(
+        r#"</dd>
+<dt>total cost</dt><dd>"#,
+    );
+    page.text(&format!("${:.4}", report.summary.total_cost_usd));
+    page.raw(
+        r#"</dd>
+<dt>budget truncated</dt><dd>"#,
+    );
+    page.raw(if report.budget_truncated { "yes" } else { "no" });
+    page.raw(
+        r#"</dd>
+<dt>configured</dt><dd>"#,
+    );
+    // The judge is two facts, never collapsed into one (design D5): what the
+    // run was told to grade with (`judge_file`, `judge_hash`), labelled apart
+    // from what actually graded (`judge_model`) below.
+    page.text(&report.judge_file);
+    page.raw(" (hash: ");
+    render_opt_str(page, report.judge_hash.as_deref());
+    page.raw(
+        r#")</dd>
+<dt>graded by</dt><dd>"#,
+    );
+    render_judge_model(page, report.judge_model.as_deref());
+    page.raw(
+        r#"</dd>
 </dl>
 </section>
 "#,
     );
+}
+
+/// A `null` field reads as "not provided", distinct from a value that is
+/// present and empty (design D5): an absent fact and an empty fact are
+/// different claims.
+fn render_opt_str(page: &mut Page, value: Option<&str>) {
+    match value {
+        Some(v) => page.text(v),
+        None => page.raw("not provided"),
+    }
+}
+
+/// Same distinction as [`render_opt_str`], for a list-valued field: `null`
+/// reads as "not provided"; a present-but-empty list reads as "(none)", a
+/// visibly different string so the two claims are never confused.
+fn render_opt_list(page: &mut Page, value: Option<&[String]>) {
+    match value {
+        None => page.raw("not provided"),
+        Some([]) => page.raw("(none)"),
+        Some(items) => page.text(&items.join(", ")),
+    }
+}
+
+/// `judge_model`'s three states, each with its own reading (design D5):
+/// `None` is unknown, `Some([])` is nothing graded, `Some([m, ..])` names the
+/// rulers that did. `Some([])` must read as "nothing was graded" rather than
+/// falling through to whatever the caller configured — that fallthrough is
+/// exactly the computed substitute this function exists to refuse.
+fn render_judge_model(page: &mut Page, value: Option<&[String]>) {
+    match value {
+        None => page.raw("unknown"),
+        Some([]) => page.raw("nothing was graded"),
+        Some(items) => page.text(&items.join(", ")),
+    }
 }
 
 fn render_coverage(page: &mut Page, ledger: &Ledger) {
@@ -314,6 +423,108 @@ mod tests {
         assert!(
             header < coverage && coverage < results,
             "sections are out of order (design D11):\n{page}"
+        );
+    }
+
+    #[test]
+    fn an_unavailable_build_fact_is_not_shown_as_empty() {
+        // `report("...")`'s `ZsIdentity` defaults `git_sha` and `features` to
+        // `None`, the same as today's real binary (design D5).
+        let page = render(&report("zerostack 1.7.2"), &ledger("that measures the OS."));
+        assert!(
+            page.contains("<dt>git sha</dt><dd>not provided</dd>"),
+            "git_sha did not render as not provided:\n{page}"
+        );
+        assert!(
+            page.contains("<dt>features</dt><dd>not provided</dd>"),
+            "features did not render as not provided:\n{page}"
+        );
+    }
+
+    #[test]
+    fn configured_and_actual_judge_are_shown_as_two_facts_labelled_apart() {
+        let report = Report::build(
+            ReportMeta {
+                judge_file: "judges/opus.toml".into(),
+                judge_hash: Some("abc123".into()),
+                judge_model: Some(vec!["claude-opus-4-8".into()]),
+                zs: ZsIdentity {
+                    zs_version: "zerostack 1.7.2".into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            vec![],
+        );
+        let page = render(&report, &ledger("that measures the OS."));
+        assert!(
+            page.contains("<dt>configured</dt><dd>judges/opus.toml (hash: abc123)</dd>"),
+            "the configured judge (file and hash) is not shown:\n{page}"
+        );
+        assert!(
+            page.contains("<dt>graded by</dt><dd>claude-opus-4-8</dd>"),
+            "the model that actually graded is not shown:\n{page}"
+        );
+    }
+
+    #[test]
+    fn nothing_graded_is_not_the_same_as_unknown_and_does_not_echo_the_configured_model() {
+        let report = Report::build(
+            ReportMeta {
+                model: "anthropic/claude-sonnet-4-6".into(),
+                judge_file: "judges/opus.toml".into(),
+                judge_hash: Some("abc123".into()),
+                judge_model: Some(vec![]),
+                zs: ZsIdentity {
+                    zs_version: "zerostack 1.7.2".into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            vec![],
+        );
+        let page = render(&report, &ledger("that measures the OS."));
+        assert!(
+            page.contains("<dt>graded by</dt><dd>nothing was graded</dd>"),
+            "nothing-graded did not render distinctly from unknown:\n{page}"
+        );
+        // Neither the agent's own model nor the configured judge file stands
+        // in for "who graded" once the report says nothing did.
+        let graded_at = page
+            .find("<dt>graded by</dt>")
+            .unwrap_or_else(|| panic!("no graded-by row:\n{page}"));
+        let graded_row = &page[graded_at..];
+        let graded_dd_end = graded_row
+            .find("</dd>")
+            .unwrap_or_else(|| panic!("graded-by row has no closing </dd>:\n{page}"));
+        let graded_row = &graded_row[..graded_dd_end];
+        assert!(
+            !graded_row.contains("anthropic/claude-sonnet-4-6"),
+            "the agent's model was echoed as though it had graded:\n{page}"
+        );
+        assert!(
+            !graded_row.contains("judges/opus.toml"),
+            "the configured judge file was echoed as though it had graded:\n{page}"
+        );
+    }
+
+    #[test]
+    fn budget_truncated_is_visible() {
+        let report = Report::build(
+            ReportMeta {
+                budget_truncated: true,
+                zs: ZsIdentity {
+                    zs_version: "zerostack 1.7.2".into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            vec![],
+        );
+        let page = render(&report, &ledger("that measures the OS."));
+        assert!(
+            page.contains("<dt>budget truncated</dt><dd>yes</dd>"),
+            "budget_truncated=true is not visible:\n{page}"
         );
     }
 
