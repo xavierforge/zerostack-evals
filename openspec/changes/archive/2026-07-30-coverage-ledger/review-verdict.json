@@ -1,0 +1,66 @@
+{
+  "layer": "cross-check",
+  "fixed_point": "main",
+  "findings": [
+    {
+      "axis": "spec",
+      "title": "spec scenario \"A malformed ledger does not break a run\" (spec.md:107) has no automated guard; structurally true today, verified by hand only",
+      "severity": "hard",
+      "actioned": true
+    },
+    {
+      "axis": "spec",
+      "title": "area-set integration test sorts before asserting, so the \"in file order\" half of the 15-areas scenario is pinned only on the inline fixture (harness.rs:3745)",
+      "severity": "judgement",
+      "actioned": false
+    },
+    {
+      "axis": "spec",
+      "title": "Ledger fields are pub and check_unique_ids runs only inside parse, so a hand-constructed Ledger can carry a duplicate id unchecked (coverage.rs:287)",
+      "severity": "judgement",
+      "actioned": false
+    },
+    {
+      "axis": "spec",
+      "title": "nit: zs values mix issue numbers, a code tag, and a prose label (\"sandbox hardening\"), matching no single entry-name convention in ROADMAP_ZS.md",
+      "severity": "judgement",
+      "actioned": false
+    },
+    {
+      "axis": "standards",
+      "title": "possible shotgun surgery: the four reject_foreign_evidence tables hand-enumerate each status's complement (coverage.rs:175-241); a dropped entry silently reopens the ignored-field hole, and only 1 of 11 pairs was tested",
+      "severity": "judgement",
+      "actioned": true
+    },
+    {
+      "axis": "standards",
+      "title": "possible speculative generality: Ledger::audit_matches (coverage.rs:298) has no caller outside its own unit test; coverage.rs is the only src/ module with no path from main.rs",
+      "severity": "judgement",
+      "actioned": false
+    },
+    {
+      "axis": "standards",
+      "title": "possible loops: check_unique_ids is O(n^2) via reported.contains plus an inner filter (coverage.rs:381-417), check_ids is O(n*m) (coverage.rs:342-353); HashSet is already in the repo's vocabulary",
+      "severity": "judgement",
+      "actioned": false
+    },
+    {
+      "axis": "standards",
+      "title": "minor doc over-claim: coverage.rs:11-12 says four rules are \"enforced here\", but rule 2 is enforced by schema absence and rule 4 only by an integration test",
+      "severity": "judgement",
+      "actioned": false
+    },
+    {
+      "axis": "standards",
+      "title": "minor data inconsistency: zs values use three citation formats across coverage.toml:141, :312, :632 against a doc calling it \"a tracking entry\"",
+      "severity": "judgement",
+      "actioned": false
+    },
+    {
+      "axis": "standards",
+      "title": "doc gap: README Layout block (README.md:23-37) gains no entry for scenarios/coverage.toml, though scenarios/PLAN.md is undocumented there too",
+      "severity": "judgement",
+      "actioned": false
+    }
+  ]
+}
