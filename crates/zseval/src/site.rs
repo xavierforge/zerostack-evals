@@ -38,7 +38,10 @@
 
 use std::collections::BTreeSet;
 
+use serde::Serialize;
+
 use crate::coverage::{Area, Ledger, Status};
+use crate::matrix::Matrix;
 use crate::verdict::Report;
 
 /// The page's whole stylesheet, inlined into the document. A `&'static str`,
@@ -134,8 +137,217 @@ fn escape(value: &str) -> String {
     out
 }
 
-/// The whole page for one report and the ledger it is read against.
-pub fn render(report: &Report, ledger: &Ledger) -> String {
+/// Everything the page states, before any of it is markup: the header's
+/// read-back fields, the coverage rows with their marks, and `matrix`'s own
+/// model of the results (design D2).
+///
+/// `site --json` emits exactly this value and [`render`] is a view of the same
+/// one, so a machine reading the JSON reads what the page shows rather than a
+/// second derivation that could drift from it. Borrowed throughout: every
+/// string here belongs to the report or the ledger it was built from, which is
+/// what makes "the header derives nothing" a property of the type rather than
+/// a promise about the builder.
+#[derive(Serialize)]
+pub struct PageModel<'a> {
+    pub header: Header<'a>,
+    pub coverage: Coverage<'a>,
+    pub results: Matrix,
+}
+
+/// The run's identity, field for field as the report records it, plus the one
+/// thing the page says about the ledger's age ([`Audit`]).
+#[derive(Serialize)]
+pub struct Header<'a> {
+    pub zs_version: &'a str,
+    pub zs_bin_sha256: &'a str,
+    pub zs_bin_path: &'a str,
+    /// `None` is "not provided", never an empty string: an absent fact and an
+    /// empty fact are different claims (design D5).
+    pub git_sha: Option<&'a str>,
+    pub features: Option<&'a [String]>,
+    pub model: &'a str,
+    pub backend: &'a str,
+    pub target: &'a str,
+    pub timestamp: &'a str,
+    pub trials: usize,
+    pub total_cost_usd: f64,
+    pub budget_truncated: bool,
+    /// What the run was configured to grade with, kept apart from
+    /// `judge_model` below, which is what actually graded.
+    pub judge_file: &'a str,
+    pub judge_hash: Option<&'a str>,
+    /// Three readings, none collapsible into another: `None` unknown,
+    /// `Some([])` nothing graded, `Some([m, ..])` these rulers graded.
+    pub judge_model: Option<&'a [String]>,
+    pub audit: Audit<'a>,
+}
+
+/// The ledger's `audited_against` beside whether this run's banner names it.
+/// Disclosed, never fatal (design D3): a `--backend mock` report records
+/// `mock` and so mismatches by construction, and `coverage-ledger` requires
+/// the worst outcome of the comparison to be a spurious mismatch notice rather
+/// than a blocked publish.
+#[derive(Serialize)]
+pub struct Audit<'a> {
+    /// The zerostack version the ledger's judgments were made against.
+    pub audited_against: &'a str,
+    /// `Ledger::audit_matches` over this report's banner: containment, with a
+    /// boundary rule, and nothing stronger. It says the two name one version,
+    /// not that the ledger's prose is current.
+    pub agrees: bool,
+}
+
+/// The ledger as the page states it: every area it declares, in file order,
+/// and the count of the ones holding no scenario at all.
+#[derive(Serialize)]
+pub struct Coverage<'a> {
+    /// The headline figure, and the total it is counted out of. A count, never
+    /// a ratio (design D12).
+    pub areas_with_no_scenario: usize,
+    pub areas_total: usize,
+    pub areas: Vec<AreaRow<'a>>,
+}
+
+#[derive(Serialize)]
+pub struct AreaRow<'a> {
+    pub name: &'a str,
+    pub title: &'a str,
+    /// Any claim of this area is `covered`, so some scenario tests some part
+    /// of it. `false` is what the headline counts.
+    pub has_scenario: bool,
+    pub claims: Vec<ClaimRow<'a>>,
+}
+
+#[derive(Serialize)]
+pub struct ClaimRow<'a> {
+    pub claim: &'a str,
+    pub note: Option<&'a str>,
+    pub evidence: Evidence<'a>,
+}
+
+/// One claim's status and the evidence that status owes, mirroring
+/// `coverage::Status` so the page's vocabulary and the ledger's are one
+/// vocabulary. The one thing added is the per-id mark on `covered`.
+#[derive(Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum Evidence<'a> {
+    Covered {
+        scenarios: Vec<CitedId<'a>>,
+    },
+    Uncovered {
+        blocked_by: Option<&'a str>,
+    },
+    ProductBlocked {
+        reason: &'a str,
+        zs: Option<&'a str>,
+    },
+    Excluded {
+        reason: &'a str,
+    },
+}
+
+/// A scenario id a `covered` claim cites, and whether this run exercised it.
+#[derive(Serialize)]
+pub struct CitedId<'a> {
+    pub id: &'a str,
+    /// The report's results hold this id. Derived per render from the report
+    /// and never written back to the ledger (design D6): `covered` is an
+    /// existence claim, and run membership is a fact about one report.
+    pub exercised: bool,
+}
+
+/// The page model for one report and the ledger it is read against.
+///
+/// Pure and infallible, like `matrix::build`: the drift gate that makes the
+/// coverage section true of this repo's tree is the caller's, because it needs
+/// a path to name in an error and this function has none.
+pub fn build<'a>(report: &'a Report, ledger: &'a Ledger) -> PageModel<'a> {
+    PageModel {
+        header: Header {
+            zs_version: &report.zs_version,
+            zs_bin_sha256: &report.zs_bin_sha256,
+            zs_bin_path: &report.zs_bin_path,
+            git_sha: report.git_sha.as_deref(),
+            features: report.features.as_deref(),
+            model: &report.model,
+            backend: &report.backend,
+            target: &report.target,
+            timestamp: &report.timestamp,
+            trials: report.trials,
+            total_cost_usd: report.summary.total_cost_usd,
+            budget_truncated: report.budget_truncated,
+            judge_file: &report.judge_file,
+            judge_hash: report.judge_hash.as_deref(),
+            judge_model: report.judge_model.as_deref(),
+            audit: Audit {
+                audited_against: ledger.audited_against(),
+                agrees: ledger.audit_matches(&report.zs_version),
+            },
+        },
+        coverage: build_coverage(report, ledger),
+        results: crate::matrix::build(&[report]),
+    }
+}
+
+/// The ledger's rows, in the ledger's order, with the one derivation the
+/// coverage section makes: which of a `covered` claim's cited ids this run did
+/// not exercise (design D6).
+fn build_coverage<'a>(report: &'a Report, ledger: &'a Ledger) -> Coverage<'a> {
+    let exercised: BTreeSet<&str> = report.scenarios.iter().map(|s| s.id.as_str()).collect();
+    // File order is presentation order: nothing here sorts.
+    let areas: Vec<AreaRow<'a>> = ledger
+        .areas()
+        .iter()
+        .map(|area| AreaRow {
+            name: &area.name,
+            title: &area.title,
+            has_scenario: has_scenario(area),
+            claims: area
+                .claims
+                .iter()
+                .map(|claim| ClaimRow {
+                    claim: &claim.claim,
+                    note: claim.note.as_deref(),
+                    evidence: build_evidence(&claim.status, &exercised),
+                })
+                .collect(),
+        })
+        .collect();
+    Coverage {
+        areas_with_no_scenario: areas.iter().filter(|a| !a.has_scenario).count(),
+        areas_total: areas.len(),
+        areas,
+    }
+}
+
+/// A status and its own evidence, plus the per-id mark on `covered`. The
+/// drift gate has already established that every cited id exists in the tree,
+/// so an id missing from the report reads as "exists, and this run did not
+/// exercise it" and as nothing else.
+fn build_evidence<'a>(status: &'a Status, exercised: &BTreeSet<&str>) -> Evidence<'a> {
+    match status {
+        Status::Covered { scenarios } => Evidence::Covered {
+            scenarios: scenarios
+                .iter()
+                .map(|id| CitedId {
+                    id,
+                    exercised: exercised.contains(id.as_str()),
+                })
+                .collect(),
+        },
+        Status::Uncovered { blocked_by } => Evidence::Uncovered {
+            blocked_by: blocked_by.as_deref(),
+        },
+        Status::ProductBlocked { reason, zs } => Evidence::ProductBlocked {
+            reason,
+            zs: zs.as_deref(),
+        },
+        Status::Excluded { reason } => Evidence::Excluded { reason },
+    }
+}
+
+/// The whole page for one page model.
+pub fn render(model: &PageModel) -> String {
     let mut page = Page::new();
     page.raw(
         r#"<!doctype html>
@@ -153,9 +365,9 @@ pub fn render(report: &Report, ledger: &Ledger) -> String {
 <body>
 "#,
     );
-    render_header(&mut page, report);
-    render_coverage(&mut page, report, ledger);
-    render_results(&mut page, report);
+    render_header(&mut page, &model.header);
+    render_coverage(&mut page, &model.coverage);
+    render_results(&mut page, &model.results);
     page.raw(
         r#"</body>
 </html>
@@ -164,74 +376,71 @@ pub fn render(report: &Report, ledger: &Ledger) -> String {
     page.finish()
 }
 
+/// One header field that is nothing more than a literal label and a plain
+/// `&str` value: closes the previous `<dd>`, opens `<dt>label</dt><dd>`, and
+/// writes `value` through the page's own escaping writer. Every field with
+/// anything else — an `Option`, a list, the judge's three-state, a formatted
+/// number, a yes/no ternary — keeps its own call site rather than going
+/// through here.
+fn field(page: &mut Page, label: &'static str, value: &str) {
+    page.raw("</dd>\n<dt>");
+    page.raw(label);
+    page.raw("</dt><dd>");
+    page.text(value);
+}
+
 /// The run's identity, read back field by field with no inference, no
 /// defaulting, and no computed substitute (spec: "The header reads report
-/// fields back without deriving them"; design D5). Every value here is
-/// `report`'s own, verbatim; the only choice this function makes is how to
+/// fields back without deriving them"; design D5). Every value here is the
+/// report's own, verbatim; the only choice this function makes is how to
 /// spell an absent or empty one so the two are never confused.
-fn render_header(page: &mut Page, report: &Report) {
+///
+/// The audit rows are the one thing here that is not the report's: they are
+/// the ledger's `audited_against` beside the version this run measured, and
+/// they sit next to `zerostack` so the two strings are read together
+/// ([`render_audit`], design D3).
+fn render_header(page: &mut Page, header: &Header) {
     page.raw(
         r#"<section id="header">
 <h1>zseval</h1>
 <dl>
 <dt>zerostack</dt><dd>"#,
     );
-    page.text(&report.zs_version);
-    page.raw(
-        r#"</dd>
-<dt>binary sha256</dt><dd>"#,
-    );
-    page.text(&report.zs_bin_sha256);
-    page.raw(
-        r#"</dd>
-<dt>binary path</dt><dd>"#,
-    );
-    page.text(&report.zs_bin_path);
+    page.text(header.zs_version);
+    page.raw("</dd>\n");
+    render_audit(page, header);
+    page.raw("<dt>binary sha256</dt><dd>");
+    page.text(header.zs_bin_sha256);
+    field(page, "binary path", header.zs_bin_path);
     page.raw(
         r#"</dd>
 <dt>git sha</dt><dd>"#,
     );
-    render_opt_str(page, report.git_sha.as_deref());
+    render_opt_str(page, header.git_sha);
     page.raw(
         r#"</dd>
 <dt>features</dt><dd>"#,
     );
-    render_opt_list(page, report.features.as_deref());
-    page.raw(
-        r#"</dd>
-<dt>model</dt><dd>"#,
-    );
-    page.text(&report.model);
-    page.raw(
-        r#"</dd>
-<dt>backend</dt><dd>"#,
-    );
-    page.text(&report.backend);
-    page.raw(
-        r#"</dd>
-<dt>target</dt><dd>"#,
-    );
-    page.text(&report.target);
-    page.raw(
-        r#"</dd>
-<dt>timestamp</dt><dd>"#,
-    );
-    page.text(&report.timestamp);
+    render_opt_list(page, header.features);
+    field(page, "model", header.model);
+    field(page, "backend", header.backend);
+    field(page, "target", header.target);
+    field(page, "timestamp", header.timestamp);
     page.raw(
         r#"</dd>
 <dt>trials</dt><dd>"#,
     );
-    page.text(&report.trials.to_string());
+    page.text(&header.trials.to_string());
     page.raw(
         r#"</dd>
 <dt>total cost</dt><dd>"#,
     );
-    page.text(&format!("${:.4}", report.summary.total_cost_usd));
+    page.text(&format!("${:.4}", header.total_cost_usd));
     page.raw(
         r#"</dd>
 <dt>budget truncated</dt><dd>"#,
     );
-    page.raw(if report.budget_truncated { "yes" } else { "no" });
+    page.raw(if header.budget_truncated { "yes" } else { "no" });
     page.raw(
         r#"</dd>
 <dt>configured</dt><dd>"#,
@@ -239,20 +448,50 @@ fn render_header(page: &mut Page, report: &Report) {
     // The judge is two facts, never collapsed into one (design D5): what the
     // run was told to grade with (`judge_file`, `judge_hash`), labelled apart
     // from what actually graded (`judge_model`) below.
-    page.text(&report.judge_file);
+    page.text(header.judge_file);
     page.raw(" (hash: ");
-    render_opt_str(page, report.judge_hash.as_deref());
+    render_opt_str(page, header.judge_hash);
     page.raw(
         r#")</dd>
 <dt>graded by</dt><dd>"#,
     );
-    render_judge_model(page, report.judge_model.as_deref());
+    render_judge_model(page, header.judge_model);
     page.raw(
         r#"</dd>
 </dl>
 </section>
 "#,
     );
+}
+
+/// The ledger's age against this run, disclosed on the page and never fatal
+/// (spec: "An `audited_against` mismatch is disclosed, never fatal"; design
+/// D3). Both strings appear, each labelled as what it is: the version the
+/// ledger's judgments were made against, and the version this run measured.
+///
+/// The agreeing sentence is scoped to the version deliberately. The comparison
+/// behind it is containment with a boundary rule, so the strongest thing it
+/// supports is that the two name one version — not that the ledger's prose is
+/// current, which no comparison on this page can establish.
+fn render_audit(page: &mut Page, header: &Header) {
+    page.raw("<dt>ledger audited against</dt><dd>");
+    page.text(header.audit.audited_against);
+    page.raw(
+        r#"</dd>
+<dt>audit vs this run</dt><dd>"#,
+    );
+    if header.audit.agrees {
+        page.raw(
+            "the version this run measured names it, so the audit and the run agree on the version",
+        );
+    } else {
+        page.raw("the version this run measured (");
+        page.text(header.zs_version);
+        page.raw(
+            ") does not name it, so the ledger's judgments were made against a different build",
+        );
+    }
+    page.raw("</dd>\n");
 }
 
 /// A `null` field reads as "not provided", distinct from a value that is
@@ -293,39 +532,37 @@ fn render_judge_model(page: &mut Page, value: Option<&[String]>) {
 /// and every claim under the status it carries (spec: "The coverage section
 /// shows every area and no percentage").
 ///
-/// The section derives exactly one thing, and it derives it from `report`
-/// rather than from the ledger: which of a `covered` claim's cited ids this
-/// run did not exercise (design D6). Everything else is a read-back, which is
-/// why an area no scenario touches still gets its row — that row is the fact a
-/// suite-derived count structurally cannot state, and dropping it is the
-/// failure this whole capability exists to prevent.
-fn render_coverage(page: &mut Page, report: &Report, ledger: &Ledger) {
-    let exercised: BTreeSet<&str> = report.scenarios.iter().map(|s| s.id.as_str()).collect();
+/// Nothing is derived here: the marks and the headline count came off
+/// [`build_coverage`], so the page and `--json` state one set of facts. Every
+/// area gets its row, including the ones no scenario touches — that row is the
+/// fact a suite-derived count structurally cannot state, and dropping it is
+/// the failure this whole capability exists to prevent.
+fn render_coverage(page: &mut Page, coverage: &Coverage) {
     page.raw(
         r#"<section id="coverage">
 <h2>Coverage</h2>
 "#,
     );
-    render_headline(page, ledger);
+    render_headline(page, coverage);
     // File order is presentation order: nothing here sorts.
-    for area in ledger.areas() {
+    for area in &coverage.areas {
         page.raw("<h3>");
-        page.text(&area.title);
+        page.text(area.title);
         // The headline counts these areas; naming them where they sit is what
         // lets a reader find the ones it counted.
-        if !has_scenario(area) {
+        if !area.has_scenario {
             page.raw(r#" <span class="mark">no scenario at all</span>"#);
         }
         page.raw("</h3>\n<ul class=\"claims\">\n");
         for claim in &area.claims {
             page.raw(r#"<li><span class="status">"#);
-            page.raw(status_label(&claim.status));
+            page.raw(status_label(&claim.evidence));
             page.raw("</span> ");
-            page.text(&claim.claim);
-            render_evidence(page, &claim.status, &exercised);
+            page.text(claim.claim);
+            render_evidence(page, &claim.evidence);
             // Free text on any status, so it is rendered outside the match
             // rather than repeated in four arms.
-            if let Some(note) = &claim.note {
+            if let Some(note) = claim.note {
                 page.raw("\n<p class=\"evidence\">note: ");
                 page.text(note);
                 page.raw("</p>");
@@ -342,12 +579,11 @@ fn render_coverage(page: &mut Page, report: &Report, ledger: &Ledger) {
 /// anywhere else on the page (design D12): fine-grained `covered` claims sit
 /// beside coarse `uncovered` ones, so a rate over them moves when the author
 /// re-slices a claim, while this count does not.
-fn render_headline(page: &mut Page, ledger: &Ledger) {
-    let empty = ledger.areas().iter().filter(|a| !has_scenario(a)).count();
+fn render_headline(page: &mut Page, coverage: &Coverage) {
     page.raw(r#"<p class="headline">Areas with no scenario at all: "#);
-    page.text(&empty.to_string());
+    page.text(&coverage.areas_with_no_scenario.to_string());
     page.raw(" of ");
-    page.text(&ledger.areas().len().to_string());
+    page.text(&coverage.areas_total.to_string());
     page.raw(".</p>\n");
 }
 
@@ -365,49 +601,49 @@ fn has_scenario(area: &Area) -> bool {
 /// The status, in the ledger's own vocabulary, so a reader of the page and a
 /// reader of `coverage.toml` use one word for one thing. `&'static str`, so
 /// the label enters the buffer as markup does.
-fn status_label(status: &Status) -> &'static str {
-    match status {
-        Status::Covered { .. } => "covered",
-        Status::Uncovered { .. } => "uncovered",
-        Status::ProductBlocked { .. } => "product-blocked",
-        Status::Excluded { .. } => "excluded",
+fn status_label(evidence: &Evidence) -> &'static str {
+    match evidence {
+        Evidence::Covered { .. } => "covered",
+        Evidence::Uncovered { .. } => "uncovered",
+        Evidence::ProductBlocked { .. } => "product-blocked",
+        Evidence::Excluded { .. } => "excluded",
     }
 }
 
 /// The evidence a status owes, and only that. The match is exhaustive over
-/// `Status` on purpose: each variant carries its own fields and no others, so
-/// a fifth status could not be added without deciding here what it shows.
+/// `Evidence` on purpose: each variant carries its own fields and no others,
+/// so a fifth status could not be added without deciding here what it shows.
 ///
 /// `uncovered`'s `blocked_by` is the one field whose *presence* is the fact,
 /// so a claim without one renders nothing rather than an empty label: the
 /// absence says the claim is buildable today and simply unbuilt.
-fn render_evidence(page: &mut Page, status: &Status, exercised: &BTreeSet<&str>) {
-    match status {
-        Status::Covered { scenarios } => {
+fn render_evidence(page: &mut Page, evidence: &Evidence) {
+    match evidence {
+        Evidence::Covered { scenarios } => {
             page.raw("\n<ul class=\"ids\">\n");
-            for id in scenarios {
+            for cited in scenarios {
                 page.raw("<li><code>");
-                page.text(id);
+                page.text(cited.id);
                 page.raw("</code>");
                 // Derived from this report, never recorded in the ledger
                 // (design D6). The drift gate has already established that
                 // every cited id exists in the tree, so "exists, and this run
                 // did not exercise it" is the only reading left.
-                if !exercised.contains(id.as_str()) {
+                if !cited.exercised {
                     page.raw(r#" <span class="mark">not exercised by this run</span>"#);
                 }
                 page.raw("</li>\n");
             }
             page.raw("</ul>");
         }
-        Status::Uncovered { blocked_by } => {
+        Evidence::Uncovered { blocked_by } => {
             if let Some(blocked_by) = blocked_by {
                 page.raw("\n<p class=\"evidence\">blocked by: ");
                 page.text(blocked_by);
                 page.raw("</p>");
             }
         }
-        Status::ProductBlocked { reason, zs } => {
+        Evidence::ProductBlocked { reason, zs } => {
             page.raw("\n<p class=\"evidence\">");
             page.text(reason);
             page.raw("</p>");
@@ -417,7 +653,7 @@ fn render_evidence(page: &mut Page, status: &Status, exercised: &BTreeSet<&str>)
                 page.raw("</p>");
             }
         }
-        Status::Excluded { reason } => {
+        Evidence::Excluded { reason } => {
             page.raw("\n<p class=\"evidence\">");
             page.text(reason);
             page.raw("</p>");
@@ -425,7 +661,7 @@ fn render_evidence(page: &mut Page, status: &Status, exercised: &BTreeSet<&str>)
     }
 }
 
-/// This run's scenario table: `matrix`'s own model builder over the one report
+/// This run's scenario table: `matrix`'s own model, built over the one report
 /// the page describes, rendered by the HTML renderer that lives beside
 /// `matrix`'s other two (design D4, spec: "The results section reuses the
 /// matrix model and its meanings").
@@ -435,13 +671,13 @@ fn render_evidence(page: &mut Page, status: &Status, exercised: &BTreeSet<&str>)
 /// and the footer-excluded disclosure all keep the meanings `matrix-render`
 /// defines for them, because this computes none of them: a second, differently
 /// defined pass rate is exactly what going through `matrix::build` refuses.
-fn render_results(page: &mut Page, report: &Report) {
+fn render_results(page: &mut Page, results: &Matrix) {
     page.raw(
         r#"<section id="results">
 <h2>Results</h2>
 "#,
     );
-    crate::matrix::render_html(page, &crate::matrix::build(&[report]));
+    crate::matrix::render_html(page, results);
     page.raw(
         r#"</section>
 "#,
@@ -587,6 +823,27 @@ mod tests {
         )])
     }
 
+    /// The rendered page for one report and one ledger — the two steps a
+    /// caller takes (`build` then `render`) in the one order they take them,
+    /// so a test asserts on the page a `site` run would have written.
+    fn page_of(report: &Report, ledger: &Ledger) -> String {
+        render(&build(report, ledger))
+    }
+
+    /// The `<dd>` a header row's `<dt>` label carries, so one row can be
+    /// asserted on without matching the whole page.
+    fn dd<'a>(page: &'a str, label: &str) -> &'a str {
+        let open = format!("<dt>{label}</dt><dd>");
+        let at = page
+            .find(&open)
+            .unwrap_or_else(|| panic!("no {label} row:\n{page}"));
+        let rest = &page[at + open.len()..];
+        let end = rest
+            .find("</dd>")
+            .unwrap_or_else(|| panic!("the {label} row never closes:\n{page}"));
+        &rest[..end]
+    }
+
     /// The list item a covered claim's cited `id` was rendered into, so a
     /// per-id mark can be asserted against the id it attaches to rather than
     /// against the page as a whole.
@@ -622,7 +879,7 @@ mod tests {
     #[test]
     fn a_hostile_version_banner_is_escaped_in_the_page() {
         let banner = "<script>alert('zs')</script>";
-        let page = render(&report(banner), &ledger("that measures the OS."));
+        let page = page_of(&report(banner), &ledger("that measures the OS."));
         assert!(
             page.contains("&lt;script&gt;alert(&#39;zs&#39;)&lt;/script&gt;"),
             "the escaped banner is not in the page:\n{page}"
@@ -636,7 +893,7 @@ mod tests {
     #[test]
     fn ledger_prose_is_escaped_in_the_page() {
         let reason = "that measures the OS <not> zerostack, & it's \"theirs\".";
-        let page = render(&report("zerostack 1.7.2"), &ledger(reason));
+        let page = page_of(&report("zerostack 1.7.2"), &ledger(reason));
         assert!(
             page.contains(
                 "that measures the OS &lt;not&gt; zerostack, &amp; it&#39;s &quot;theirs&quot;."
@@ -651,7 +908,7 @@ mod tests {
 
     #[test]
     fn the_page_runs_header_then_coverage_then_results() {
-        let page = render(&report("zerostack 1.7.2"), &ledger("that measures the OS."));
+        let page = page_of(&report("zerostack 1.7.2"), &ledger("that measures the OS."));
         assert!(page.starts_with("<!doctype html>"), "no doctype:\n{page}");
         let at = |id: &str| {
             page.find(id)
@@ -672,7 +929,7 @@ mod tests {
     fn an_unavailable_build_fact_is_not_shown_as_empty() {
         // `report("...")`'s `ZsIdentity` defaults `git_sha` and `features` to
         // `None`, the same as today's real binary (design D5).
-        let page = render(&report("zerostack 1.7.2"), &ledger("that measures the OS."));
+        let page = page_of(&report("zerostack 1.7.2"), &ledger("that measures the OS."));
         assert!(
             page.contains("<dt>git sha</dt><dd>not provided</dd>"),
             "git_sha did not render as not provided:\n{page}"
@@ -698,7 +955,7 @@ mod tests {
             },
             vec![],
         );
-        let page = render(&report, &ledger("that measures the OS."));
+        let page = page_of(&report, &ledger("that measures the OS."));
         assert!(
             page.contains("<dt>configured</dt><dd>judges/opus.toml (hash: abc123)</dd>"),
             "the configured judge (file and hash) is not shown:\n{page}"
@@ -725,7 +982,7 @@ mod tests {
             },
             vec![],
         );
-        let page = render(&report, &ledger("that measures the OS."));
+        let page = page_of(&report, &ledger("that measures the OS."));
         assert!(
             page.contains("<dt>graded by</dt><dd>nothing was graded</dd>"),
             "nothing-graded did not render distinctly from unknown:\n{page}"
@@ -750,6 +1007,58 @@ mod tests {
         );
     }
 
+    // 5.1 — a `--backend mock` report records `mock` as its banner, so it
+    // mismatches the ledger's `audited_against` by construction (design D3).
+    // The page discloses it instead of refusing to render: both strings
+    // appear, each labelled as what it is.
+    #[test]
+    fn a_version_mismatch_states_both_strings_and_which_is_which() {
+        let page = page_of(&report("mock"), &ledger("that measures the OS."));
+        assert_eq!(
+            dd(&page, "zerostack"),
+            "mock",
+            "the version this run measured is not shown:\n{page}"
+        );
+        assert_eq!(
+            dd(&page, "ledger audited against"),
+            "1.7.2",
+            "the version the ledger's judgments were made against is not shown:\n{page}"
+        );
+        let audit = dd(&page, "audit vs this run");
+        assert!(
+            audit.contains("mock"),
+            "the mismatch does not name what this run measured:\n{page}"
+        );
+        assert!(
+            audit.contains("different build"),
+            "the mismatch is not stated as a mismatch:\n{page}"
+        );
+    }
+
+    // 5.1 — the other side of the same disclosure: the comparison is
+    // containment (`Ledger::audit_matches`), so agreement is stated about the
+    // version and nothing more. "The ledger is up to date" is the claim
+    // containment cannot support — the audit's prose can be stale against a
+    // build it was made on.
+    #[test]
+    fn a_matching_version_is_shown_as_agreeing_and_claims_nothing_more() {
+        let page = page_of(&report("zerostack 1.7.2"), &ledger("that measures the OS."));
+        assert_eq!(
+            dd(&page, "ledger audited against"),
+            "1.7.2",
+            "the version the ledger's judgments were made against is not shown:\n{page}"
+        );
+        let audit = dd(&page, "audit vs this run");
+        assert!(
+            audit.contains("agree on the version"),
+            "a matching version is not shown as agreeing:\n{page}"
+        );
+        assert!(
+            !audit.contains("up to date"),
+            "the page claims more than containment supports:\n{page}"
+        );
+    }
+
     #[test]
     fn budget_truncated_is_visible() {
         let report = Report::build(
@@ -763,7 +1072,7 @@ mod tests {
             },
             vec![],
         );
-        let page = render(&report, &ledger("that measures the OS."));
+        let page = page_of(&report, &ledger("that measures the OS."));
         assert!(
             page.contains("<dt>budget truncated</dt><dd>yes</dd>"),
             "budget_truncated=true is not visible:\n{page}"
@@ -796,7 +1105,7 @@ mod tests {
                 )],
             ),
         ]);
-        let page = render(&report_running(&["prompts/ask"]), &ledger);
+        let page = page_of(&report_running(&["prompts/ask"]), &ledger);
         assert!(
             page.contains("Permission layer"),
             "an area with no covered claim was dropped:\n{page}"
@@ -838,14 +1147,14 @@ mod tests {
                 .unwrap_or_else(|| panic!("no area {title}:\n{page}"))
         };
 
-        let page = render(&report_running(&[]), &ledger_of(areas.clone()));
+        let page = page_of(&report_running(&[]), &ledger_of(areas.clone()));
         assert!(
             at(&page, "Session") < at(&page, "Hooks") && at(&page, "Hooks") < at(&page, "Memory"),
             "the section did not follow the ledger's order:\n{page}"
         );
 
         let reversed: Vec<Area> = areas.into_iter().rev().collect();
-        let page = render(&report_running(&[]), &ledger_of(reversed));
+        let page = page_of(&report_running(&[]), &ledger_of(reversed));
         assert!(
             at(&page, "Memory") < at(&page, "Hooks") && at(&page, "Hooks") < at(&page, "Session"),
             "reordering the ledger did not reorder the section:\n{page}"
@@ -871,7 +1180,7 @@ mod tests {
                 vec![uncovered("a deny rule still denies", None)],
             ),
         ]);
-        let page = render(&report_running(&["prompts/ask"]), &ledger);
+        let page = page_of(&report_running(&["prompts/ask"]), &ledger);
         let at = page
             .find("</style>")
             .unwrap_or_else(|| panic!("no stylesheet:\n{page}"));
@@ -897,7 +1206,7 @@ mod tests {
                 &["prompts/ask", "prompts/plan", "prompts/edit"],
             )],
         )]);
-        let page = render(&report_running(&["prompts/ask", "prompts/edit"]), &ledger);
+        let page = page_of(&report_running(&["prompts/ask", "prompts/edit"]), &ledger);
 
         const MARK: &str = "not exercised by this run";
         assert!(
@@ -948,7 +1257,7 @@ mod tests {
                 ),
             ],
         )]);
-        let page = render(&report_running(&["sandbox/confine"]), &ledger);
+        let page = page_of(&report_running(&["sandbox/confine"]), &ledger);
 
         assert!(
             page.contains("sandbox/confine"),
@@ -985,7 +1294,7 @@ mod tests {
 
     #[test]
     fn the_page_references_nothing_external() {
-        let page = render(&report("zerostack 1.7.2"), &ledger("that measures the OS."));
+        let page = page_of(&report("zerostack 1.7.2"), &ledger("that measures the OS."));
         // The counterweight to the absences below: a page with no styling at
         // all would satisfy every one of them.
         assert!(page.contains("<style>"), "the CSS is not inline:\n{page}");

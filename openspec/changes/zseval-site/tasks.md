@@ -29,11 +29,11 @@
 
 ## 5. The `site` subcommand: gates, exit codes, `--json` [dispatch: sai-hu, parallel: no, reason: the two failure modes are deliberately unlike each other (drift aborts, a version mismatch discloses) and are the easiest part of the spec to implement backwards; the ordering guarantee that nothing is written before the gate passes is also load-bearing]
 
-- [ ] 5.1 Write the failing tests first, one per spec scenario: a ledger citing a nonexistent id exits 2 naming the id with no file written at `--out`; a tree holding an unclaimed scenario exits 2 the same way; a `--backend mock` report whose `zs_version` is `mock` exits 0 with both version strings shown and labelled; a matching version is shown as agreeing without claiming more than containment supports; a missing ledger exits 2; no input produces exit 1. Cite red output.
-- [ ] 5.2 Add the subcommand: positional `<report.json>`, required `--out <file>`, `--json`, and `--ledger <path>` documented as a test override rather than a general option. Usage errors exit 2, matching the CLI's existing flag-parsing conventions.
-- [ ] 5.3 Implement the order and hold it: load the report, load the ledger, run `Ledger::check_drift`, build the model, render, then write. Nothing reaches `--out` before the drift gate passes.
-- [ ] 5.4 Implement `--json` to emit the page model (header read-back, coverage rows with their marks, the `Matrix`) to stdout, with `--out` still required and still written.
-- [ ] 5.5 Evidence: 5.1 green, and a manual run showing the mock-report page written with the mismatch visible.
+- [x] 5.1 Write the failing tests first, one per spec scenario: a ledger citing a nonexistent id exits 2 naming the id with no file written at `--out`; a tree holding an unclaimed scenario exits 2 the same way; a `--backend mock` report whose `zs_version` is `mock` exits 0 with both version strings shown and labelled; a matching version is shown as agreeing without claiming more than containment supports; a missing ledger exits 2; no input produces exit 1. Cite red output.
+- [x] 5.2 Add the subcommand: positional `<report.json>`, required `--out <file>`, `--json`, and `--ledger <path>` documented as a test override rather than a general option. Usage errors exit 2, matching the CLI's existing flag-parsing conventions.
+- [x] 5.3 Implement the order and hold it: load the report, load the ledger, run `Ledger::check_drift`, build the model, render, then write. Nothing reaches `--out` before the drift gate passes.
+- [x] 5.4 Implement `--json` to emit the page model (header read-back, coverage rows with their marks, the `Matrix`) to stdout, with `--out` still required and still written.
+- [x] 5.5 Evidence: 5.1 green, and a manual run showing the mock-report page written with the mismatch visible.
 
 ## 6. Docs, integration test, and verification [dispatch: too-te, parallel: no, reason: mechanical work against criteria this document already states]
 

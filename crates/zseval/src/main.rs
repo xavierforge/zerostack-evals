@@ -8,6 +8,8 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use anyhow::Context;
+
 use zseval::backend::{AgentBackend, Mock, ZsCli};
 use zseval::compare::{compare, load_report, print_human};
 use zseval::runner::{run_suite, RunOptions};
@@ -30,6 +32,7 @@ fn main() -> ExitCode {
         "list" => cmd_list(rest),
         "regrade" => cmd_regrade(rest),
         "matrix" => cmd_matrix(rest),
+        "site" => cmd_site(rest),
         "-h" | "--help" | "help" => {
             println!("{USAGE}");
             Ok(ExitCode::SUCCESS)
@@ -988,6 +991,129 @@ fn cmd_matrix(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     Ok(ExitCode::from(if any_fully_ungradable { 2 } else { 0 }))
 }
 
+/// `site <report.json> --out <file>`: the single-file page, from one report
+/// and the coverage ledger. Makes no API call, invokes no backend and grades
+/// nothing, so it costs nothing and runs offline.
+fn cmd_site(rest: Vec<String>) -> anyhow::Result<ExitCode> {
+    site_to(rest, &mut std::io::stdout())
+}
+
+/// The ledger the page is read against, relative to the repository root
+/// (design D10). `--ledger` overrides it for tests; it is not a general
+/// option, and the repo root the drift check walks is derived from whichever
+/// of the two is in play, so a fixture ledger is checked against the fixture
+/// tree beside it.
+const COVERAGE_LEDGER: &str = "scenarios/coverage.toml";
+
+/// Writes `page` at `out_path` without ever leaving a truncated file there.
+/// `page` is written to a sibling `out_path`-plus-`.tmp` path first, then
+/// renamed over `out_path` — a rename is atomic within one directory, so
+/// `out_path` only ever holds a complete page or whatever it held before this
+/// call. A failure at either step names `out_path` (not the temp path, which
+/// is an implementation detail no caller should need to know), and best-effort
+/// removes the temp file so a failed run does not leave one behind.
+fn write_page_atomically(out_path: &str, page: &str) -> anyhow::Result<()> {
+    let tmp_path = format!("{out_path}.tmp");
+    let result = std::fs::write(&tmp_path, page)
+        .with_context(|| format!("site: write the page to {out_path}"))
+        .and_then(|()| {
+            std::fs::rename(&tmp_path, out_path)
+                .with_context(|| format!("site: write the page to {out_path}"))
+        });
+    if result.is_err() {
+        std::fs::remove_file(&tmp_path).ok();
+    }
+    result
+}
+
+/// `site`'s body, with the `--json` model's destination passed in: the caller
+/// gives `stdout()` in production and a `Vec<u8>` in tests, which is how the
+/// emitted model is asserted on without a subprocess.
+///
+/// The order below is the contract, not an implementation detail (spec: "The
+/// drift check gates generation"): load the report, load the ledger, run the
+/// drift check, build the model, render it, write it, and only then emit the
+/// `--json` model. A ledger that disagrees with the tree would make the
+/// coverage section describe scenarios that do not exist, and a false page is
+/// worse than no page — so `--out` must still hold whatever it held before a
+/// failed run, including nothing.
+///
+/// Every failure here leaves the command with anyhow's exit 2, and there is no
+/// path to exit 1: `site` is a view, not a gate (design D1). Low pass rates, a
+/// fully ungradable report and a stale `audited_against` are things the page
+/// reports, never things that fail the command.
+fn site_to(rest: Vec<String>, out: &mut impl std::io::Write) -> anyhow::Result<ExitCode> {
+    let f = parse_flags(rest, &["out", "ledger"], &["json"])?;
+    let report_path = match f.positional.as_slice() {
+        [one] => one.clone(),
+        [] => anyhow::bail!("site: need one <report.json> path"),
+        many => anyhow::bail!(
+            "site: takes exactly one <report.json>, given {}: a page describes one run — render \
+             each report separately",
+            many.len()
+        ),
+    };
+    let out_path = f.get("out").ok_or_else(|| {
+        anyhow::anyhow!("site: --out <file> is required: writing the page is what `site` does")
+    })?;
+
+    let report = load_report(Path::new(&report_path))?;
+
+    // Resolved before it is read, because the drift check walks the ledger's
+    // `scenario_roots` from the repository root, and the root is the directory
+    // holding the ledger's own directory (`scenarios/coverage.toml`). That is
+    // what lets `--ledger` point at a fixture and have the check run against
+    // the tree beside that fixture rather than against this repo's.
+    let given = f.get("ledger").unwrap_or(COVERAGE_LEDGER);
+    let ledger_path = std::fs::canonicalize(given)
+        .with_context(|| format!("site: read the coverage ledger {given}"))?;
+    let repo_root = ledger_path.parent().and_then(Path::parent).ok_or_else(|| {
+        anyhow::anyhow!(
+            "site: the coverage ledger {} has no containing repository root — it is read as \
+             <root>/scenarios/coverage.toml, and the drift check walks its scenario_roots from \
+             <root>",
+            ledger_path.display()
+        )
+    })?;
+    let ledger = zseval::coverage::Ledger::load(&ledger_path)?;
+    ledger.check_drift(repo_root)?;
+
+    let model = zseval::site::build(&report, &ledger);
+    // The page is written first, and its writing is not gated on the health of
+    // stdout: writing the page is what the subcommand is for (design D2), so a
+    // downstream reader that stops reading the `--json` model (`| head`) must
+    // not be able to leave `--out` empty. Still strictly after the drift gate
+    // above — nothing reaches `--out` before that passes.
+    //
+    // Written to a sibling temp path and renamed over `--out` rather than
+    // written in place: plain `std::fs::write` truncates the destination
+    // before writing a single byte of the new contents, so a write that fails
+    // partway (ENOSPC, EIO) would leave a truncated page where a good one may
+    // have stood. The rename is atomic within one directory, so `--out` only
+    // ever holds a whole page or whatever it held before this run.
+    write_page_atomically(out_path, &zseval::site::render(&model))?;
+    // `--json` emits the model, never the rendered form — the same meaning it
+    // carries for `matrix` — and it does not stand in for `--out` (design D2).
+    //
+    // A failed emission is exit 2 even though the page now exists on disk.
+    // With `--json` the command owes two things (spec: "prints the page model
+    // as JSON to stdout, and still writes the HTML to `--out`"), and a machine
+    // handed a truncated model must not read exit 0 as "this model is
+    // complete". The exit contract's own reason for existing is that what the
+    // page *says* never decides the exit — a low pass rate, a fully ungradable
+    // report and a stale ledger are all exit 0 — and this is an I/O failure on
+    // a promised channel, the same category as "the output path cannot be
+    // written". 2 is the only nonzero code `site` has; there is still no
+    // exit 1. The error names the page as written so the operator knows the
+    // artifact survived the failure.
+    if f.has("json") {
+        writeln!(out, "{}", serde_json::to_string_pretty(&model)?).with_context(|| {
+            format!("site: emit the page model to stdout (the page at {out_path} was written)")
+        })?;
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
 #[cfg(test)]
 mod judge_flag_tests {
     use super::*;
@@ -1860,5 +1986,499 @@ mod matrix_cmd_tests {
 
         let code = cmd_matrix(vec![path_a]).unwrap();
         assert_eq!(code, ExitCode::from(2));
+    }
+}
+
+#[cfg(test)]
+mod site_cmd_tests {
+    use super::*;
+    use zseval::scenario::Kind;
+    use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult, ZsIdentity};
+
+    fn trial(outcome: Final) -> TrialResult {
+        TrialResult {
+            trial: 0,
+            outcome,
+            reasons: vec![],
+            asserts: vec![],
+            judge: None,
+            judge_file: String::new(),
+            judge_hash: None,
+            judge_model: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            judge_input_tokens: 0,
+            judge_output_tokens: 0,
+            cost_usd: 0.01,
+            wall_secs: 0.0,
+            tool_call_count: 0,
+            run_dir: String::new(),
+        }
+    }
+
+    /// A report naming `zs_version` as its build and holding one graded trial
+    /// per scenario id given.
+    fn report(zs_version: &str, ids: &[&str], outcome: Final) -> Report {
+        Report::build(
+            ReportMeta {
+                tag: "run-a".into(),
+                model: "anthropic/claude-sonnet-4-6".into(),
+                backend: "mock".into(),
+                trials: 1,
+                target: "targets/sonnet.toml".into(),
+                zs: ZsIdentity {
+                    zs_version: zs_version.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ids.iter()
+                .map(|id| {
+                    ScenarioResult::from_trials(
+                        (*id).into(),
+                        Kind::Regression,
+                        vec![trial(outcome)],
+                    )
+                })
+                .collect(),
+        )
+    }
+
+    /// A repo-shaped tempdir: `<root>/scenarios/` holding one scenario per id
+    /// in `tree`, and `<root>/scenarios/coverage.toml` whose one claim cites
+    /// `claimed` (an `uncovered` claim when nothing is cited, since a
+    /// `covered` claim owes at least one id). The ledger sits where the real
+    /// one sits, so `site` resolves the repo root from it exactly as it does
+    /// in production.
+    struct Fixture {
+        root: PathBuf,
+    }
+
+    impl Fixture {
+        fn new(name: &str, tree: &[&str], claimed: &[&str]) -> Fixture {
+            let root =
+                std::env::temp_dir().join(format!("zseval-site-cmd-{name}-{}", std::process::id()));
+            std::fs::remove_dir_all(&root).ok();
+            let scenarios = root.join("scenarios");
+            std::fs::create_dir_all(&scenarios).unwrap();
+            for (n, id) in tree.iter().enumerate() {
+                let dir = scenarios.join(format!("sc{n}"));
+                std::fs::create_dir_all(&dir).unwrap();
+                std::fs::write(
+                    dir.join("scenario.toml"),
+                    format!(
+                        "id = \"{id}\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = \
+                         [\"tool_not_called write\"]\n"
+                    ),
+                )
+                .unwrap();
+            }
+            let claim = if claimed.is_empty() {
+                "status = \"uncovered\"\n".to_string()
+            } else {
+                format!(
+                    "status = \"covered\"\nscenarios = [{}]\n",
+                    claimed
+                        .iter()
+                        .map(|id| format!("\"{id}\""))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            };
+            std::fs::write(
+                scenarios.join("coverage.toml"),
+                format!(
+                    "audited_against = \"1.7.2\"\nscenario_roots = [\"scenarios\"]\n\n\
+                     [[areas]]\nname = \"prompts\"\ntitle = \"Prompt behaviour\"\n\n\
+                     [[areas.claims]]\nclaim = \"ask mode refuses an edit\"\n{claim}"
+                ),
+            )
+            .unwrap();
+            Fixture { root }
+        }
+
+        fn ledger(&self) -> String {
+            self.root
+                .join("scenarios/coverage.toml")
+                .display()
+                .to_string()
+        }
+
+        fn out(&self) -> PathBuf {
+            self.root.join("page.html")
+        }
+
+        fn write_report(&self, r: &Report) -> String {
+            let path = self.root.join("report.json");
+            std::fs::write(&path, serde_json::to_string_pretty(r).unwrap()).unwrap();
+            path.display().to_string()
+        }
+
+        /// The command as a caller spells it: the report, `--out`, and the
+        /// `--ledger` test override pointing at this fixture.
+        fn args(&self, report: &Report) -> Vec<String> {
+            vec![
+                self.write_report(report),
+                "--out".into(),
+                self.out().display().to_string(),
+                "--ledger".into(),
+                self.ledger(),
+            ]
+        }
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.root).ok();
+        }
+    }
+
+    fn run(args: Vec<String>) -> anyhow::Result<ExitCode> {
+        cmd_site(args)
+    }
+
+    // 5.1 — the ledger cites an id no scenario declares: the coverage section
+    // would describe a scenario that does not exist, so the page is refused
+    // before anything is written (spec: "A dead reference aborts before any
+    // output").
+    #[test]
+    fn a_dead_reference_aborts_naming_the_id_and_writes_nothing() {
+        let fx = Fixture::new("dead-ref", &["only"], &["only", "ghost"]);
+        let err = run(fx.args(&report("mock", &["only"], Final::Pass))).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("ghost"),
+            "the dead reference is not named: {msg}"
+        );
+        assert!(
+            !fx.out().exists(),
+            "a file was written at --out despite the drift gate failing"
+        );
+    }
+
+    // 5.1 — the other direction of the same gate: a scenario in the tree that
+    // no covered claim cites (spec: "An unclaimed scenario aborts before any
+    // output").
+    #[test]
+    fn an_unclaimed_scenario_aborts_naming_the_id_and_writes_nothing() {
+        let fx = Fixture::new("unclaimed", &["only", "extra"], &["only"]);
+        let err = run(fx.args(&report("mock", &["only"], Final::Pass))).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("extra"),
+            "the unclaimed scenario is not named: {msg}"
+        );
+        assert!(
+            !fx.out().exists(),
+            "a file was written at --out despite the drift gate failing"
+        );
+    }
+
+    // 5.1 — a `--backend mock` report records `mock`, so it mismatches the
+    // ledger's `audited_against` by construction. That is disclosed on the
+    // page and is never fatal (spec: "A mock report renders with the mismatch
+    // shown"; design D3).
+    #[test]
+    fn a_mock_report_renders_with_the_mismatch_shown_and_exits_0() {
+        let fx = Fixture::new("mock-mismatch", &["only"], &["only"]);
+        let code = run(fx.args(&report("mock", &["only"], Final::Pass))).unwrap();
+        assert_eq!(code, ExitCode::from(0));
+        let page = std::fs::read_to_string(fx.out()).unwrap();
+        assert!(
+            page.contains("<dt>zerostack</dt><dd>mock</dd>"),
+            "the version this run measured is not shown:\n{page}"
+        );
+        assert!(
+            page.contains("<dt>ledger audited against</dt><dd>1.7.2</dd>"),
+            "the version the ledger was audited against is not shown:\n{page}"
+        );
+        assert!(
+            page.contains("different build"),
+            "the mismatch is not stated as one:\n{page}"
+        );
+    }
+
+    // 5.1 — and the agreeing case, which claims only what containment
+    // supports (spec: "A matching version is shown as agreeing").
+    #[test]
+    fn a_matching_version_is_shown_as_agreeing() {
+        let fx = Fixture::new("version-match", &["only"], &["only"]);
+        let code = run(fx.args(&report("zerostack 1.7.2", &["only"], Final::Pass))).unwrap();
+        assert_eq!(code, ExitCode::from(0));
+        let page = std::fs::read_to_string(fx.out()).unwrap();
+        assert!(
+            page.contains("agree on the version"),
+            "the matching version is not shown as agreeing:\n{page}"
+        );
+        assert!(
+            !page.contains("up to date"),
+            "the page claims more than containment supports:\n{page}"
+        );
+    }
+
+    // 5.1 — a page missing its denominator is what this capability exists to
+    // stop shipping, so an unreadable ledger is an error naming the path, not
+    // a page with the coverage section left out (spec: "A missing ledger is
+    // an error").
+    #[test]
+    fn a_missing_ledger_is_an_error_naming_the_path_and_writes_nothing() {
+        let fx = Fixture::new("missing-ledger", &["only"], &["only"]);
+        let missing = fx.root.join("scenarios/absent.toml").display().to_string();
+        let args = vec![
+            fx.write_report(&report("mock", &["only"], Final::Pass)),
+            "--out".into(),
+            fx.out().display().to_string(),
+            "--ledger".into(),
+            missing.clone(),
+        ];
+        let err = run(args).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains(&missing),
+            "the ledger path is not named: {msg}"
+        );
+        assert!(!fx.out().exists(), "a file was written at --out");
+    }
+
+    // 5.1 — the report is the first thing read, and an unreadable one is the
+    // same "could not be written" family as a missing ledger or an
+    // unwritable `--out` (spec: "A page that could not be written exits 2"):
+    // `load_report` already names the path in its own error, so `site` need
+    // not add anything beyond propagating it.
+    #[test]
+    fn a_missing_report_is_an_error_naming_the_path_and_writes_nothing() {
+        let fx = Fixture::new("missing-report", &["only"], &["only"]);
+        let missing = fx.root.join("absent-report.json").display().to_string();
+        let args = vec![
+            missing.clone(),
+            "--out".into(),
+            fx.out().display().to_string(),
+            "--ledger".into(),
+            fx.ledger(),
+        ];
+        let err = run(args).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains(&missing),
+            "the report path is not named: {msg}"
+        );
+        assert!(!fx.out().exists(), "a file was written at --out");
+    }
+
+    // 5.1 — the third "could not be written" cause, and the one that fires
+    // after the report loaded and the drift check passed: an `--out` whose
+    // parent directory does not exist is exit 2 exactly like the other two
+    // (spec: "A page that could not be written exits 2").
+    #[test]
+    fn an_out_path_whose_parent_directory_does_not_exist_is_an_error() {
+        let fx = Fixture::new("missing-out-parent", &["only"], &["only"]);
+        let out = fx.root.join("nope/page.html").display().to_string();
+        let args = vec![
+            fx.write_report(&report("mock", &["only"], Final::Pass)),
+            "--out".into(),
+            out.clone(),
+            "--ledger".into(),
+            fx.ledger(),
+        ];
+        let err = run(args).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains(&out), "the --out path is not named: {msg}");
+    }
+
+    // 5.1 — `site` is a view, not a gate: it has no exit 1 (spec: "`site`
+    // exit codes"; design D1). Neither a report where everything failed nor
+    // one where nothing was gradable is a reason to fail the command — the
+    // second is the case `matrix` deliberately treats differently (it exits 2
+    // there), so a page over it exiting 0 is what makes the rule visible.
+    #[test]
+    fn a_failing_or_ungradable_report_still_exits_0() {
+        let fx = Fixture::new("no-exit-1", &["only"], &["only"]);
+        let code = run(fx.args(&report("mock", &["only"], Final::Fail))).unwrap();
+        assert_eq!(code, ExitCode::from(0), "a failing report did not exit 0");
+
+        let fx = Fixture::new("no-exit-1-holes", &["only"], &["only"]);
+        let code = run(fx.args(&report("mock", &["only"], Final::Indeterminate))).unwrap();
+        assert_eq!(
+            code,
+            ExitCode::from(0),
+            "a fully ungradable report did not exit 0"
+        );
+    }
+
+    // 5.2 — writing the page is what the subcommand is for, so `--out` is
+    // required rather than defaulted (spec: "`site` renders one report and
+    // the ledger into one file"; design D2).
+    #[test]
+    fn out_is_required() {
+        let fx = Fixture::new("out-required", &["only"], &["only"]);
+        let args = vec![
+            fx.write_report(&report("mock", &["only"], Final::Pass)),
+            "--ledger".into(),
+            fx.ledger(),
+        ];
+        let err = run(args).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("--out"),
+            "the usage error is not about --out: {msg}"
+        );
+    }
+
+    // 5.2 — one report, and a typo'd flag fails loudly rather than being
+    // swallowed, as everywhere else in this CLI.
+    #[test]
+    fn usage_errors_are_refused() {
+        let fx = Fixture::new("usage", &["only"], &["only"]);
+        let path = fx.write_report(&report("mock", &["only"], Final::Pass));
+        let out = fx.out().display().to_string();
+
+        let err = run(vec![
+            "--out".into(),
+            out.clone(),
+            "--ledger".into(),
+            fx.ledger(),
+        ])
+        .unwrap_err();
+        assert!(
+            format!("{err:#}").contains("report.json"),
+            "a missing report is not a usage error: {err:#}"
+        );
+
+        let err = run(vec![
+            path.clone(),
+            path.clone(),
+            "--out".into(),
+            out.clone(),
+            "--ledger".into(),
+            fx.ledger(),
+        ])
+        .unwrap_err();
+        assert!(
+            format!("{err:#}").contains("one"),
+            "two reports are not a usage error: {err:#}"
+        );
+
+        let err = run(vec![path, "--out".into(), out, "--htlm".into()]).unwrap_err();
+        assert!(
+            format!("{err:#}").contains("--htlm"),
+            "an unknown flag is not a usage error: {err:#}"
+        );
+    }
+
+    // 5.4 — `--json` emits the page model to stdout and `--out` is still
+    // required and still written (spec: "`site` supports `--json`, which
+    // emits the page model"; design D2). The model carries the coverage marks,
+    // so a machine reads them without parsing the page.
+    #[test]
+    fn json_emits_the_page_model_and_still_writes_the_page() {
+        let fx = Fixture::new("json", &["ran"], &["ran", "never-ran"]);
+        std::fs::create_dir_all(fx.root.join("scenarios/sc1")).unwrap();
+        std::fs::write(
+            fx.root.join("scenarios/sc1/scenario.toml"),
+            "id = \"never-ran\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = \
+             [\"tool_not_called write\"]\n",
+        )
+        .unwrap();
+
+        let mut args = fx.args(&report("mock", &["ran"], Final::Pass));
+        args.push("--json".into());
+        let mut buf: Vec<u8> = Vec::new();
+        let code = site_to(args, &mut buf).unwrap();
+        assert_eq!(code, ExitCode::from(0));
+
+        let model: serde_json::Value = serde_json::from_slice(&buf).unwrap();
+        assert_eq!(model["header"]["zs_version"], "mock");
+        assert_eq!(model["header"]["audit"]["audited_against"], "1.7.2");
+        assert_eq!(model["header"]["audit"]["agrees"], false);
+        assert_eq!(model["coverage"]["areas_total"], 1);
+        let evidence = &model["coverage"]["areas"][0]["claims"][0]["evidence"];
+        assert_eq!(evidence["status"], "covered");
+        assert_eq!(evidence["scenarios"][0]["id"], "ran");
+        assert_eq!(evidence["scenarios"][0]["exercised"], true);
+        assert_eq!(evidence["scenarios"][1]["id"], "never-ran");
+        assert_eq!(evidence["scenarios"][1]["exercised"], false);
+        assert_eq!(model["results"]["rows"][0]["id"], "ran");
+
+        assert!(
+            fx.out().exists(),
+            "--json suppressed the page --out still requires"
+        );
+    }
+
+    /// A stdout that takes `budget` bytes and then refuses: the downstream
+    /// reader of `site --json | head -c 5` closing the pipe once the model
+    /// outgrows it. The partial write before the failure is the point — it is
+    /// what makes the emitted model truncated rather than absent.
+    struct ClosingStdout {
+        budget: usize,
+    }
+
+    impl std::io::Write for ClosingStdout {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.budget == 0 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "the downstream reader closed the pipe",
+                ));
+            }
+            let taken = buf.len().min(self.budget);
+            self.budget -= taken;
+            Ok(taken)
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    // 5.4 — the page is the product, so it is written before the `--json`
+    // model is emitted and never gated on stdout surviving (spec: with
+    // `--json` it "prints the page model as JSON to stdout, and still writes
+    // the HTML to `--out`"; design D2). A reader that stops reading used to
+    // take the page down with it.
+    //
+    // The failed emission is still reported, so the command exits 2 with the
+    // page on disk: `site` owes two things under `--json`, and a machine
+    // handed a truncated model must not read exit 0 as a complete one. There
+    // is still no exit 1 (design D1).
+    #[test]
+    fn a_stdout_that_stops_reading_still_leaves_the_whole_page_at_out() {
+        let fx = Fixture::new("stdout-closes", &["only"], &["only"]);
+        let mut args = fx.args(&report("mock", &["only"], Final::Pass));
+        args.push("--json".into());
+
+        let err = site_to(args, &mut ClosingStdout { budget: 5 }).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("stdout"),
+            "a truncated model emission is not reported: {msg}"
+        );
+
+        let page = std::fs::read_to_string(fx.out()).unwrap();
+        assert!(
+            page.starts_with("<!doctype html>") && page.trim_end().ends_with("</html>"),
+            "the page at --out is missing its start or its end:\n{page}"
+        );
+        assert!(
+            page.contains("<dt>zerostack</dt><dd>mock</dd>"),
+            "the page at --out is not this run's page:\n{page}"
+        );
+    }
+
+    // 5.4 — the same rule where stdout refuses the first byte rather than the
+    // sixth: nothing about the page depends on how far the emission got.
+    #[test]
+    fn a_stdout_that_refuses_every_byte_still_leaves_the_whole_page_at_out() {
+        let fx = Fixture::new("stdout-refuses", &["only"], &["only"]);
+        let mut args = fx.args(&report("mock", &["only"], Final::Pass));
+        args.push("--json".into());
+
+        site_to(args, &mut ClosingStdout { budget: 0 }).unwrap_err();
+
+        let page = std::fs::read_to_string(fx.out()).unwrap();
+        assert!(
+            page.trim_end().ends_with("</html>"),
+            "the page at --out is truncated:\n{page}"
+        );
     }
 }
