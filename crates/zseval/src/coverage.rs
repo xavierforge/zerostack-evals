@@ -26,10 +26,11 @@
 //!     else makes a per-area count ambiguous between three units of coverage
 //!     and one unit cited three times; deliberate overlaps go in `note`, which
 //!     takes no coverage slot.
-//!   - **Every area is exactly one row, and accounts for something.** A name
-//!     declared twice splits one row of the denominator in two, and an area
-//!     with no claims is counted while stating nothing. Neither is visible to a
-//!     test that pins the area set, since sorted names still hold every name.
+//!   - **Every area is exactly one row, is nameable, and accounts for
+//!     something.** A name declared twice splits one row of the denominator in
+//!     two, a row with no name is one nothing can refer to, and an area with no
+//!     claims is counted while stating nothing. None of the three is visible to
+//!     a test that pins the area set, since sorted names still hold every name.
 //!   - **Every root names a tree inside this repo, and no two name one tree.**
 //!     `scenario_roots` is the sole input to the drift check's walk and is
 //!     joined onto the repo root, so an absolute entry walks off the machine's
@@ -64,7 +65,7 @@ use serde::Deserialize;
 
 /// A loaded ledger. Every invariant the schema can carry is already true of a
 /// value of this type: statuses are the closed four, each carries exactly the
-/// evidence its status owes, every area is one row that accounts for
+/// evidence its status owes, every area is one nameable row that accounts for
 /// something, every root names a tree inside this repo and no two name one
 /// tree, and no scenario id backs two covered claims.
 ///
@@ -424,18 +425,29 @@ impl Ledger {
         Ok(())
     }
 
-    /// An area is one row of the denominator, so it must be one row and must
-    /// account for something. Two areas under one name split a row in two while
-    /// the pinned area-set test stays green, since the sorted names still hold
-    /// every expected name; an area with no claims is counted in the denominator
-    /// while stating nothing, and that denominator is the one number this file
-    /// exists to keep honest.
+    /// An area is one row of the denominator, so it must be one row, must be
+    /// nameable, and must account for something. Two areas under one name split
+    /// a row in two while the pinned area-set test stays green, since the sorted
+    /// names still hold every expected name; an area with no name is a row
+    /// nothing can refer to, neither the duplicate rule that compares names nor
+    /// a renderer that prints them; an area with no claims is counted in the
+    /// denominator while stating nothing. That denominator is the one number
+    /// this file exists to keep honest.
     fn check_areas(&self) -> Result<()> {
         let mut seen: Vec<&str> = Vec::new();
         let mut duplicated: Vec<&str> = Vec::new();
         let mut empty: Vec<&str> = Vec::new();
-        for area in &self.areas {
+        // A nameless area is reported by where it sits, since the name is the
+        // only other thing that could point at it, and its remaining faults
+        // wait for the next run: they would be reported under a name that is
+        // not there.
+        let mut unnamed: Vec<String> = Vec::new();
+        for (at, area) in self.areas.iter().enumerate() {
             let name = area.name.as_str();
+            if name.trim().is_empty() {
+                unnamed.push((at + 1).to_string());
+                continue;
+            }
             if seen.contains(&name) && !duplicated.contains(&name) {
                 duplicated.push(name);
             }
@@ -444,7 +456,7 @@ impl Ledger {
                 empty.push(name);
             }
         }
-        if duplicated.is_empty() && empty.is_empty() {
+        if duplicated.is_empty() && empty.is_empty() && unnamed.is_empty() {
             return Ok(());
         }
         let mut msg =
@@ -453,6 +465,12 @@ impl Ledger {
             msg.push_str(&format!(
                 "\n  declared more than once, splitting one row in two: {}",
                 duplicated.join(", ")
+            ));
+        }
+        if !unnamed.is_empty() {
+            msg.push_str(&format!(
+                "\n  carries no name, so nothing can refer to its row (position in file order): {}",
+                unnamed.join(", ")
             ));
         }
         if !empty.is_empty() {
@@ -1037,6 +1055,34 @@ claims = []"#,
         assert!(msg.contains("no claims"), "{msg}");
     }
 
+    /// The name is the row's identity — what the duplicate rule compares and
+    /// what a renderer prints — so a row without one is a row nothing can refer
+    /// to, and the position in file order is all the error has left to name it
+    /// by.
+    #[test]
+    fn an_area_with_no_name_fails_naming_its_position() {
+        let text = ledger(
+            r#"[[areas]]
+name = "permission"
+title = "Permission layer"
+
+[[areas.claims]]
+claim = "ask mode refuses an edit"
+status = "uncovered"
+
+[[areas]]
+name = ""
+title = "Nameless"
+
+[[areas.claims]]
+claim = "a deny rule beats an allow rule"
+status = "uncovered""#,
+        );
+        let msg = err(&text);
+        assert!(msg.contains("no name"), "{msg}");
+        assert!(msg.contains("file order): 2"), "{msg}");
+    }
+
     /// The invariants belong to the type, not to the load path. `Ledger`'s
     /// fields were `pub` with the checks running inside `parse`, so a
     /// hand-constructed value — the natural shape of a renderer's fixture —
@@ -1107,6 +1153,14 @@ claims = []"#,
         let err =
             Ledger::new("1.7.2".to_string(), roots(), vec![area("prompts", vec![])]).unwrap_err();
         assert!(format!("{err:#}").contains("no claims"), "{err:#}");
+
+        let err = Ledger::new(
+            "1.7.2".to_string(),
+            roots(),
+            vec![area("", vec![covered("x", "y")])],
+        )
+        .unwrap_err();
+        assert!(format!("{err:#}").contains("no name"), "{err:#}");
 
         // And a well-formed one still builds, reachable through the accessors.
         let ok = Ledger::new(
