@@ -8,8 +8,10 @@
 //! the ledger's most important row, and a suite-derived count structurally
 //! cannot state it.
 //!
-//! Four rules are load-bearing enough to be enforced here rather than trusted
-//! to the author or re-derived by a renderer:
+//! These rules are load-bearing enough to be enforced here rather than trusted
+//! to the author or re-derived by a renderer. Every one of them belongs to the
+//! type, not to the load path: `Ledger::new` is the only constructor and runs
+//! them all, so a fixture built in code is held to what a file is held to.
 //!
 //!   - **Each status owes its own evidence.** `covered` needs a non-empty
 //!     `scenarios`, `product-blocked` and `excluded` need a `reason`, and
@@ -24,9 +26,16 @@
 //!     else makes a per-area count ambiguous between three units of coverage
 //!     and one unit cited three times; deliberate overlaps go in `note`, which
 //!     takes no coverage slot.
-//!   - **The ledger and the tree are checked in both directions.** A dead
-//!     reference means the ledger cites evidence that no longer exists; an
-//!     unclaimed scenario means the ledger has quietly fallen behind the suite.
+//!   - **Every area is exactly one row, and accounts for something.** A name
+//!     declared twice splits one row of the denominator in two, and an area
+//!     with no claims is counted while stating nothing. Neither is visible to a
+//!     test that pins the area set, since sorted names still hold every name.
+//!   - **The ledger and the tree agree, in every direction.** A dead reference
+//!     means the ledger cites evidence that no longer exists; an unclaimed
+//!     scenario means the ledger has quietly fallen behind the suite; and two
+//!     scenarios sharing one id mean a single claim silently stands in for
+//!     both, which is the third thing "claimed exactly once" forbids and the
+//!     one a membership test cannot see.
 //!
 //! `audited_against` records the zerostack version the judgments were made
 //! against and is compared to a report's `--version` banner by containment
@@ -34,7 +43,10 @@
 //! banner shape never becomes a compatibility contract; a parser here would
 //! sign that contract on the ledger's behalf. The failure direction is
 //! deliberate: a reshaped banner costs a spurious mismatch notice, never a
-//! wrong version claim.
+//! wrong version claim. Holding that second half true takes one rule beyond
+//! plain containment — a hit glued to more version characters is not a hit,
+//! or `1.7.2` would match `zerostack 1.7.20` — and `audit_matches` documents
+//! why that is still not a parse.
 //!
 //! File order is presentation order (safety boundaries first, not
 //! alphabetical), so nothing here sorts and nothing keys areas by name.
