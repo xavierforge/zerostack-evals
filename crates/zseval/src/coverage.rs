@@ -276,8 +276,14 @@ impl Ledger {
         scenario_roots: Vec<String>,
         areas: Vec<Area>,
     ) -> Result<Ledger> {
+        // Trimmed once, here, so every path into a `Ledger` stores the same
+        // value `audit_matches` searches for. Leaving the surrounding
+        // whitespace in place would still pass `check_header`'s emptiness
+        // test — `" 1.7.2 "` is not blank — while `audit_matches` searched a
+        // real banner for the literal spaces and never found them: a page
+        // that reports a version mismatch against every binary, forever.
         let ledger = Ledger {
-            audited_against,
+            audited_against: audited_against.trim().to_string(),
             scenario_roots,
             areas,
         };
@@ -994,6 +1000,29 @@ claim = "ask mode refuses an edit"
 status = "uncovered"
 "#;
         assert!(err(text).contains("audited_against"), "{}", err(text));
+    }
+
+    /// Padding must not survive into the stored value: `check_header` only
+    /// tests emptiness, so a value with only its whitespace trimmed away
+    /// would load clean while `audit_matches` searched a real banner for the
+    /// padding too and never found it.
+    #[test]
+    fn a_padded_audited_against_is_trimmed_before_matching() {
+        let text = r#"
+audited_against = " 1.7.2 "
+scenario_roots = ["scenarios"]
+
+[[areas]]
+name = "permission"
+title = "Permission layer"
+
+[[areas.claims]]
+claim = "ask mode refuses an edit"
+status = "uncovered"
+"#;
+        let l = Ledger::parse(text).unwrap();
+        assert_eq!(l.audited_against(), "1.7.2");
+        assert!(l.audit_matches("zerostack 1.7.2"));
     }
 
     #[test]
