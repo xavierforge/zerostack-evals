@@ -64,6 +64,7 @@ USAGE:
   zseval list [scenarios-root]
   zseval regrade <scenario-dir> <trial-dir> [--judge F] [--no-judge] [--json]
   zseval matrix <report.json>... [--json] [--markdown]
+  zseval site <report.json> --out <file.html> [--json] [--ledger <path>]
 
   --target is a zerostack config.toml (provider + model) seeded into each run's
   isolated config dir — the reproducible way to pick what you evaluate against.
@@ -135,6 +136,20 @@ USAGE:
   records (e.g. experiments/). A report with no target identity, or one that
   shares no scenario id with any other report given, is a usage error (exit
   2) naming the offending file; partial overlap instead renders `-` holes.
+
+  site renders one report plus the coverage ledger (scenarios/coverage.toml)
+  into a single self-contained HTML file: the run's identity, the ledger's
+  coverage (every area, every claim, no percentage), and the scenario table
+  matrix already renders. It makes no API call and invokes no backend or
+  judge — pure rendering, so it costs nothing and runs offline. --out <file>
+  is required (writing the page is what the command is for); --json
+  additionally emits the page model to stdout. The ledger's drift check runs
+  first and aborts before anything is written if the ledger and the scenario
+  tree disagree (exit 2, naming the offending id); a mismatch between the
+  ledger's audited_against and the report's zs_version is shown on the page
+  instead, never fatal. --ledger <path> overrides the ledger site reads
+  (default scenarios/coverage.toml); it exists so tests can point at a
+  fixture without building a whole tree — not a general-purpose option.
 
 ENV:
   ZS_BIN             default path to the zerostack binary

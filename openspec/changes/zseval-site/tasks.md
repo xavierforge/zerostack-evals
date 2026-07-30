@@ -37,8 +37,8 @@
 
 ## 6. Docs, integration test, and verification [dispatch: too-te, parallel: no, reason: mechanical work against criteria this document already states]
 
-- [ ] 6.1 Add `zseval site` to `main.rs`'s usage block and to the README's subcommand documentation, in the shape the neighbouring subcommands use. State that it makes no API call and that `--ledger` is a test override.
-- [ ] 6.2 Add the integration test to `crates/zseval/tests/harness.rs` (not a second test binary, per the 2026-07-23 single-binary decision): drive the real `site` subcommand over a mock-backend report, then assert on the written file's content for one scenario from each of sections 2, 3, and 4.
-- [ ] 6.3 Confirm no dependency was added: `Cargo.toml` and `Cargo.lock` unchanged.
-- [ ] 6.4 Confirm the three counts the page headlines against the real ledger and a real mock run, and cite them.
-- [ ] 6.5 Evidence: `cargo test --workspace` green, `cargo fmt --all --check` clean, `cargo clippy --workspace --all-targets` clean.
+- [x] 6.1 Add `zseval site` to `main.rs`'s usage block and to the README's subcommand documentation, in the shape the neighbouring subcommands use. State that it makes no API call and that `--ledger` is a test override.
+- [x] 6.2 Add the integration test to `crates/zseval/tests/harness.rs` (not a second test binary, per the 2026-07-23 single-binary decision): drive the real `site` subcommand over a mock-backend report, then assert on the written file's content for one scenario from each of sections 2, 3, and 4.
+- [x] 6.3 Confirm no dependency was added: `Cargo.toml` and `Cargo.lock` unchanged.
+- [x] 6.4 Confirm the three counts the page headlines against the real ledger and a real mock run, and cite them.
+- [x] 6.5 Evidence: `cargo test --workspace` green, `cargo fmt --all --check` clean, `cargo clippy --workspace --all-targets` clean.

@@ -4115,3 +4115,101 @@ fn a_malformed_coverage_ledger_does_not_break_a_run() {
     // Unseen, not merely tolerated: nothing the run emits mentions the ledger.
     assert!(!run_err.contains("coverage"), "stderr: {run_err}");
 }
+
+/// zseval-site tasks.md 6.2: `site` driven as a real subprocess over a real
+/// mock-backend report, checked against the committed ledger and scenario
+/// tree — the ledger's first real reader (proposal.md: "coverage-ledger
+/// shipped a written contract with no caller"). One assertion per section
+/// the page renders: header (section 2), coverage (section 3), results
+/// (section 4).
+#[test]
+fn site_renders_a_mock_run_against_the_real_ledger() {
+    let root = repo_root();
+    let sc_dir = scenarios_root().join("prompts/ask-readonly");
+    let results = std::env::temp_dir().join(format!(
+        "zseval-test-site-cmd-results-{}",
+        std::process::id()
+    ));
+    let out_path = std::env::temp_dir().join(format!(
+        "zseval-test-site-cmd-page-{}.html",
+        std::process::id()
+    ));
+    std::fs::remove_dir_all(&results).ok();
+    std::fs::remove_file(&out_path).ok();
+
+    let ran = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            sc_dir.to_str().unwrap(),
+            "--backend",
+            &format!("mock={}", fixture("session-ask-readonly.json").display()),
+            "--trials",
+            "1",
+            "--no-judge",
+            "--results",
+            results.to_str().unwrap(),
+            "--tag",
+            "site-cmd-int",
+        ])
+        .output()
+        .unwrap();
+    let run_err = String::from_utf8_lossy(&ran.stderr);
+    assert_eq!(ran.status.code(), Some(0), "stderr: {run_err}");
+
+    let report_path = results.join("site-cmd-int/report.json");
+    assert!(report_path.is_file(), "{}", report_path.display());
+
+    // No `--ledger` fixture here (unlike `site_cmd_tests` in main.rs): this
+    // exercises the real committed ledger and scenario tree, the same ones
+    // `the_coverage_ledger_matches_the_real_scenario_tree` proves pass
+    // `check_drift`, so this is a real reader over real data, not a fixture.
+    let sited = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "site",
+            report_path.to_str().unwrap(),
+            "--out",
+            out_path.to_str().unwrap(),
+            "--ledger",
+            root.join("scenarios/coverage.toml").to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    let site_err = String::from_utf8_lossy(&sited.stderr);
+    std::fs::remove_dir_all(&results).ok();
+    assert_eq!(sited.status.code(), Some(0), "stderr: {site_err}");
+
+    let page = std::fs::read_to_string(&out_path).unwrap();
+    std::fs::remove_file(&out_path).ok();
+
+    // Section 2, header: every field is a readback, never derived — a mock
+    // run's zerostack identity is the fixed label `"mock"`.
+    assert!(
+        page.contains("<dt>zerostack</dt><dd>mock</dd>"),
+        "header field is not read back verbatim:\n{page}"
+    );
+
+    // Section 3, coverage: the real ledger's "prompts" area claims this
+    // scenario id as covered, and this run exercised it, so it renders as a
+    // plain cited id with no "not exercised" mark attached.
+    assert!(
+        page.contains(
+            "A read-only prompt declines an edit request and points at a writable prompt"
+        ),
+        "the real ledger's claim text is not on the page:\n{page}"
+    );
+    assert!(
+        page.contains("<li><code>prompt-ask-readonly-refuses-edit</code></li>"),
+        "the exercised scenario id is not shown as covered by this run:\n{page}"
+    );
+
+    // Section 4, results: `matrix::build`'s own row for this scenario,
+    // rendered by the HTML renderer rather than recomputed here.
+    assert!(
+        page.contains("<td>prompt-ask-readonly-refuses-edit</td>"),
+        "the scenario table has no row for the scenario this run graded:\n{page}"
+    );
+    assert!(
+        page.contains("<td>1.000</td>"),
+        "the scenario's pass rate is not on the page:\n{page}"
+    );
+}

@@ -117,6 +117,17 @@ re-spending. `compare` stays pairwise and keeps its migration-gate role
 (deciding whether to switch from one target to another); reach for `matrix`
 for a side-by-side view of N targets.
 
+`zseval site <report.json> --out <file.html>` turns one report plus the
+coverage ledger (`scenarios/coverage.toml`) into a single self-contained HTML
+page: the run's identity, the ledger's coverage (every area, every claim, no
+percentage), and the scenario table `matrix` already renders. Like `matrix`
+it makes no API call and writes nothing but the one file `--out` names;
+unlike `matrix`, that file is the point, so `--out` is required. It runs the
+ledger's drift check first and aborts before writing anything if the ledger
+and the scenario tree disagree; a stale `audited_against` is shown on the
+page instead, never fatal. `--ledger <path>` overrides the ledger path — a
+test override for pointing at a fixture tree, not a general-purpose option.
+
 ## Writing a scenario
 
 A scenario is flat TOML (see `scenarios/prompts/*/scenario.toml`). The assert
