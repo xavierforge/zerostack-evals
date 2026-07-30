@@ -23,6 +23,11 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
+/// The folder a scenario's seed data lives in (see the module header). Its
+/// contents are payloads the agent operates on rather than harness files, so
+/// nothing in the tree walk reads them as anything else.
+const FIXTURES_DIR: &str = "_fixtures";
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Scenario {
@@ -352,26 +357,63 @@ impl Scenario {
 
 /// Walk a path and collect every directory containing `scenario.toml`.
 /// Accepts either a single scenario dir or a tree.
+///
+/// Every way of finding nothing is loud. The walk used to skip an unreadable
+/// directory, a failed directory entry, and a `scenario.toml` nested under
+/// another scenario, all three in silence, which meant a scenario could sit in
+/// the tree while every count of the tree missed it. That was survivable while
+/// the result only fed a run — you notice a suite that is short a case — and
+/// stopped being survivable once `coverage.rs` started asking this function
+/// which scenarios exist in order to answer whether the ledger accounts for all
+/// of them. A silent skip there reports full coverage of a tree it never saw.
+///
+/// Nesting is refused rather than supported: a scenario directory is a leaf, so
+/// a `scenario.toml` under one is a mistake with no sensible reading, and
+/// naming it beats either ignoring it or inventing sub-scenario semantics. The
+/// single-scenario shorthand below is exempt, since a caller naming one
+/// directory is asking for that scenario and not for a survey of the tree.
+///
+/// A `_fixtures` folder is the one subtree the walk stays out of, and the
+/// refusal above is why it has to. Fixtures are seed data copied into the
+/// agent's working directory, so a `scenario.toml` there is a payload — the
+/// file a "fix the syntax error in this config" task hands the agent — and
+/// reading a payload as a nested scenario would take the whole tree down over
+/// one fixture's file name.
 pub fn discover(root: &Path) -> Result<Vec<Scenario>> {
     let mut out = Vec::new();
     if root.join("scenario.toml").is_file() {
         out.push(Scenario::load(root)?);
         return Ok(out);
     }
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(e) => e,
-            Err(_) => continue,
-        };
-        for entry in entries.flatten() {
+    // Each entry is a directory to walk, paired with the scenario directory
+    // containing it, if any. A scenario directory is still walked — that is what
+    // makes a nested scenario findable rather than invisible.
+    let mut stack: Vec<(PathBuf, Option<PathBuf>)> = vec![(root.to_path_buf(), None)];
+    while let Some((dir, inside)) = stack.pop() {
+        let entries = std::fs::read_dir(&dir)
+            .with_context(|| format!("read scenario directory {}", dir.display()))?;
+        for entry in entries {
+            let entry = entry.with_context(|| format!("read an entry of {}", dir.display()))?;
             let p = entry.path();
-            if p.is_dir() {
-                if p.join("scenario.toml").is_file() {
-                    out.push(Scenario::load(&p)?);
-                } else {
-                    stack.push(p);
+            if !p.is_dir() {
+                continue;
+            }
+            if p.file_name().is_some_and(|name| name == FIXTURES_DIR) {
+                continue;
+            }
+            if p.join("scenario.toml").is_file() {
+                if let Some(outer) = &inside {
+                    bail!(
+                        "{} holds a scenario.toml, and so does {}, which contains it — a scenario \
+                         directory is a leaf, and a nested scenario would be counted by nobody",
+                        p.display(),
+                        outer.display()
+                    );
                 }
+                out.push(Scenario::load(&p)?);
+                stack.push((p.clone(), Some(p)));
+            } else {
+                stack.push((p, inside.clone()));
             }
         }
     }
