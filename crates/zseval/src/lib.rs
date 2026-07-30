@@ -16,6 +16,7 @@ pub mod prompts;
 pub mod runner;
 pub mod scenario;
 pub mod seed;
+pub mod site;
 pub mod target;
 pub mod transcript;
 pub mod util;

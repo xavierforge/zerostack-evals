@@ -1,10 +1,10 @@
 ## 1. Escaping and the page skeleton [dispatch: sai-hu, parallel: no, reason: D9's "one escape function, no exemptions" is the only security-relevant decision here, and whether later sections are safe by construction or safe by vigilance is decided by the shape chosen now]
 
-- [ ] 1.1 Write the failing unit tests in `crates/zseval/src/site.rs` first: the escape function over `<`, `>`, `&`, `"`, `'`; a report whose `zs_version` carries markup renders escaped and the raw form is absent from the page; a claim `reason` carrying markup-significant characters renders escaped. Cite red `cargo test` output.
-- [ ] 1.2 Implement escaping so an unescaped runtime value cannot reach the buffer by accident: runtime values go through one function, and raw markup enters only as literal `&'static str`. A design that merely asks the caller to remember to escape does not satisfy this task.
-- [ ] 1.3 Build the page skeleton: doctype, `<style>` with the page's CSS inlined, and the three section containers in the order header, coverage, results (design D11).
-- [ ] 1.4 Write the self-containment test: the rendered page contains no external URL, stylesheet, font, image, or script reference. Assert on the absence of the patterns, not on a visual check.
-- [ ] 1.5 Add `pub mod site;` to `lib.rs`. Evidence: 1.1 and 1.4 green, `cargo test --workspace` green.
+- [x] 1.1 Write the failing unit tests in `crates/zseval/src/site.rs` first: the escape function over `<`, `>`, `&`, `"`, `'`; a report whose `zs_version` carries markup renders escaped and the raw form is absent from the page; a claim `reason` carrying markup-significant characters renders escaped. Cite red `cargo test` output.
+- [x] 1.2 Implement escaping so an unescaped runtime value cannot reach the buffer by accident: runtime values go through one function, and raw markup enters only as literal `&'static str`. A design that merely asks the caller to remember to escape does not satisfy this task.
+- [x] 1.3 Build the page skeleton: doctype, `<style>` with the page's CSS inlined, and the three section containers in the order header, coverage, results (design D11).
+- [x] 1.4 Write the self-containment test: the rendered page contains no external URL, stylesheet, font, image, or script reference. Assert on the absence of the patterns, not on a visual check.
+- [x] 1.5 Add `pub mod site;` to `lib.rs`. Evidence: 1.1 and 1.4 green, `cargo test --workspace` green.
 
 ## 2. Header section: read back, derive nothing [dispatch: too-te, parallel: no, reason: every field and its rendering rule is named in the spec, and the three cases that could go wrong (null vs empty, the two judge halves, judge_model's three states) are each stated as a scenario; no design choice is left]
 
