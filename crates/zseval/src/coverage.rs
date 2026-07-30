@@ -46,18 +46,20 @@ use serde::Deserialize;
 
 /// A loaded ledger. Every invariant the schema can carry is already true of a
 /// value of this type: statuses are the closed four, each carries exactly the
-/// evidence its status owes, and no scenario id backs two covered claims.
+/// evidence its status owes, every area is one row that accounts for something,
+/// and no scenario id backs two covered claims.
+///
+/// The fields are private and `Ledger::new` is the only constructor, so those
+/// invariants hold however the value was made. They were `pub` with the checks
+/// living inside `parse`, which made every rule here a property of the load
+/// path rather than of the type: a hand-built `Ledger`, the natural shape of a
+/// renderer's test fixture, could carry a duplicate id or an empty
+/// `audited_against` and be believed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ledger {
-    /// The zerostack version string the judgments in this file were made
-    /// against — compared to a report's banner by `audit_matches`, never
-    /// parsed.
-    pub audited_against: String,
-    /// The trees that hold scenarios, relative to the repo root. The drift
-    /// check reads them in both directions.
-    pub scenario_roots: Vec<String>,
-    /// File order, which is presentation order.
-    pub areas: Vec<Area>,
+    audited_against: String,
+    scenario_roots: Vec<String>,
+    areas: Vec<Area>,
 }
 
 /// One slice of zerostack's functional surface. `area`, not `domain`:
@@ -247,6 +249,40 @@ impl RawClaim {
 }
 
 impl Ledger {
+    /// The only way to build a `Ledger`, so every rule below holds whatever the
+    /// caller is: the file on disk, or a fixture a renderer wrote by hand.
+    pub fn new(
+        audited_against: String,
+        scenario_roots: Vec<String>,
+        areas: Vec<Area>,
+    ) -> Result<Ledger> {
+        let ledger = Ledger {
+            audited_against,
+            scenario_roots,
+            areas,
+        };
+        ledger.check_header()?;
+        ledger.check_unique_ids()?;
+        Ok(ledger)
+    }
+
+    /// The zerostack version the judgments were made against — compared to a
+    /// report's banner by `audit_matches`, never parsed.
+    pub fn audited_against(&self) -> &str {
+        &self.audited_against
+    }
+
+    /// The trees that hold scenarios, relative to the repo root. The drift
+    /// check reads them in every direction.
+    pub fn scenario_roots(&self) -> &[String] {
+        &self.scenario_roots
+    }
+
+    /// File order, which is presentation order.
+    pub fn areas(&self) -> &[Area] {
+        &self.areas
+    }
+
     pub fn load(path: &Path) -> Result<Ledger> {
         let text =
             std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
@@ -255,20 +291,6 @@ impl Ledger {
 
     pub fn parse(text: &str) -> Result<Ledger> {
         let raw: RawLedger = toml::from_str(text)?;
-        if raw.audited_against.trim().is_empty() {
-            bail!(
-                "coverage ledger: audited_against must not be empty — it is compared to a \
-                 report's banner by containment, and an empty string is contained in every \
-                 banner, so it would silently claim the ledger was audited against whatever it \
-                 is compared to"
-            );
-        }
-        if raw.scenario_roots.is_empty() {
-            bail!(
-                "coverage ledger: scenario_roots must not be empty — an empty root list makes \
-                 the drift check enumerate no scenarios"
-            );
-        }
         let mut areas = Vec::with_capacity(raw.areas.len());
         for area in raw.areas {
             let RawArea {
@@ -286,13 +308,25 @@ impl Ledger {
                 claims: validated,
             });
         }
-        let ledger = Ledger {
-            audited_against: raw.audited_against,
-            scenario_roots: raw.scenario_roots,
-            areas,
-        };
-        ledger.check_unique_ids()?;
-        Ok(ledger)
+        Ledger::new(raw.audited_against, raw.scenario_roots, areas)
+    }
+
+    fn check_header(&self) -> Result<()> {
+        if self.audited_against.trim().is_empty() {
+            bail!(
+                "coverage ledger: audited_against must not be empty — it is compared to a \
+                 report's banner by containment, and an empty string is contained in every \
+                 banner, so it would silently claim the ledger was audited against whatever it \
+                 is compared to"
+            );
+        }
+        if self.scenario_roots.is_empty() {
+            bail!(
+                "coverage ledger: scenario_roots must not be empty — an empty root list makes \
+                 the drift check enumerate no scenarios"
+            );
+        }
+        Ok(())
     }
 
     /// Does `audited_against` appear in this `--version` banner?
@@ -685,6 +719,74 @@ claim = "ask mode refuses an edit"
 status = "uncovered"
 "#;
         assert!(err(text).contains("scenario_roots"), "{}", err(text));
+    }
+
+    /// The invariants belong to the type, not to the load path. `Ledger`'s
+    /// fields were `pub` with the checks running inside `parse`, so a
+    /// hand-constructed value — the natural shape of a renderer's fixture —
+    /// could carry a duplicate id past every rule in this module. `new` is now
+    /// the only constructor, and it runs the same checks the file gets.
+    #[test]
+    fn a_hand_built_ledger_is_checked_like_a_parsed_one() {
+        let covered = |claim: &str, id: &str| Claim {
+            claim: claim.to_string(),
+            status: Status::Covered {
+                scenarios: vec![id.to_string()],
+            },
+            note: None,
+        };
+        let area = |name: &str, claims: Vec<Claim>| Area {
+            name: name.to_string(),
+            title: name.to_string(),
+            claims,
+        };
+        let roots = || vec!["scenarios".to_string()];
+
+        // The duplicate-id rule.
+        let err = Ledger::new(
+            "1.7.2".to_string(),
+            roots(),
+            vec![area(
+                "prompts",
+                vec![
+                    covered("ask mode refuses an edit", "ask-readonly-refuses-edit"),
+                    covered("ask mode explains itself", "ask-readonly-refuses-edit"),
+                ],
+            )],
+        )
+        .unwrap_err();
+        assert!(
+            format!("{err:#}").contains("ask-readonly-refuses-edit"),
+            "{err:#}"
+        );
+
+        // The header rules, which used to live in `parse` alone.
+        let err = Ledger::new(
+            "  ".to_string(),
+            roots(),
+            vec![area("prompts", vec![covered("x", "y")])],
+        )
+        .unwrap_err();
+        assert!(format!("{err:#}").contains("audited_against"), "{err:#}");
+
+        let err = Ledger::new(
+            "1.7.2".to_string(),
+            vec![],
+            vec![area("prompts", vec![covered("x", "y")])],
+        )
+        .unwrap_err();
+        assert!(format!("{err:#}").contains("scenario_roots"), "{err:#}");
+
+        // And a well-formed one still builds, reachable through the accessors.
+        let ok = Ledger::new(
+            "1.7.2".to_string(),
+            roots(),
+            vec![area("prompts", vec![covered("x", "y")])],
+        )
+        .unwrap();
+        assert_eq!(ok.audited_against(), "1.7.2");
+        assert_eq!(ok.scenario_roots(), ["scenarios"]);
+        assert_eq!(ok.areas().len(), 1);
     }
 
     #[test]
