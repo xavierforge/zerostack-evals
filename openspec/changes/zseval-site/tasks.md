@@ -14,11 +14,11 @@
 
 ## 3. Coverage section [dispatch: sai-hu, parallel: no, reason: the covered-but-not-exercised derivation is new, and laying out four statuses whose evidence fields differ per status is a presentation judgment the spec constrains but does not settle]
 
-- [ ] 3.1 Write the failing tests first: an area with no `covered` claim is listed and counted in the headline figure; reordering the ledger's areas reorders the section with no sorting applied; no ratio or percentage appears anywhere in the page; a claim citing three ids where the report holds two marks only the third and is not reported as uncovered. Cite red output.
-- [ ] 3.2 Render every area in ledger file order, and every claim under its status carrying the evidence that status owes: cited ids for `covered`, the `blocked_by` sentence when an `uncovered` claim has one, `reason` for `product-blocked` and `excluded`, the `zs` pointer where present, and any `note`.
-- [ ] 3.3 Implement the covered-but-not-exercised derivation: per `covered` claim, the cited ids absent from this report's results. Derive it at render time; write nothing back to the ledger.
-- [ ] 3.4 Render the headline figure as a count of areas with no scenario at all. No percentage, in this section or any other.
-- [ ] 3.5 Evidence: 3.1 green, and the headline count matches the ledger's real content (7 of 15 as of the 2026-07-30 ledger).
+- [x] 3.1 Write the failing tests first: an area with no `covered` claim is listed and counted in the headline figure; reordering the ledger's areas reorders the section with no sorting applied; no ratio or percentage appears anywhere in the page; a claim citing three ids where the report holds two marks only the third and is not reported as uncovered. Cite red output.
+- [x] 3.2 Render every area in ledger file order, and every claim under its status carrying the evidence that status owes: cited ids for `covered`, the `blocked_by` sentence when an `uncovered` claim has one, `reason` for `product-blocked` and `excluded`, the `zs` pointer where present, and any `note`.
+- [x] 3.3 Implement the covered-but-not-exercised derivation: per `covered` claim, the cited ids absent from this report's results. Derive it at render time; write nothing back to the ledger.
+- [x] 3.4 Render the headline figure as a count of areas with no scenario at all. No percentage, in this section or any other.
+- [x] 3.5 Evidence: 3.1 green, and the headline count matches the ledger's real content (7 of 15 as of the 2026-07-30 ledger).
 
 ## 4. Results section: a third renderer in `matrix.rs` [dispatch: sai-hu, parallel: no, reason: it must reuse the private cell, hole, footer and mark formatting rather than restate it, and it must not recompute any figure; this is also the section that makes `matrix-render`'s spec change true]
 
