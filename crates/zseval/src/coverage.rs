@@ -760,13 +760,35 @@ impl Ledger {
             if reported.contains(&id) {
                 continue;
             }
-            let claimed_by: Vec<String> = refs
+            let hits: Vec<(&str, &str, &str)> = refs
                 .iter()
                 .filter(|(other, _, _)| *other == id)
-                .map(|(_, area, claim)| format!("'{claim}' (area {area})"))
+                .copied()
                 .collect();
-            if claimed_by.len() > 1 {
-                reported.push(id);
+            if hits.len() <= 1 {
+                continue;
+            }
+            reported.push(id);
+            // Every hit resolving to the same (area, claim) means one claim's
+            // own `scenarios` array names the id twice, not two claims
+            // colliding — rendering that as "claimed by 'c' (area a) and 'c'
+            // (area a)" sends the author looking for a second claim that does
+            // not exist, when the actual fix is deleting one array element.
+            let one_claim = hits
+                .windows(2)
+                .all(|w| w[0].1 == w[1].1 && w[0].2 == w[1].2);
+            if one_claim {
+                let (_, area, claim) = hits[0];
+                duplicates.push(format!(
+                    "'{id}' is listed more than once in '{claim}' (area {area})'s `scenarios` \
+                     — one entry already backs the claim, so delete the repeat rather than \
+                     reading it as a second claim"
+                ));
+            } else {
+                let claimed_by: Vec<String> = hits
+                    .iter()
+                    .map(|(_, area, claim)| format!("'{claim}' (area {area})"))
+                    .collect();
                 duplicates.push(format!("'{id}' is claimed by {}", claimed_by.join(" and ")));
             }
         }
@@ -1613,6 +1635,55 @@ scenarios = ["ask-readonly-refuses-edit"]"#,
         assert!(msg.contains("ask mode refuses an edit"), "{msg}");
         assert!(
             msg.contains("the write tool is not called in ask mode"),
+            "{msg}"
+        );
+    }
+
+    /// A claim's own `scenarios` array naming an id twice is not two claims
+    /// colliding, so the error must not render the claim twice as if it were.
+    #[test]
+    fn a_scenario_id_repeated_within_one_claims_scenarios_names_it_once() {
+        let text = one_claim(
+            r#"claim = "ask mode refuses an edit"
+status = "covered"
+scenarios = ["ask-readonly-refuses-edit", "ask-readonly-refuses-edit"]"#,
+        );
+        let msg = err(&text);
+        assert!(msg.contains("ask-readonly-refuses-edit"), "{msg}");
+        assert!(msg.contains("listed more than once"), "{msg}");
+        assert_eq!(
+            msg.matches("ask mode refuses an edit").count(),
+            1,
+            "the claim should be named once, not rendered as if it collided with a second \
+             claim: {msg}"
+        );
+    }
+
+    /// The counterpart to the test above: when the id really does span two
+    /// distinct claims, today's "claimed by X and Y" message is unchanged.
+    #[test]
+    fn a_scenario_id_shared_by_two_distinct_claims_keeps_the_original_message() {
+        let text = ledger(
+            r#"[[areas]]
+name = "prompts"
+title = "Prompt behaviour"
+
+[[areas.claims]]
+claim = "ask mode refuses an edit"
+status = "covered"
+scenarios = ["ask-readonly-refuses-edit"]
+
+[[areas.claims]]
+claim = "ask mode explains itself"
+status = "covered"
+scenarios = ["ask-readonly-refuses-edit"]"#,
+        );
+        let msg = err(&text);
+        assert!(
+            msg.contains(
+                "'ask-readonly-refuses-edit' is claimed by 'ask mode refuses an edit' (area \
+                 prompts) and 'ask mode explains itself' (area prompts)"
+            ),
             "{msg}"
         );
     }
