@@ -144,18 +144,31 @@ struct RawClaim {
 /// `reason` sitting under a `covered` claim was written to be read, and
 /// dropping it silently loses the author's meaning while the page renders as
 /// if nothing were wrong.
-fn reject_foreign_evidence(at: &str, status: &str, foreign: &[(&str, bool)]) -> Result<()> {
-    let present: Vec<&str> = foreign
+///
+/// Each status names only the fields it *owns*, and the foreign set is the
+/// complement, derived here against `present`. Naming the complement per
+/// status was the earlier shape, and it meant four hand-maintained tables with
+/// nothing deriving one from another, where a dropped row silently reopened
+/// the very hole this check closes. Under the derivation a dropped row costs a
+/// status one of its own fields instead, which its required-evidence check
+/// catches on the next test run.
+fn reject_foreign_evidence(
+    at: &str,
+    status: &str,
+    owned: &[&str],
+    present: &[(&str, bool)],
+) -> Result<()> {
+    let foreign: Vec<&str> = present
         .iter()
-        .filter(|(_, is_present)| *is_present)
+        .filter(|(name, is_present)| *is_present && !owned.contains(name))
         .map(|(name, _)| *name)
         .collect();
-    if present.is_empty() {
+    if foreign.is_empty() {
         return Ok(());
     }
     bail!(
         "{at}: status = \"{status}\" does not take `{}` — that field is another status's evidence",
-        present.join("`, `")
+        foreign.join("`, `")
     );
 }
 
@@ -171,17 +184,20 @@ impl RawClaim {
             zs,
         } = self;
         let at = format!("area '{area}', claim '{claim}'");
+        // Every evidence field a claim can carry, and whether this claim
+        // carried it. The single list the four statuses are checked against, so
+        // adding a field to `RawClaim` and forgetting it here shows up as that
+        // field being accepted under every status at once rather than as a hole
+        // under one of them.
+        let present = [
+            ("scenarios", scenarios.is_some()),
+            ("blocked_by", blocked_by.is_some()),
+            ("reason", reason.is_some()),
+            ("zs", zs.is_some()),
+        ];
         let status = match status.as_str() {
             "covered" => {
-                reject_foreign_evidence(
-                    &at,
-                    "covered",
-                    &[
-                        ("blocked_by", blocked_by.is_some()),
-                        ("reason", reason.is_some()),
-                        ("zs", zs.is_some()),
-                    ],
-                )?;
+                reject_foreign_evidence(&at, "covered", &["scenarios"], &present)?;
                 let scenarios = scenarios.unwrap_or_default();
                 if scenarios.is_empty() {
                     bail!(
@@ -193,26 +209,11 @@ impl RawClaim {
                 Status::Covered { scenarios }
             }
             "uncovered" => {
-                reject_foreign_evidence(
-                    &at,
-                    "uncovered",
-                    &[
-                        ("scenarios", scenarios.is_some()),
-                        ("reason", reason.is_some()),
-                        ("zs", zs.is_some()),
-                    ],
-                )?;
+                reject_foreign_evidence(&at, "uncovered", &["blocked_by"], &present)?;
                 Status::Uncovered { blocked_by }
             }
             "product-blocked" => {
-                reject_foreign_evidence(
-                    &at,
-                    "product-blocked",
-                    &[
-                        ("scenarios", scenarios.is_some()),
-                        ("blocked_by", blocked_by.is_some()),
-                    ],
-                )?;
+                reject_foreign_evidence(&at, "product-blocked", &["reason", "zs"], &present)?;
                 let Some(reason) = reason else {
                     bail!(
                         "{at}: status = \"product-blocked\" requires a one-line `reason` naming \
@@ -222,15 +223,7 @@ impl RawClaim {
                 Status::ProductBlocked { reason, zs }
             }
             "excluded" => {
-                reject_foreign_evidence(
-                    &at,
-                    "excluded",
-                    &[
-                        ("scenarios", scenarios.is_some()),
-                        ("blocked_by", blocked_by.is_some()),
-                        ("zs", zs.is_some()),
-                    ],
-                )?;
+                reject_foreign_evidence(&at, "excluded", &["reason"], &present)?;
                 let Some(reason) = reason else {
                     bail!(
                         "{at}: status = \"excluded\" requires a one-line `reason` for never \
@@ -729,13 +722,15 @@ scenarios = ["ask-readonly-refuses-edit"]"#,
         assert!(msg.contains("scenarios"), "{msg}");
     }
 
-    /// `reject_foreign_evidence`'s four call sites are hand-maintained tables
-    /// with no shared derivation (`:176`, `:196`, `:208`, `:225`), enumerating
-    /// the complement of each status's own evidence. A dropped or mistyped
-    /// entry would silently reopen the "silently ignored field" hole the
-    /// helper exists to close, so this walks all eleven status/foreign-field
-    /// pairs rather than trusting the single case above to catch a
-    /// regression in any of the other ten.
+    /// `reject_foreign_evidence` derives each status's foreign set as the
+    /// complement of the fields that status owns, against one shared `present`
+    /// list. That derivation removed the four hand-maintained complement
+    /// tables this test was first written to guard, and left two smaller ways
+    /// to be wrong in their place: an `owned` list naming a field the status
+    /// has no business accepting, and a field added to `RawClaim` but left out
+    /// of `present`, which would be accepted under all four statuses at once.
+    /// Neither is visible to any single case, so this still walks all eleven
+    /// status/foreign-field pairs.
     #[test]
     fn every_status_rejects_every_other_statuss_evidence() {
         // (status, its own required evidence, a foreign field, that field's value)
