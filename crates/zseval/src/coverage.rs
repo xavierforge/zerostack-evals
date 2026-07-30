@@ -342,10 +342,19 @@ impl Ledger {
             .collect()
     }
 
-    /// The drift check proper, over ids rather than a tree, so both directions
-    /// are one comparison. Failures name every offending id in one report:
+    /// The drift check proper, over ids rather than a tree, so every direction
+    /// is one comparison. Failures name every offending id in one report:
     /// fixing a dead reference only to be told about an unclaimed scenario on
-    /// the next run hides half the drift behind the other half.
+    /// the next run hides part of the drift behind the rest.
+    ///
+    /// Three things can be wrong, not two. "Every scenario is claimed exactly
+    /// once" is a statement about multiplicity, and membership alone cannot
+    /// check it: `discover` sorts the tree but neither dedupes nor rejects
+    /// repeated ids, and one covered claim satisfies every copy of an id, so
+    /// two scenarios sharing one id would report clean while a single claim
+    /// stood in for both. That is the one-id-many-meanings ambiguity
+    /// `check_unique_ids` rules out on the ledger side, arriving from the tree
+    /// side instead, so it is refused here on the same grounds.
     fn check_ids(&self, tree_ids: &[String]) -> Result<()> {
         let claimed = self.covered_ids();
         let dead: Vec<&str> = claimed
@@ -353,12 +362,21 @@ impl Ledger {
             .copied()
             .filter(|id| !tree_ids.iter().any(|in_tree| in_tree.as_str() == *id))
             .collect();
-        let unclaimed: Vec<&str> = tree_ids
-            .iter()
-            .map(|id| id.as_str())
-            .filter(|id| !claimed.contains(id))
-            .collect();
-        if dead.is_empty() && unclaimed.is_empty() {
+        // One pass, and each id reported once however many times the tree holds
+        // it, so a duplicate does not also arrive as a repeated line above it.
+        let mut unclaimed: Vec<&str> = Vec::new();
+        let mut duplicated: Vec<&str> = Vec::new();
+        for id in tree_ids.iter().map(|id| id.as_str()) {
+            if !claimed.contains(&id) && !unclaimed.contains(&id) {
+                unclaimed.push(id);
+            }
+            if !duplicated.contains(&id)
+                && tree_ids.iter().filter(|other| other.as_str() == id).count() > 1
+            {
+                duplicated.push(id);
+            }
+        }
+        if dead.is_empty() && unclaimed.is_empty() && duplicated.is_empty() {
             return Ok(());
         }
         let roots = self.scenario_roots.join(", ");
@@ -374,6 +392,13 @@ impl Ledger {
             msg.push_str(&format!(
                 "\n  unclaimed scenarios (under {roots}, cited by no covered claim): {}",
                 unclaimed.join(", ")
+            ));
+        }
+        if !duplicated.is_empty() {
+            msg.push_str(&format!(
+                "\n  duplicate scenario ids (declared by more than one scenario under {roots}, so \
+                 one covered claim would silently stand in for several): {}",
+                duplicated.join(", ")
             ));
         }
         bail!("{msg}")
@@ -931,5 +956,50 @@ scenarios = ["{second}"]"#
         ] {
             assert!(msg.contains(id), "{msg}");
         }
+    }
+
+    /// Two scenarios in the tree declaring one id. `discover` sorts but neither
+    /// dedupes nor rejects, and one covered claim satisfies every copy, so a
+    /// membership-only check reported clean while that claim silently stood in
+    /// for both scenarios — the ledger-side ambiguity `check_unique_ids`
+    /// forbids, reached from the tree side.
+    #[test]
+    fn the_drift_check_rejects_two_tree_scenarios_sharing_one_id() {
+        let l = two_covered("ask-readonly-refuses-edit", "memory-recall");
+        let err = l
+            .check_ids(&[
+                "ask-readonly-refuses-edit".to_string(),
+                "ask-readonly-refuses-edit".to_string(),
+                "memory-recall".to_string(),
+            ])
+            .unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("duplicate scenario ids"), "{msg}");
+        assert!(msg.contains("ask-readonly-refuses-edit"), "{msg}");
+        // Multiplicity is the only thing wrong, so it is the only thing said:
+        // both ids are claimed and both claims are live.
+        assert!(!msg.contains("unclaimed"), "{msg}");
+        assert!(!msg.contains("dead references"), "{msg}");
+    }
+
+    /// A duplicated id that is also unclaimed is named once per direction, not
+    /// once per copy: a tree holding three of something is one decision to
+    /// make, and three identical lines read as three.
+    #[test]
+    fn a_repeated_tree_id_is_reported_once_per_direction() {
+        let l = two_covered("ask-readonly-refuses-edit", "memory-recall");
+        let err = l
+            .check_ids(&[
+                "ask-readonly-refuses-edit".to_string(),
+                "memory-recall".to_string(),
+                "stowaway".to_string(),
+                "stowaway".to_string(),
+                "stowaway".to_string(),
+            ])
+            .unwrap_err();
+        let msg = format!("{err:#}");
+        assert_eq!(msg.matches("stowaway").count(), 2, "{msg}");
+        assert!(msg.contains("unclaimed scenarios"), "{msg}");
+        assert!(msg.contains("duplicate scenario ids"), "{msg}");
     }
 }

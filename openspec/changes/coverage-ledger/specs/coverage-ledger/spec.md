@@ -80,8 +80,9 @@ This makes per-area coverage counts mean exactly one thing: a reader seeing the 
 
 - Every scenario id referenced by a `covered` claim exists as a loadable scenario under those roots. A renamed or deleted scenario leaves a dead reference, and a ledger citing evidence that no longer exists is worse than one citing none.
 - Every scenario under those roots is referenced by exactly one `covered` claim. An unclaimed scenario means the ledger has quietly fallen behind the suite, which is the failure mode that makes a coverage page lie.
+- No two scenarios under those roots declare the same id. "Referenced by exactly one claim" is a statement about multiplicity, and a membership test cannot carry it: one `covered` claim satisfies every copy of a repeated id, so a duplicate would report clean while that claim silently stood in for several scenarios. This is the ambiguity the one-covered-claim-per-id rule forbids on the ledger side, arriving from the tree side, and it is refused on the same grounds.
 
-Failures SHALL name every offending id, in both directions, in one report rather than one per run.
+Failures SHALL name every offending id, in every direction, in one report rather than one per run, and SHALL name a repeated id once rather than once per copy.
 
 #### Scenario: A dead reference fails the check
 - **WHEN** the ledger cites a scenario id that exists under no root
@@ -90,6 +91,10 @@ Failures SHALL name every offending id, in both directions, in one report rather
 #### Scenario: An unclaimed scenario fails the check
 - **WHEN** a new scenario is added to the tree and no claim cites it
 - **THEN** the check fails naming that id
+
+#### Scenario: Two scenarios sharing one id fail the check
+- **WHEN** two scenarios under the roots declare the same id, and a covered claim cites it
+- **THEN** the check fails naming that id once, and does not report it as unclaimed
 
 #### Scenario: The in-tree suite passes both directions
 - **WHEN** the check runs against the repo's own `scenarios/` and `examples/prompt-pack/`
