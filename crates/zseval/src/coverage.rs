@@ -262,6 +262,7 @@ impl Ledger {
             areas,
         };
         ledger.check_header()?;
+        ledger.check_areas()?;
         ledger.check_unique_ids()?;
         Ok(ledger)
     }
@@ -327,6 +328,46 @@ impl Ledger {
             );
         }
         Ok(())
+    }
+
+    /// An area is one row of the denominator, so it must be one row and must
+    /// account for something. Two areas under one name split a row in two while
+    /// the pinned area-set test stays green, since the sorted names still hold
+    /// every expected name; an area with no claims is counted in the denominator
+    /// while stating nothing, and that denominator is the one number this file
+    /// exists to keep honest.
+    fn check_areas(&self) -> Result<()> {
+        let mut seen: Vec<&str> = Vec::new();
+        let mut duplicated: Vec<&str> = Vec::new();
+        let mut empty: Vec<&str> = Vec::new();
+        for area in &self.areas {
+            let name = area.name.as_str();
+            if seen.contains(&name) && !duplicated.contains(&name) {
+                duplicated.push(name);
+            }
+            seen.push(name);
+            if area.claims.is_empty() {
+                empty.push(name);
+            }
+        }
+        if duplicated.is_empty() && empty.is_empty() {
+            return Ok(());
+        }
+        let mut msg =
+            String::from("coverage ledger: every area is one row of the denominator, and:");
+        if !duplicated.is_empty() {
+            msg.push_str(&format!(
+                "\n  declared more than once, splitting one row in two: {}",
+                duplicated.join(", ")
+            ));
+        }
+        if !empty.is_empty() {
+            msg.push_str(&format!(
+                "\n  carries no claims, so it is counted while stating nothing: {}",
+                empty.join(", ")
+            ));
+        }
+        bail!("{msg}")
     }
 
     /// Does `audited_against` appear in this `--version` banner?
@@ -721,6 +762,45 @@ status = "uncovered"
         assert!(err(text).contains("scenario_roots"), "{}", err(text));
     }
 
+    #[test]
+    fn a_duplicate_area_name_fails_naming_it() {
+        // Two rows under one name, which the pinned area-set test cannot catch:
+        // sorting the names still yields every name the spec expects.
+        let text = ledger(
+            r#"[[areas]]
+name = "permission"
+title = "Permission layer"
+
+[[areas.claims]]
+claim = "ask mode refuses an edit"
+status = "uncovered"
+
+[[areas]]
+name = "permission"
+title = "Permission layer, again"
+
+[[areas.claims]]
+claim = "a deny rule beats an allow rule"
+status = "uncovered""#,
+        );
+        let msg = err(&text);
+        assert!(msg.contains("permission"), "{msg}");
+        assert!(msg.contains("more than once"), "{msg}");
+    }
+
+    #[test]
+    fn an_area_with_no_claims_fails_naming_it() {
+        let text = ledger(
+            r#"[[areas]]
+name = "permission"
+title = "Permission layer"
+claims = []"#,
+        );
+        let msg = err(&text);
+        assert!(msg.contains("permission"), "{msg}");
+        assert!(msg.contains("no claims"), "{msg}");
+    }
+
     /// The invariants belong to the type, not to the load path. `Ledger`'s
     /// fields were `pub` with the checks running inside `parse`, so a
     /// hand-constructed value — the natural shape of a renderer's fixture —
@@ -776,6 +856,11 @@ status = "uncovered"
         )
         .unwrap_err();
         assert!(format!("{err:#}").contains("scenario_roots"), "{err:#}");
+
+        // The area rules.
+        let err =
+            Ledger::new("1.7.2".to_string(), roots(), vec![area("prompts", vec![])]).unwrap_err();
+        assert!(format!("{err:#}").contains("no claims"), "{err:#}");
 
         // And a well-formed one still builds, reachable through the accessors.
         let ok = Ledger::new(
