@@ -100,6 +100,10 @@ This rule, and every other rule in this capability, SHALL hold for any way of co
 
 Failures SHALL name every offending id, in every direction, in one report rather than one per run, and SHALL name a repeated id once rather than once per copy.
 
+Each entry of `scenario_roots` SHALL name a tree inside this repository, spelled relative to its root. An entry that is absolute, that contains a `..` component, or that names no directory below the root (an empty entry, or a bare `.`) SHALL be a load-time error. The entries are the sole input to a filesystem walk and are joined onto the repo root, and joining onto a path discards it when the operand is absolute: an unchecked entry does not fail, it walks somewhere else on the machine, and an entry resolving to the checkout itself sends the walk looking for scenarios in `target/` and `.git`. The error a root does draw SHALL name the path that was actually resolved, not only the root it was resolved against.
+
+Two entries SHALL NOT name overlapping trees, whether one is written inside another or the two resolve to one directory. Every scenario below the inner root is otherwise enumerated once per root above it, and the multiplicity rule above reports a scenario enumerated twice as a duplicate id — a true statement about the walk and a false one about the tree, which sends the author to healthy scenarios over a defect in one line of the ledger header. The written form is refused at load time, where the comparison is over what the entries name rather than how they are spelled, so `scenarios` and `./scenarios` are one tree; two roots resolving to one directory, which no comparison of spellings can see, are refused by the drift check where the paths are resolved.
+
 #### Scenario: A dead reference fails the check
 - **WHEN** the ledger cites a scenario id that exists under no root
 - **THEN** the check fails naming that id
@@ -111,6 +115,18 @@ Failures SHALL name every offending id, in every direction, in one report rather
 #### Scenario: Two scenarios sharing one id fail the check
 - **WHEN** two scenarios under the roots declare the same id, and a covered claim cites it
 - **THEN** the check fails naming that id once, and does not report it as unclaimed
+
+#### Scenario: A scenario root outside the repository is a load error
+- **WHEN** an entry of `scenario_roots` is absolute, contains a `..` component, or names no directory below the repo root
+- **THEN** loading fails naming that entry
+
+#### Scenario: Overlapping scenario roots are a load error
+- **WHEN** one entry of `scenario_roots` names a tree that holds another entry's tree, or names the same tree in another spelling
+- **THEN** loading fails naming both entries
+
+#### Scenario: Two roots resolving to one tree fail the drift check
+- **WHEN** two entries of `scenario_roots` resolve to one directory, one being a symlink to the other
+- **THEN** the check fails naming both entries and the paths they resolved to, and does not report the scenarios below them as duplicate ids
 
 #### Scenario: The in-tree suite passes both directions
 - **WHEN** the check runs against the repo's own `scenarios/` and `examples/prompt-pack/`

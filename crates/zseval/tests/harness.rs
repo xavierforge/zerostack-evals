@@ -3845,6 +3845,77 @@ fn the_coverage_ledger_matches_the_real_scenario_tree() {
         .unwrap_or_else(|e| panic!("{e:#}"));
 }
 
+/// One scenario tree under `dir`, with one scenario per id given. Two ids
+/// spelled the same make two directories declaring one id, which is the drift
+/// check's third direction.
+fn seed_scenario_tree(dir: &Path, ids: &[&str]) {
+    for (n, id) in ids.iter().enumerate() {
+        let sc = dir.join(format!("sc{n}"));
+        std::fs::create_dir_all(&sc).unwrap();
+        std::fs::write(
+            sc.join("scenario.toml"),
+            format!(
+                "id = \"{id}\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = \
+                 [\"tool_not_called write\"]\n"
+            ),
+        )
+        .unwrap();
+    }
+}
+
+/// A ledger over these roots whose single covered claim cites `id`.
+fn ledger_over(roots: &str, id: &str) -> Ledger {
+    Ledger::parse(&format!(
+        "audited_against = \"1.7.2\"\nscenario_roots = [{roots}]\n\n[[areas]]\nname = \
+         \"prompts\"\ntitle = \"Prompt behaviour\"\n\n[[areas.claims]]\nclaim = \"ask mode \
+         refuses an edit\"\nstatus = \"covered\"\nscenarios = [\"{id}\"]\n"
+    ))
+    .unwrap()
+}
+
+/// Two roots resolving to one tree enumerate every scenario below it twice,
+/// and a scenario enumerated twice used to arrive as "duplicate scenario ids":
+/// a true statement about the walk and a false one about the tree, naming
+/// healthy scenarios for a defect in one line of the ledger header. The header
+/// rejects an overlap it can see in the spelling; a symlinked root is the case
+/// only the resolved paths can catch, so it is caught here.
+#[cfg(unix)]
+#[test]
+fn the_drift_check_names_two_roots_that_resolve_to_one_tree() {
+    let root =
+        std::env::temp_dir().join(format!("zseval-test-mirrored-root-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("scenarios")).unwrap();
+    seed_scenario_tree(&root.join("scenarios"), &["only"]);
+    std::os::unix::fs::symlink(root.join("scenarios"), root.join("mirror")).unwrap();
+
+    let err = ledger_over(r#""scenarios", "mirror""#, "only")
+        .check_drift(&root)
+        .unwrap_err();
+    std::fs::remove_dir_all(&root).ok();
+    let msg = format!("{err:#}");
+    assert!(msg.contains("'scenarios' and 'mirror'"), "{msg}");
+    // The defect is named, and the healthy scenario under it is not.
+    assert!(!msg.contains("duplicate scenario id"), "{msg}");
+    assert!(!msg.contains("only"), "{msg}");
+}
+
+/// And the direction that message belongs to still reports it: two scenario
+/// directories declaring one id, under one root walked once.
+#[test]
+fn the_drift_check_still_names_two_scenarios_that_share_one_id() {
+    let root = std::env::temp_dir().join(format!("zseval-test-shared-id-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("scenarios")).unwrap();
+    seed_scenario_tree(&root.join("scenarios"), &["twice", "twice"]);
+
+    let err = ledger_over(r#""scenarios""#, "twice")
+        .check_drift(&root)
+        .unwrap_err();
+    std::fs::remove_dir_all(&root).ok();
+    let msg = format!("{err:#}");
+    assert!(msg.contains("duplicate scenario ids"), "{msg}");
+    assert!(msg.contains("twice"), "{msg}");
+}
+
 /// The denominator is the product's surface, so the area set is fixed by the
 /// spec rather than derived from the suite. The drift test above compares
 /// scenario ids, which leaves it blind to an area carrying none: dropping one

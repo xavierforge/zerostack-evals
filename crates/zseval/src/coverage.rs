@@ -30,6 +30,12 @@
 //!     declared twice splits one row of the denominator in two, and an area
 //!     with no claims is counted while stating nothing. Neither is visible to a
 //!     test that pins the area set, since sorted names still hold every name.
+//!   - **Every root names a tree inside this repo, and no two name one tree.**
+//!     `scenario_roots` is the sole input to the drift check's walk and is
+//!     joined onto the repo root, so an absolute entry walks off the machine's
+//!     root instead of failing, and two overlapping roots enumerate a scenario
+//!     twice, which arrives as the duplicate-id rule below firing on a healthy
+//!     tree.
 //!   - **The ledger and the tree agree, in every direction.** A dead reference
 //!     means the ledger cites evidence that no longer exists; an unclaimed
 //!     scenario means the ledger has quietly fallen behind the suite; and two
@@ -51,15 +57,16 @@
 //! File order is presentation order (safety boundaries first, not
 //! alphabetical), so nothing here sorts and nothing keys areas by name.
 
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 
 /// A loaded ledger. Every invariant the schema can carry is already true of a
 /// value of this type: statuses are the closed four, each carries exactly the
-/// evidence its status owes, every area is one row that accounts for something,
-/// and no scenario id backs two covered claims.
+/// evidence its status owes, every area is one row that accounts for
+/// something, every root names a tree inside this repo and no two name one
+/// tree, and no scenario id backs two covered claims.
 ///
 /// The fields are private and `Ledger::new` is the only constructor, so those
 /// invariants hold however the value was made. They were `pub` with the checks
@@ -339,6 +346,81 @@ impl Ledger {
                  the drift check enumerate no scenarios"
             );
         }
+        self.check_roots()
+    }
+
+    /// Each root names a tree inside this repo, spelled relative to its root,
+    /// and no two of them name the same tree.
+    ///
+    /// The entries are the sole input to a filesystem walk: `check_drift` joins
+    /// each onto the repo root and enumerates whatever comes out. `Path::join`
+    /// discards what it is joined onto as soon as its operand is absolute, so
+    /// an unchecked entry does not fail — it walks somewhere else on the
+    /// machine. `..` climbs out of the checkout the same way, and an entry
+    /// naming no directory below the root resolves to the checkout itself,
+    /// where the walk would go looking for scenarios in `target/` and `.git`.
+    /// The ledger file is the thing this module exists to distrust, so the
+    /// entries are held to what the field means rather than to a list of bad
+    /// spellings.
+    ///
+    /// Overlap is refused for a different reason. Two roots where one holds the
+    /// other enumerate every scenario below the inner one twice, and a scenario
+    /// enumerated twice is reported by `check_ids` as a duplicate id — a true
+    /// statement about the walk and a false one about the tree, which sends the
+    /// author to a page of healthy scenarios over a defect in one line of this
+    /// header. The comparison is over what the entries name, `.` segments
+    /// dropped, so `scenarios` and `./scenarios` are one tree rather than two.
+    /// A root symlinked to another is the case this spelling-level test
+    /// structurally cannot see, and `check_drift` catches that one where the
+    /// paths are resolved.
+    fn check_roots(&self) -> Result<()> {
+        let mut named: Vec<(&str, Vec<Component>)> = Vec::new();
+        for root in &self.scenario_roots {
+            let path = Path::new(root.as_str());
+            if path
+                .components()
+                .any(|c| matches!(c, Component::RootDir | Component::Prefix(_)))
+            {
+                bail!(
+                    "coverage ledger: scenario_roots names '{root}', which is an absolute path — \
+                     every root is joined onto the repo root, and joining onto a path discards it \
+                     when the operand is absolute, so this would not fail: it would walk \
+                     somewhere else on the machine entirely"
+                );
+            }
+            if path.components().any(|c| c == Component::ParentDir) {
+                bail!(
+                    "coverage ledger: scenario_roots names '{root}', which climbs out of the \
+                     checkout with '..' — a root names a tree inside this repo, and the drift \
+                     check walks in both directions whatever the entry resolves to"
+                );
+            }
+            let parts: Vec<Component> = path
+                .components()
+                .filter(|c| matches!(c, Component::Normal(_)))
+                .collect();
+            if parts.is_empty() {
+                bail!(
+                    "coverage ledger: scenario_roots names '{root}', which names no directory \
+                     below the repo root — an empty entry or a bare '.' resolves to the checkout \
+                     itself, and the drift check would go looking for scenarios in target/ and \
+                     .git"
+                );
+            }
+            if let Some((other, _)) = named
+                .iter()
+                .find(|(_, seen)| seen.starts_with(&parts) || parts.starts_with(seen))
+            {
+                bail!(
+                    "coverage ledger: scenario_roots names '{other}' and '{root}', one of which \
+                     holds the other — every scenario under the inner root would be enumerated \
+                     once per root above it, and the drift check reports a scenario enumerated \
+                     twice as a duplicate id, which names healthy scenarios for a defect in this \
+                     header"
+                );
+            }
+            named.push((root, parts));
+        }
         Ok(())
     }
 
@@ -436,15 +518,39 @@ impl Ledger {
     /// the covered claims cite.
     pub fn check_drift(&self, repo_root: &Path) -> Result<()> {
         let mut tree_ids: Vec<String> = Vec::new();
+        // Where each root actually landed. `check_roots` has already refused
+        // two roots that name one tree, but it compares the entries as written
+        // and a symlinked root is spelled like any other; the scenarios under
+        // it would otherwise be enumerated twice and reported as duplicate ids,
+        // which is the tree's fault in the message and the header's in fact.
+        let mut resolved: Vec<(&str, PathBuf)> = Vec::new();
         for root in &self.scenario_roots {
             let dir = repo_root.join(root);
             if !dir.is_dir() {
                 bail!(
-                    "coverage ledger: scenario_roots names '{root}', which is not a directory \
-                     under {}",
-                    repo_root.display()
+                    "coverage ledger: scenario_roots names '{root}', which resolves to {} — not \
+                     a directory, and every root is a tree of this repo the drift check \
+                     enumerates in both directions",
+                    dir.display()
                 );
             }
+            let real = dir
+                .canonicalize()
+                .with_context(|| format!("resolve {}", dir.display()))?;
+            if let Some((other, seen)) = resolved
+                .iter()
+                .find(|(_, seen)| real.starts_with(seen) || seen.starts_with(&real))
+            {
+                bail!(
+                    "coverage ledger: scenario_roots names '{other}' and '{root}', which resolve \
+                     to {} and {} — one holds the other, so every scenario below the inner one \
+                     would be enumerated twice and reported as a duplicate id, naming healthy \
+                     scenarios for a defect in this header",
+                    seen.display(),
+                    real.display()
+                );
+            }
+            resolved.push((root, real));
             for scenario in crate::scenario::discover(&dir)
                 .with_context(|| format!("discover scenarios under {}", dir.display()))?
             {
@@ -812,6 +918,86 @@ status = "uncovered"
         assert!(err(text).contains("scenario_roots"), "{}", err(text));
     }
 
+    /// A ledger whose header names these roots, so each roots test writes only
+    /// the entry it is about.
+    fn with_roots(roots: &str) -> String {
+        format!(
+            r#"audited_against = "1.7.2"
+scenario_roots = [{roots}]
+
+[[areas]]
+name = "permission"
+title = "Permission layer"
+
+[[areas.claims]]
+claim = "ask mode refuses an edit"
+status = "uncovered"
+"#
+        )
+    }
+
+    /// Every root is joined onto the repo root, and joining onto a path
+    /// discards it when the operand is absolute — so an absolute entry does not
+    /// fail on its own, it walks the machine's root instead of the checkout.
+    #[test]
+    fn an_absolute_scenario_root_fails_naming_it() {
+        for root in [r#""/""#, r#""/etc""#] {
+            let text = with_roots(root);
+            let msg = err(&text);
+            assert!(msg.contains("scenario_roots"), "{msg}");
+            assert!(msg.contains("absolute"), "{msg}");
+        }
+    }
+
+    #[test]
+    fn a_scenario_root_that_climbs_out_of_the_checkout_fails_naming_it() {
+        for root in [r#""..""#, r#""../..""#, r#""scenarios/../../elsewhere""#] {
+            let text = with_roots(root);
+            let msg = err(&text);
+            assert!(msg.contains("scenario_roots"), "{msg}");
+            assert!(msg.contains(".."), "{msg}");
+        }
+    }
+
+    /// An entry naming nothing below the root resolves to the checkout itself,
+    /// where the walk would go looking for scenarios in `target/` and `.git`.
+    #[test]
+    fn a_scenario_root_naming_no_directory_fails_naming_it() {
+        for root in [r#""""#, r#"".""#, r#""./""#] {
+            let text = with_roots(root);
+            let msg = err(&text);
+            assert!(msg.contains("scenario_roots"), "{msg}");
+            assert!(msg.contains("no directory"), "{msg}");
+        }
+    }
+
+    /// Overlapping roots enumerate every scenario below the inner one twice,
+    /// and `check_ids` reports a scenario enumerated twice as a duplicate id —
+    /// nineteen healthy scenarios named for one line of the header. Refused
+    /// where it is written rather than diagnosed after the walk.
+    #[test]
+    fn a_scenario_root_holding_another_fails_naming_both() {
+        let text = with_roots(r#""scenarios", "scenarios/prompts""#);
+        let msg = err(&text);
+        assert!(msg.contains("scenarios/prompts"), "{msg}");
+        assert!(msg.contains("holds the other"), "{msg}");
+    }
+
+    /// The comparison is over what an entry names, not over how it is spelled,
+    /// so `.` segments do not buy a second copy of one tree.
+    #[test]
+    fn one_tree_spelled_two_ways_fails_naming_both() {
+        for roots in [
+            r#""scenarios", "scenarios""#,
+            r#""scenarios", "./scenarios""#,
+        ] {
+            let text = with_roots(roots);
+            let msg = err(&text);
+            assert!(msg.contains("scenarios"), "{msg}");
+            assert!(msg.contains("holds the other"), "{msg}");
+        }
+    }
+
     #[test]
     fn a_duplicate_area_name_fails_naming_it() {
         // Two rows under one name, which the pinned area-set test cannot catch:
@@ -906,6 +1092,16 @@ claims = []"#,
         )
         .unwrap_err();
         assert!(format!("{err:#}").contains("scenario_roots"), "{err:#}");
+
+        // The per-root rules, which decide where a filesystem walk goes and so
+        // must not wait for a file to be the thing that carries them.
+        let err = Ledger::new(
+            "1.7.2".to_string(),
+            vec!["/".to_string()],
+            vec![area("prompts", vec![covered("x", "y")])],
+        )
+        .unwrap_err();
+        assert!(format!("{err:#}").contains("absolute"), "{err:#}");
 
         // The area rules.
         let err =
