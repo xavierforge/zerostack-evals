@@ -43,6 +43,8 @@ Every claim SHALL carry a `claim` string and a `status` of exactly one of `cover
 - `product-blocked` requires a one-line `reason` describing the hole on the zerostack side, and takes an optional `zs` pointer.
 - `excluded` requires a one-line `reason` for never testing this.
 
+Every claim SHALL carry claim text, and an evidence field that is present but blank SHALL be refused exactly as a missing one is. A claim is one statement about what the suite measures, and a statement that says nothing takes a row of the page to do it; a `reason` of `""` likewise satisfies "the field is present" while saying nothing, and each of these fields exists to say something.
+
 Any claim MAY carry a free-text `note`. Prose fields (`blocked_by`, `reason`, `note`) name their subject in full and SHALL NOT reference numbering that lives in a planning document: gap letters and wave numbers are re-planned regularly, and a ledger of facts cannot point at a moving index.
 
 There is deliberately no `planned` status and no wave or schedule field. Scheduling lives in `scenarios/PLAN.md`; the ledger records only what is and is not measured today.
@@ -66,6 +68,14 @@ There is deliberately no `planned` status and no wave or schedule field. Schedul
 #### Scenario: Uncovered records blockage by presence
 - **WHEN** one uncovered claim carries `blocked_by` and another omits it
 - **THEN** both load, and the loaded claims differ in exactly that field
+
+#### Scenario: A blank evidence field fails like a missing one
+- **WHEN** a claim declares `status = "excluded"` with `reason = ""`, or `status = "uncovered"` with `blocked_by = ""`
+- **THEN** loading fails naming the claim and the field
+
+#### Scenario: A claim with no text is a load error
+- **WHEN** a claim declares `claim = ""`
+- **THEN** loading fails naming its area
 
 ### Requirement: `covered` is an existence claim
 `covered` SHALL mean "a scenario in this repo tests this claim" and nothing more. It does not assert that the scenario passes: a scenario scoring 0% is still coverage, and whether a low score is a problem or a measurement is `kind`'s question, already answered per scenario. It does not assert that the scenario ran in any particular report: run membership is a property of a report, computed by whoever renders one, and recording it in the ledger would make the ledger stale on every run.
@@ -94,6 +104,10 @@ This rule, and every other rule in this capability, SHALL hold for any way of co
 #### Scenario: A hand-built ledger is checked like a parsed one
 - **WHEN** a ledger value is constructed in code carrying the same id under two covered claims
 - **THEN** construction fails naming the id, exactly as loading the same content from a file would
+
+#### Scenario: A hand-built ledger owes the same evidence
+- **WHEN** a ledger value is constructed in code carrying a `covered` claim with no scenarios, a blank `reason`, or a blank `blocked_by`
+- **THEN** construction fails in the same words loading the same content from a file would
 
 ### Requirement: The ledger and the scenario tree are checked in both directions
 `scenario_roots` SHALL name the trees that hold scenarios (`scenarios` and `examples/prompt-pack`), and the drift check SHALL enforce both directions against them:

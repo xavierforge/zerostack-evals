@@ -14,11 +14,15 @@
 //! them all, so a fixture built in code is held to what a file is held to.
 //!
 //!   - **Each status owes its own evidence.** `covered` needs a non-empty
-//!     `scenarios`, `product-blocked` and `excluded` need a `reason`, and
-//!     evidence belonging to another status is a load error rather than a
-//!     silently ignored field. `uncovered`'s optional `blocked_by` is the one
-//!     field whose *presence* is the fact: present means a harness gap stands
-//!     in the way, absent means the claim is simply unbuilt.
+//!     `scenarios`, `product-blocked` and `excluded` need a `reason`, and a
+//!     field that is present but blank is absent: every one of them exists to
+//!     say something. `uncovered`'s optional `blocked_by` is the one field
+//!     whose *presence* is the fact: present means a harness gap stands in the
+//!     way and the sentence names it, absent means the claim is simply
+//!     unbuilt. Evidence belonging to *another* status is a load error rather
+//!     than a silently ignored field — the one rule of the five the wire shape
+//!     needs and the type does not, since each `Status` variant carries its
+//!     own fields and no others.
 //!   - **`covered` is an existence claim.** It says a scenario tests this, not
 //!     that the scenario passes and not that it ran in any given report. So no
 //!     score, no run reference, no timestamp lives here.
@@ -195,6 +199,15 @@ fn reject_foreign_evidence(
 }
 
 impl RawClaim {
+    /// Wire shape to type, and nothing more: which variant a status name means,
+    /// and the refusal of evidence belonging to another status, which is a
+    /// question only the flat wire shape can ask (each `Status` variant carries
+    /// its own fields and no others, so there is nothing foreign left to hold).
+    ///
+    /// The evidence each status *owes* is deliberately not checked here.
+    /// `Ledger::new` checks it, so the rule holds for the value however it was
+    /// built, and absent evidence arrives there as the empty string it means
+    /// rather than as a second way of saying missing.
     fn validate(self, area: &str) -> Result<Claim> {
         let RawClaim {
             claim,
@@ -220,15 +233,9 @@ impl RawClaim {
         let status = match status.as_str() {
             "covered" => {
                 reject_foreign_evidence(&at, "covered", &["scenarios"], &present)?;
-                let scenarios = scenarios.unwrap_or_default();
-                if scenarios.is_empty() {
-                    bail!(
-                        "{at}: status = \"covered\" requires a non-empty `scenarios` array — \
-                         covered means a scenario in this repo tests the claim, so the ids are \
-                         the whole of the evidence"
-                    );
+                Status::Covered {
+                    scenarios: scenarios.unwrap_or_default(),
                 }
-                Status::Covered { scenarios }
             }
             "uncovered" => {
                 reject_foreign_evidence(&at, "uncovered", &["blocked_by"], &present)?;
@@ -236,23 +243,16 @@ impl RawClaim {
             }
             "product-blocked" => {
                 reject_foreign_evidence(&at, "product-blocked", &["reason", "zs"], &present)?;
-                let Some(reason) = reason else {
-                    bail!(
-                        "{at}: status = \"product-blocked\" requires a one-line `reason` naming \
-                         the hole on the zerostack side"
-                    );
-                };
-                Status::ProductBlocked { reason, zs }
+                Status::ProductBlocked {
+                    reason: reason.unwrap_or_default(),
+                    zs,
+                }
             }
             "excluded" => {
                 reject_foreign_evidence(&at, "excluded", &["reason"], &present)?;
-                let Some(reason) = reason else {
-                    bail!(
-                        "{at}: status = \"excluded\" requires a one-line `reason` for never \
-                         testing this — it is the file's only irreversible judgment"
-                    );
-                };
-                Status::Excluded { reason }
+                Status::Excluded {
+                    reason: reason.unwrap_or_default(),
+                }
             }
             other => bail!(
                 "{at}: unknown status '{other}' — the four are covered, uncovered, \
@@ -283,6 +283,7 @@ impl Ledger {
         };
         ledger.check_header()?;
         ledger.check_areas()?;
+        ledger.check_claims()?;
         ledger.check_unique_ids()?;
         Ok(ledger)
     }
@@ -480,6 +481,82 @@ impl Ledger {
             ));
         }
         bail!("{msg}")
+    }
+
+    /// Each status owes its own evidence, and a claim states something.
+    ///
+    /// The rule lives here rather than on the load path because it is a rule
+    /// about the value: `Area` and `Claim` carry public fields and `Status`'s
+    /// variants do too, so `Covered { scenarios: vec![] }` and
+    /// `Excluded { reason: String::new() }` are as constructible as a file is
+    /// writable, and a renderer's first hand-built fixture is exactly where
+    /// they would be constructed. Checking here also leaves one implementation
+    /// of each sentence, so a fixture built in code fails in the same words a
+    /// file does.
+    ///
+    /// Blank counts as absent throughout. A `reason` of `""` satisfies "the
+    /// field is present" while saying nothing, and every one of these fields
+    /// exists to say something: the ids are the whole of a covered claim's
+    /// evidence, and a `blocked_by` that names no gap records the presence of a
+    /// gap it does not name.
+    fn check_claims(&self) -> Result<()> {
+        for area in &self.areas {
+            for claim in &area.claims {
+                if claim.claim.trim().is_empty() {
+                    bail!(
+                        "coverage ledger: area '{}' holds a claim with no text — a claim is one \
+                         statement about what the suite measures, and a statement that says \
+                         nothing takes a row of the page to do it",
+                        area.name
+                    );
+                }
+                // The same `at` a parsed claim's error carries, since it is the
+                // same error about the same claim.
+                let at = format!("area '{}', claim '{}'", area.name, claim.claim);
+                match &claim.status {
+                    Status::Covered { scenarios } => {
+                        // `all` rather than `is_empty`, since blank is absent:
+                        // an array of blank ids cites nothing, which is the
+                        // same claim as an empty one. A blank alongside a real
+                        // id is an id the drift check reports as dead.
+                        if scenarios.iter().all(|id| id.trim().is_empty()) {
+                            bail!(
+                                "{at}: status = \"covered\" requires a non-empty `scenarios` \
+                                 array — covered means a scenario in this repo tests the claim, \
+                                 so the ids are the whole of the evidence"
+                            );
+                        }
+                    }
+                    Status::Uncovered { blocked_by } => {
+                        if blocked_by.as_deref().is_some_and(|b| b.trim().is_empty()) {
+                            bail!(
+                                "{at}: status = \"uncovered\" carries an empty `blocked_by` — the \
+                                 presence of that field is itself the claim that a harness gap \
+                                 stands in the way, so it has to name the gap; a claim that is \
+                                 simply unbuilt leaves the field out"
+                            );
+                        }
+                    }
+                    Status::ProductBlocked { reason, .. } => {
+                        if reason.trim().is_empty() {
+                            bail!(
+                                "{at}: status = \"product-blocked\" requires a one-line `reason` \
+                                 naming the hole on the zerostack side"
+                            );
+                        }
+                    }
+                    Status::Excluded { reason } => {
+                        if reason.trim().is_empty() {
+                            bail!(
+                                "{at}: status = \"excluded\" requires a one-line `reason` for \
+                                 never testing this — it is the file's only irreversible judgment"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Does `audited_against` appear in this `--version` banner, as the whole
@@ -1174,6 +1251,94 @@ status = "uncovered""#,
         assert_eq!(ok.areas().len(), 1);
     }
 
+    /// The same argument one level down, for the rule the module lists first.
+    /// `Status`'s variants carry public fields, so `Covered { scenarios:
+    /// vec![] }` and `Excluded { reason: String::new() }` are as constructible
+    /// as a file is writable, and the required-evidence half used to run on the
+    /// parse path alone — where a renderer's fixture never goes. Every shape
+    /// here is one a file is refused for.
+    #[test]
+    fn a_hand_built_ledger_owes_the_same_evidence_a_parsed_one_does() {
+        let build = |status: Status| {
+            Ledger::new(
+                "1.7.2".to_string(),
+                vec!["scenarios".to_string()],
+                vec![Area {
+                    name: "prompts".to_string(),
+                    title: "Prompt behaviour".to_string(),
+                    claims: vec![Claim {
+                        claim: "ask mode refuses an edit".to_string(),
+                        status,
+                        note: None,
+                    }],
+                }],
+            )
+        };
+
+        // (the shape, the word its error has to carry)
+        let cases = [
+            (Status::Covered { scenarios: vec![] }, "scenarios"),
+            (
+                Status::Covered {
+                    scenarios: vec!["  ".to_string()],
+                },
+                "scenarios",
+            ),
+            (
+                Status::Excluded {
+                    reason: String::new(),
+                },
+                "reason",
+            ),
+            (
+                Status::ProductBlocked {
+                    reason: "   ".to_string(),
+                    zs: None,
+                },
+                "reason",
+            ),
+            (
+                Status::Uncovered {
+                    blocked_by: Some(String::new()),
+                },
+                "blocked_by",
+            ),
+        ];
+        for (status, word) in cases {
+            let err = build(status).unwrap_err();
+            let msg = format!("{err:#}");
+            assert!(msg.contains(word), "{msg}");
+            assert!(msg.contains("ask mode refuses an edit"), "{msg}");
+        }
+
+        // A claim with no text is the same fault a row above: one statement
+        // about what the suite measures, stating nothing.
+        let err = Ledger::new(
+            "1.7.2".to_string(),
+            vec!["scenarios".to_string()],
+            vec![Area {
+                name: "prompts".to_string(),
+                title: "Prompt behaviour".to_string(),
+                claims: vec![Claim {
+                    claim: String::new(),
+                    status: Status::Uncovered { blocked_by: None },
+                    note: None,
+                }],
+            }],
+        )
+        .unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("prompts"), "{msg}");
+        assert!(msg.contains("no text"), "{msg}");
+
+        // And the evidence each status does owe still builds.
+        build(Status::Covered {
+            scenarios: vec!["ask-readonly-refuses-edit".to_string()],
+        })
+        .unwrap();
+        build(Status::Uncovered { blocked_by: None }).unwrap();
+    }
+
     #[test]
     fn covered_without_scenarios_fails_naming_the_claim() {
         let text = one_claim(
@@ -1220,6 +1385,51 @@ status = "product-blocked""#,
         let msg = err(&text);
         assert!(msg.contains("the prompt a run loaded is reported"), "{msg}");
         assert!(msg.contains("reason"), "{msg}");
+    }
+
+    /// Blank is absent: a `reason` of `""` satisfies "the field is present"
+    /// while saying nothing, and the field exists to say something. One rule
+    /// for both statuses that owe a reason.
+    #[test]
+    fn a_blank_reason_fails_like_a_missing_one() {
+        for status in ["excluded", "product-blocked"] {
+            let text = one_claim(&format!(
+                "claim = \"a symlink out of the workspace is refused\"\nstatus = \
+                 \"{status}\"\nreason = \"   \""
+            ));
+            let msg = err(&text);
+            assert!(
+                msg.contains("a symlink out of the workspace is refused"),
+                "{msg}"
+            );
+            assert!(msg.contains("reason"), "{msg}");
+        }
+    }
+
+    /// `blocked_by`'s presence is itself the claim that a harness gap stands in
+    /// the way, so an empty one records a gap it does not name. A claim that is
+    /// simply unbuilt leaves the field out, which is the whole distinction.
+    #[test]
+    fn a_blank_blocked_by_fails_naming_the_claim() {
+        let text = one_claim(
+            r#"claim = "per-scenario CLI flags"
+status = "uncovered"
+blocked_by = """#,
+        );
+        let msg = err(&text);
+        assert!(msg.contains("per-scenario CLI flags"), "{msg}");
+        assert!(msg.contains("blocked_by"), "{msg}");
+    }
+
+    #[test]
+    fn a_claim_with_no_text_fails_naming_its_area() {
+        let text = one_claim(
+            r#"claim = ""
+status = "uncovered""#,
+        );
+        let msg = err(&text);
+        assert!(msg.contains("permission"), "{msg}");
+        assert!(msg.contains("no text"), "{msg}");
     }
 
     #[test]
