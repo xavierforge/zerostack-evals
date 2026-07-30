@@ -3771,11 +3771,14 @@ fn the_coverage_ledger_declares_exactly_the_specified_areas() {
 
     let root = repo_root();
     let ledger = Ledger::load(&root.join("scenarios/coverage.toml")).unwrap();
-    let mut names: Vec<&str> = ledger.areas.iter().map(|a| a.name.as_str()).collect();
+    let mut names: Vec<&str> = ledger.areas().iter().map(|a| a.name.as_str()).collect();
     names.sort_unstable();
 
     assert_eq!(names, EXPECTED);
-    assert_eq!(ledger.scenario_roots, ["scenarios", "examples/prompt-pack"]);
+    assert_eq!(
+        ledger.scenario_roots(),
+        ["scenarios", "examples/prompt-pack"]
+    );
 }
 
 /// specs/coverage-ledger/spec.md's "A malformed ledger does not break a run"

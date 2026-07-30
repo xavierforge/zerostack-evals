@@ -71,9 +71,15 @@ Across the whole ledger, a scenario id SHALL appear in at most one `covered` cla
 
 This makes per-area coverage counts mean exactly one thing: a reader seeing the same id under three claims cannot tell three units of coverage from one unit cited three times, and a renderer that silently de-duplicates hides the author's unmade decision.
 
+This rule, and every other rule in this capability, SHALL hold for any way of constructing a ledger value and not only for one read off a file. A rule enforced on the load path alone is a rule the first hand-built value skips, and the renderer's own fixtures are hand-built.
+
 #### Scenario: A duplicate id is rejected
 - **WHEN** a ledger lists the same scenario id under two covered claims, in the same area or in different areas
 - **THEN** the check fails naming the id and both claims
+
+#### Scenario: A hand-built ledger is checked like a parsed one
+- **WHEN** a ledger value is constructed in code carrying the same id under two covered claims
+- **THEN** construction fails naming the id, exactly as loading the same content from a file would
 
 ### Requirement: The ledger and the scenario tree are checked in both directions
 `scenario_roots` SHALL name the trees that hold scenarios (`scenarios` and `examples/prompt-pack`), and the drift check SHALL enforce both directions against them:
