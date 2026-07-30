@@ -9,6 +9,8 @@ The ledger SHALL say `area`, never `domain`. `domain` is already load-bearing an
 
 File order SHALL be presentation order; the loader preserves it and adds no sorting.
 
+Each area SHALL be declared exactly once and SHALL carry at least one claim, both as load-time errors. An area is one row of the denominator: a second table under the same name splits one row in two while a test that pins the area set stays green, because the sorted names still hold every expected name, and an area with no claims is counted in the denominator while stating nothing.
+
 #### Scenario: The ledger declares all 15 areas
 - **WHEN** `scenarios/coverage.toml` is loaded
 - **THEN** it yields 15 areas whose names are exactly the set above, in file order
@@ -20,6 +22,14 @@ File order SHALL be presentation order; the loader preserves it and adds no sort
 #### Scenario: Header fields are required
 - **WHEN** a ledger omits `audited_against` or `scenario_roots`
 - **THEN** loading fails naming the missing field
+
+#### Scenario: A duplicate area name is a load error
+- **WHEN** two `[[areas]]` tables declare the same `name`
+- **THEN** loading fails naming that area
+
+#### Scenario: An area with no claims is a load error
+- **WHEN** an area declares `claims = []`
+- **THEN** loading fails naming that area
 
 ### Requirement: Four claim statuses, each with its own required evidence
 Every claim SHALL carry a `claim` string and a `status` of exactly one of `covered`, `uncovered`, `product-blocked`, `excluded`. Each status carries the evidence that status owes, and a wrong combination SHALL be a load-time error rather than a silently ignored field:
