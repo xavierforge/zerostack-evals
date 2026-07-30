@@ -370,15 +370,53 @@ impl Ledger {
         bail!("{msg}")
     }
 
-    /// Does `audited_against` appear in this `--version` banner?
+    /// Does `audited_against` appear in this `--version` banner, as the whole
+    /// of a version rather than the front of a longer one?
     ///
     /// Containment, deliberately: `backend.rs` stores the banner verbatim so
     /// upstream's banner shape never becomes a compatibility contract, and a
     /// version parser here would sign that contract on the ledger's behalf.
     /// A mock-backend report records `mock` and therefore mismatches, which is
     /// the right answer — a page rendered from mock numbers should say so.
+    ///
+    /// Plain `str::contains` was not enough, and it failed in the one
+    /// direction D6 promises is impossible. `1.7.2` is a substring of
+    /// `zerostack 1.7.20` and of `zerostack 1.7.2-rc1`, so a *newer* binary
+    /// read as a match and the page would have claimed the ledger was audited
+    /// against the version that actually ran — a wrong version claim, not the
+    /// spurious mismatch the design is willing to pay. So a hit is refused
+    /// when it is glued to a character that could extend a version: a digit
+    /// or `.` on either side, and additionally `-` or `+` on the right, where
+    /// a pre-release or build suffix sits.
+    ///
+    /// That is a boundary rule, not a parse. Nothing here splits the banner on
+    /// dots, compares numbers, orders two versions, or assumes where in the
+    /// line the version sits — the only thing added is a refusal to accept
+    /// part of a longer token as the whole of it. Anything it gets wrong still
+    /// fails in the safe direction, as a mismatch.
     pub fn audit_matches(&self, banner: &str) -> bool {
-        banner.contains(&self.audited_against)
+        // A version can be continued to the right by a suffix separator but
+        // never begun by one, so `-` and `+` are only checked on that side:
+        // a banner reading `zerostack-1.7.2` still matches.
+        fn extends_left(c: char) -> bool {
+            c.is_ascii_digit() || c == '.'
+        }
+        fn extends_right(c: char) -> bool {
+            c.is_ascii_digit() || c == '.' || c == '-' || c == '+'
+        }
+        banner
+            .match_indices(&self.audited_against)
+            .any(|(at, hit)| {
+                let left_clear = banner[..at]
+                    .chars()
+                    .next_back()
+                    .is_none_or(|c| !extends_left(c));
+                let right_clear = banner[at + hit.len()..]
+                    .chars()
+                    .next()
+                    .is_none_or(|c| !extends_right(c));
+                left_clear && right_clear
+            })
     }
 
     /// Both directions of the drift check against a real tree: every scenario
@@ -1090,6 +1128,43 @@ status = "uncovered""#,
         assert!(l.audit_matches("zerostack 1.7.2"));
         assert!(!l.audit_matches("zerostack 1.7.4"));
         assert!(!l.audit_matches("mock"));
+    }
+
+    /// The boundary rule, which is the whole of what `audit_matches` adds to
+    /// `str::contains`. Plain containment read a *newer* binary as a match,
+    /// because `1.7.2` sits inside `1.7.20`, and that is a wrong version claim
+    /// rather than the spurious mismatch D6 is willing to pay. Every case here
+    /// that must not match is a banner plain containment accepted.
+    #[test]
+    fn audit_matches_refuses_a_version_it_is_only_the_front_of() {
+        let text = one_claim(
+            r#"claim = "ask mode refuses an edit"
+status = "uncovered""#,
+        );
+        let l = Ledger::parse(&text).unwrap();
+
+        // Newer releases whose version merely starts with the audited one.
+        assert!(!l.audit_matches("zerostack 1.7.20"));
+        assert!(!l.audit_matches("zerostack 1.7.21 (a1b2c3)"));
+        assert!(!l.audit_matches("zerostack 1.7.2.1"));
+        // A pre-release or a build of 1.7.2 is not 1.7.2 either.
+        assert!(!l.audit_matches("zerostack 1.7.2-rc1"));
+        assert!(!l.audit_matches("zerostack 1.7.2+build9"));
+        // The same rule on the left, where a longer version ends in the
+        // audited one instead of beginning with it.
+        assert!(!l.audit_matches("zerostack 21.7.2"));
+        assert!(!l.audit_matches("zerostack 0.1.7.2"));
+
+        // Still a match: the exact version, wherever in the line it sits and
+        // whatever introduces it. A separator can extend a version to the
+        // right but never begin one, so `zerostack-1.7.2` matches.
+        assert!(l.audit_matches("zerostack 1.7.2"));
+        assert!(l.audit_matches("zerostack-1.7.2"));
+        assert!(l.audit_matches("zerostack 1.7.2 (a1b2c3)"));
+        assert!(l.audit_matches("zerostack v1.7.2, built 2026-07-01"));
+        // Both shapes at once: the exact occurrence carries the match, so the
+        // rule rejects a hit rather than the whole banner.
+        assert!(l.audit_matches("zerostack 1.7.20 (branched from 1.7.2)"));
     }
 
     fn two_covered(first: &str, second: &str) -> Ledger {
