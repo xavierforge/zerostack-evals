@@ -1061,6 +1061,118 @@ fn invalid_kind_value_fails_to_load() {
     std::fs::remove_dir_all(&sc_dir).ok();
 }
 
+/// `discover` used to skip a `scenario.toml` nested under another scenario in
+/// silence, so a scenario could sit in the tree while every count of the tree
+/// missed it. That is tolerable when the result only feeds a run and fatal once
+/// `coverage.rs` asks this function which scenarios exist in order to decide
+/// whether the ledger accounts for all of them.
+#[test]
+fn discover_refuses_a_scenario_nested_inside_another_scenario() {
+    let root = std::env::temp_dir().join(format!("zseval-test-nested-sc-{}", std::process::id()));
+    let outer = root.join("outer");
+    let inner = outer.join("files").join("inner");
+    std::fs::create_dir_all(&inner).unwrap();
+    let toml = |id: &str| {
+        format!("id = \"{id}\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = [\"tool_not_called write\"]\n")
+    };
+    std::fs::write(outer.join("scenario.toml"), toml("outer-scenario")).unwrap();
+    std::fs::write(inner.join("scenario.toml"), toml("inner-scenario")).unwrap();
+
+    let err = discover(&root).unwrap_err();
+    std::fs::remove_dir_all(&root).ok();
+    let msg = format!("{err:#}");
+    // Both ends of the mistake, so the fix is obvious from the message alone.
+    assert!(msg.contains("inner"), "{msg}");
+    assert!(msg.contains("outer"), "{msg}");
+}
+
+/// The same silence one layer down: a directory the walk cannot read was
+/// skipped, so an unreadable subtree reported as an empty one. Pointing
+/// `discover` at a file exercises that `read_dir` failure deterministically and
+/// without depending on filesystem permissions, which differ by platform and
+/// vanish under a root-owned CI runner.
+#[test]
+fn discover_reports_a_path_it_cannot_walk_instead_of_finding_nothing() {
+    let file = std::env::temp_dir().join(format!("zseval-test-nondir-{}", std::process::id()));
+    std::fs::write(&file, "not a directory\n").unwrap();
+
+    let err = discover(&file).unwrap_err();
+    std::fs::remove_file(&file).ok();
+    let msg = format!("{err:#}");
+    assert!(msg.contains("read scenario directory"), "{msg}");
+    assert!(msg.contains("zseval-test-nondir"), "{msg}");
+}
+
+/// A `_fixtures` folder holds seed data copied into the agent's working
+/// directory, so a `scenario.toml` there is a payload — the file a "fix the
+/// syntax error in this config" task hands the agent — and it is exactly the
+/// place one legitimately appears. Reading a payload as a nested scenario would
+/// take down `zseval list`, `zseval run` and the coverage drift check for the
+/// whole tree over one fixture's file name, so the walk stays out of the
+/// subtree: beside the scenario that uses it, and in the suite dir above where
+/// a shared one lives.
+#[test]
+fn discover_ignores_a_scenario_toml_inside_a_fixtures_folder() {
+    let root = std::env::temp_dir().join(format!(
+        "zseval-test-fixture-payload-{}",
+        std::process::id()
+    ));
+    let sc = root.join("group").join("only");
+    std::fs::create_dir_all(sc.join("_fixtures").join("deeper")).unwrap();
+    std::fs::create_dir_all(root.join("group").join("_fixtures")).unwrap();
+    let toml = |id: &str| {
+        format!("id = \"{id}\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = [\"tool_not_called write\"]\n")
+    };
+    std::fs::write(sc.join("scenario.toml"), toml("only")).unwrap();
+    // Deliberately unparseable: a payload the walk never opens, which a walk
+    // that mistook it for a scenario would fail to load rather than merely
+    // miscount.
+    std::fs::write(
+        sc.join("_fixtures").join("scenario.toml"),
+        "id = \"broken\"\nthis line is the syntax error the task is about\n",
+    )
+    .unwrap();
+    std::fs::write(
+        sc.join("_fixtures").join("deeper").join("scenario.toml"),
+        toml("payload"),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("group").join("_fixtures").join("scenario.toml"),
+        toml("shared-payload"),
+    )
+    .unwrap();
+
+    let found = discover(&root).unwrap();
+    std::fs::remove_dir_all(&root).ok();
+    assert_eq!(
+        found.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+        ["only"]
+    );
+}
+
+/// The counterpart to both: an ordinary tree still walks clean, and a scenario
+/// directory's own subdirectories are not mistaken for scenarios.
+#[test]
+fn discover_walks_a_scenario_directory_without_counting_its_fixtures() {
+    let root = std::env::temp_dir().join(format!("zseval-test-plain-sc-{}", std::process::id()));
+    let sc = root.join("group").join("only");
+    std::fs::create_dir_all(sc.join("_fixtures")).unwrap();
+    std::fs::write(
+        sc.join("scenario.toml"),
+        "id = \"only\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = [\"tool_not_called write\"]\n",
+    )
+    .unwrap();
+    std::fs::write(sc.join("_fixtures").join("hello.py"), "print(1)\n").unwrap();
+
+    let found = discover(&root).unwrap();
+    std::fs::remove_dir_all(&root).ok();
+    assert_eq!(
+        found.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+        ["only"]
+    );
+}
+
 #[test]
 fn the_committed_suite_is_29_regression_and_13_capability() {
     // The adjudicated in-tree classification (scenario-kind spec table): the

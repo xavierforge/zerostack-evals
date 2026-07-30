@@ -25,7 +25,7 @@ None. No existing requirement changes: scenario loading, report schema, and comp
 
 ## Impact
 
-- Code: new `crates/zseval/src/coverage.rs`; one `pub mod coverage;` line in `lib.rs`. No changes to `scenario.rs`, `verdict.rs`, `main.rs`, or `backend.rs` — the ledger is read by tests today and by `zseval site` tomorrow, never by a run.
+- Code: new `crates/zseval/src/coverage.rs`; one `pub mod coverage;` line in `lib.rs`. No changes to `verdict.rs`, `main.rs`, or `backend.rs` — the ledger is read by tests today and by `zseval site` tomorrow, never by a run. `scenario.rs` was originally scoped out too; `discover` is now the drift check's source of truth for what the tree holds, and its three silent skips made that answer unreliable, so it gained loud failures instead (2026-07-30, see `decisions.md`).
 - Data: new `scenarios/coverage.toml` (~400 lines, roughly 60-70 claims across 15 areas). `scenario_roots` names `scenarios` and `examples/prompt-pack`, so the pack marker scenario is claimed rather than orphaned.
 - Tests: one new integration test in `crates/zseval/tests/harness.rs` (real repo tree, zero API cost) plus unit tests in `coverage.rs` for the schema's rejection paths and `audit_matches`.
 - Naming: the ledger says `area`, never `domain` — `domain` is already load-bearing in `scenario.toml`'s `domains = [...]` and `domains/mod.rs`'s `KNOWN_DOMAINS`, and three names (memory, subagents, mcp) collide across the two meanings.
