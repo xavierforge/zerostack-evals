@@ -252,7 +252,8 @@ pub struct Report {
     ///   rare disagreement (trials served by different models) every distinct
     ///   model is listed rather than one being picked to stand for the rest.
     pub judge_model: Option<Vec<String>>,
-    /// The target this run evaluated against: column identity, not content.
+    /// The target this run evaluated against (`--target`), `""` when no target
+    /// file was named: column identity, not content.
     /// `target.toml` (the file's bytes) lives only in the run dir; this field
     /// is what travels with the report when it is copied elsewhere (e.g. into
     /// `baselines/`), so a detached report still names what it evaluated.

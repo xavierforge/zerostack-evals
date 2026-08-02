@@ -68,6 +68,12 @@ A field that is `null` SHALL be shown as not provided, distinctly from a field t
 
 The judge SHALL be shown as two facts, never collapsed into one: `judge_file` with `judge_hash` for what the run was configured to grade with, and `judge_model` for what actually graded. `judge_model` SHALL keep its three readings distinct: unknown, nothing graded, and these rulers graded.
 
+A field whose schema documents `""` as "none was named" SHALL be rendered as that absence, not as the empty string it holds. Today that is `judge_file` and `target`. This is not a derivation: the schema states what the sentinel means, so the page reads a documented fact rather than guessing at a blank, and a field whose `""` is undocumented SHALL NOT be read this way. Verbatim readback is not neutral for these two, it makes a claim the report does not: a run configured with no judge would render a judge row naming no file beside a hash, which states one was configured. `site --json` SHALL keep emitting the raw field, because a machine reads what the report holds.
+
+#### Scenario: A run that configured no judge says so
+- **WHEN** the report's `judge_file` is `""`, the documented value for "none was named"
+- **THEN** the header states that no judge was configured, with no blank filename and no hash beside it
+
 #### Scenario: An unavailable build fact is not shown as empty
 - **WHEN** the report's `git_sha` and `features` are `null`
 - **THEN** the header shows them as not provided, not as an empty string or an empty list

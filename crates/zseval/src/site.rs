@@ -167,13 +167,17 @@ pub struct Header<'a> {
     pub features: Option<&'a [String]>,
     pub model: &'a str,
     pub backend: &'a str,
+    /// The report's own `""` when no target file was named, kept raw here: a
+    /// machine reads what the report holds, and the absence wording is the
+    /// page's reading for a human ([`render_absent_or`], design D5).
     pub target: &'a str,
     pub timestamp: &'a str,
     pub trials: usize,
     pub total_cost_usd: f64,
     pub budget_truncated: bool,
     /// What the run was configured to grade with, kept apart from
-    /// `judge_model` below, which is what actually graded.
+    /// `judge_model` below, which is what actually graded. The report's own
+    /// `""` when no judge was named, kept raw for the same reason `target` is.
     pub judge_file: &'a str,
     pub judge_hash: Option<&'a str>,
     /// Three readings, none collapsible into another: `None` unknown,
@@ -395,6 +399,11 @@ fn field(page: &mut Page, label: &'static str, value: &str) {
 /// report's own, verbatim; the only choice this function makes is how to
 /// spell an absent or empty one so the two are never confused.
 ///
+/// The one exception is a field whose schema documents `""` as "none was
+/// named" ([`render_absent_or`]): that sentinel is read as the absence it
+/// encodes, because verbatim would state a judge file or a target was named
+/// and then withhold its name.
+///
 /// The audit rows are the one thing here that is not the report's: they are
 /// the ledger's `audited_against` beside the version this run measured, and
 /// they sit next to `zerostack` so the two strings are read together
@@ -424,7 +433,11 @@ fn render_header(page: &mut Page, header: &Header) {
     render_opt_list(page, header.features);
     field(page, "model", header.model);
     field(page, "backend", header.backend);
-    field(page, "target", header.target);
+    page.raw(
+        r#"</dd>
+<dt>target</dt><dd>"#,
+    );
+    render_absent_or(page, header.target, "no target file");
     field(page, "timestamp", header.timestamp);
     page.raw(
         r#"</dd>
@@ -448,11 +461,17 @@ fn render_header(page: &mut Page, header: &Header) {
     // The judge is two facts, never collapsed into one (design D5): what the
     // run was told to grade with (`judge_file`, `judge_hash`), labelled apart
     // from what actually graded (`judge_model`) below.
-    page.text(header.judge_file);
-    page.raw(" (hash: ");
-    render_opt_str(page, header.judge_hash);
+    //
+    // The hash fingerprints the file that was named, so it goes where the file
+    // goes: a run that named none has no hash to report, and `(hash: not
+    // provided)` beside the absence would read as one it failed to compute.
+    if render_absent_or(page, header.judge_file, "no judge configured") {
+        page.raw(" (hash: ");
+        render_opt_str(page, header.judge_hash);
+        page.raw(")");
+    }
     page.raw(
-        r#")</dd>
+        r#"</dd>
 <dt>graded by</dt><dd>"#,
     );
     render_judge_model(page, header.judge_model);
@@ -492,6 +511,26 @@ fn render_audit(page: &mut Page, header: &Header) {
         );
     }
     page.raw("</dd>\n");
+}
+
+/// A field whose schema documents `""` as "none was named" reads as that
+/// absence, `absent`, rather than verbatim (design D5's sentinel exemption).
+/// `judge_file` and `target` are today's two: the schema spells one absence
+/// two ways, so reading the sentinel back verbatim leaves a blank `<dd>` that
+/// states a file was named while withholding its name. `--json` keeps emitting
+/// the raw field; this wording is the page's reading for a human. The
+/// exemption, and this function with it, ends when both fields become `Option`
+/// in the report schema.
+///
+/// Returns whether a value was named, which is the question the judge row asks
+/// again for the hash that fingerprints it.
+fn render_absent_or(page: &mut Page, value: &str, absent: &'static str) -> bool {
+    if value.is_empty() {
+        page.raw(absent);
+        return false;
+    }
+    page.text(value);
+    true
 }
 
 /// A `null` field reads as "not provided", distinct from a value that is
@@ -1004,6 +1043,95 @@ mod tests {
         assert!(
             !graded_row.contains("judges/opus.toml"),
             "the configured judge file was echoed as though it had graded:\n{page}"
+        );
+    }
+
+    // 7.1 — `judge_file` documents `""` as "no judge file was named"
+    // (verdict.rs), so reading it back verbatim puts a blank filename and a
+    // dangling `(hash: not provided)` on the page of a run that configured no
+    // judge: a claim the report does not make.
+    #[test]
+    fn a_run_that_configured_no_judge_says_so_instead_of_rendering_a_blank() {
+        let report = Report::build(
+            ReportMeta {
+                judge_file: String::new(),
+                judge_hash: None,
+                judge_model: Some(vec![]),
+                zs: ZsIdentity {
+                    zs_version: "zerostack 1.7.2".into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            vec![],
+        );
+        let page = page_of(&report, &ledger("that measures the OS."));
+        assert!(
+            page.contains("<dt>configured</dt><dd>no judge configured</dd>"),
+            "an unconfigured judge did not render as an absence:\n{page}"
+        );
+        let configured = dd(&page, "configured");
+        assert!(
+            !configured.contains("(hash:"),
+            "the absence still carries a hash of a file that was never named:\n{page}"
+        );
+        assert!(
+            !configured.is_empty(),
+            "the configured row rendered as an empty <dd>:\n{page}"
+        );
+    }
+
+    // 7.1 — the same sentinel in `target`, which the canonical `--backend
+    // mock` flow records: a targetless run must not render a blank row that
+    // reads as an unnamed target file.
+    #[test]
+    fn a_run_with_no_target_file_says_so_instead_of_rendering_a_blank() {
+        let report = Report::build(
+            ReportMeta {
+                target: String::new(),
+                zs: ZsIdentity {
+                    zs_version: "zerostack 1.7.2".into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            vec![],
+        );
+        let page = page_of(&report, &ledger("that measures the OS."));
+        assert_eq!(
+            dd(&page, "target"),
+            "no target file",
+            "a targetless run did not render as an absence:\n{page}"
+        );
+    }
+
+    // 7.1 — the amendment reads `""` and nothing else: a run that did name a
+    // judge file and a target still gets both back verbatim.
+    #[test]
+    fn a_named_judge_file_and_target_are_still_read_back_verbatim() {
+        let report = Report::build(
+            ReportMeta {
+                judge_file: "judges/opus.toml".into(),
+                judge_hash: Some("abc123".into()),
+                target: "targets/local.toml".into(),
+                zs: ZsIdentity {
+                    zs_version: "zerostack 1.7.2".into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            vec![],
+        );
+        let page = page_of(&report, &ledger("that measures the OS."));
+        assert_eq!(
+            dd(&page, "configured"),
+            "judges/opus.toml (hash: abc123)",
+            "a named judge file was swallowed by the absence wording:\n{page}"
+        );
+        assert_eq!(
+            dd(&page, "target"),
+            "targets/local.toml",
+            "a named target was swallowed by the absence wording:\n{page}"
         );
     }
 
