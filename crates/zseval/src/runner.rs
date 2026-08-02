@@ -165,19 +165,33 @@ fn scenario_seeds_prompt(sc: &Scenario, name: &str) -> bool {
 /// the scenario is skipped instead (spec `session-evidence`, "Regression
 /// scenarios pin both channels").
 ///
-/// Narrow on purpose: only a `built_in` pin, and only against the name the
-/// pack actually provides. The `user_file` mirror is deliberately left to
-/// grade — a pack-less run failing it is a run invoked wrongly, and that
-/// failure is the honest signal.
+/// Narrow on purpose: only a `built_in` pin, only against a name the pack
+/// actually supplies, and only when this scenario *resolves* that same name —
+/// `derive_prompt` answers that last part, and the pack has to be the layer
+/// supplying it (a scenario seeding its own `<name>.md` shadows the built-in
+/// itself, which is the scenario's own doing, not the run's pack). A scenario
+/// pinning a name it never loads (declaring `prompt = "ask"` while asserting
+/// `prompt_recorded code built_in`) is an authoring error the pack does not
+/// excuse: it grades, and it fails honestly. The `user_file` mirror is
+/// likewise left to grade — a pack-less run failing it is a run invoked
+/// wrongly, and that failure is the honest signal.
 ///
 /// Returned rather than printed for the same reason `PromptRecord`'s warnings
 /// are: the decision stays a pure function the tests can read, and `run_suite`
 /// is the one place that puts it on stderr.
-fn shadowed_built_in_pin(sc: &Scenario, pack: Option<&PromptPack>) -> Option<String> {
+fn shadowed_built_in_pin(
+    sc: &Scenario,
+    pack: Option<&PromptPack>,
+    config_default_prompt: Option<&str>,
+) -> Option<String> {
     let pack = pack?;
+    let (resolved, resolved_source) = derive_prompt(sc, Some(pack), config_default_prompt);
+    if resolved_source != PromptSource::Pack {
+        return None;
+    }
     let shadowed = sc.asserts.iter().find_map(|a| match a {
         crate::asserts::Assert::PromptRecorded { name, source }
-            if source == "built_in" && pack.names().iter().any(|n| *n == name) =>
+            if source == "built_in" && *name == resolved =>
         {
             Some(name)
         }
@@ -201,27 +215,50 @@ fn shadowed_built_in_pin(sc: &Scenario, pack: Option<&PromptPack>) -> Option<Str
 /// visible only in each scenario's own `prompt_source` (design.md, "Record
 /// which prompt each scenario loaded, not merely which names intersect").
 ///
-/// `shadowed` — whether any scenario was skipped for pinning a built-in this
-/// pack provides — silences it, because a skipped scenario resolved nothing
-/// and so cannot contribute a `Pack` source. Left in, a run whose only
-/// pack-resolving scenario was the skipped one would be told its pack never
-/// loaded; the skip is the opposite evidence, that the pack reaches far enough
-/// to replace a built-in. Neither claim is observed once the trials never ran,
-/// so the run says nothing rather than the wrong thing.
+/// Read off what the scenarios *observed*, which is exactly the set with a
+/// recorded `prompt_source`: a scenario skipped for pinning a built-in this
+/// pack provides ran no trial, and one whose trials never produced a readable
+/// session read nothing back, so both keep `Unknown` and neither is evidence
+/// either way. When that set is empty the run genuinely observed nothing about
+/// its pack and says so by saying nothing. When it is not, a scenario that ran
+/// and resolved a built-in *is* the evidence, and a different scenario's skip
+/// must not mute it — silencing the whole run on any skip would hide the one
+/// case this warning exists for, since the shipped `prompt_recorded code
+/// built_in` pin is skipped by every pack providing `code`. The skipped
+/// scenarios are named in the same breath instead, so a reader who just saw
+/// them skipped knows they were counted and not quietly ignored.
+///
+/// `skipped` carries the ids rather than a bare count so the line can name
+/// them; it never changes whether the warning fires, only how it accounts for
+/// itself.
 fn unloaded_pack_warning(
     pack: &PromptPack,
     results: &[ScenarioResult],
-    shadowed: bool,
+    skipped: &[String],
 ) -> Option<String> {
-    let loaded = results
+    let observed: Vec<PromptSource> = results
         .iter()
-        .any(|sr| sr.prompt_source == PromptSource::Pack);
-    if loaded || shadowed {
+        .map(|sr| sr.prompt_source)
+        .filter(|s| *s != PromptSource::Unknown)
+        .collect();
+    if observed.is_empty() || observed.contains(&PromptSource::Pack) {
         return None;
     }
+    let skipped_note = match skipped {
+        [] => String::new(),
+        [one] => format!(
+            "; scenario {one} was skipped for pinning a built-in this pack provides, so it ran \
+             no trial and resolved nothing either way"
+        ),
+        many => format!(
+            "; scenarios {} were skipped for pinning a built-in this pack provides, so they ran \
+             no trials and resolved nothing either way",
+            many.join(", ")
+        ),
+    };
     Some(format!(
-        "prompts pack {} was seeded but never loaded: no scenario resolved a prompt from it, \
-         so this report reflects zerostack's built-in prompts, not the pack",
+        "prompts pack {} was seeded but never loaded: no scenario that ran resolved a prompt \
+         from it, so this report reflects zerostack's built-in prompts, not the pack{skipped_note}",
         pack.dir().display()
     ))
 }
@@ -312,9 +349,10 @@ enum Reconciled {
     /// expected case, since the trials of one scenario are identically seeded
     /// and prompt resolution is deterministic.
     Agreed(RecordedPrompt),
-    /// Every trial that produced a session read back no prompt at all: the
-    /// binary under test predates upstream's prompt recording (PR #228), and
-    /// the fix is a rebuild.
+    /// Every trial that produced a session read back no prompt at all:
+    /// whatever wrote those sessions predates upstream's prompt recording (PR
+    /// #228), and the fix is a newer one — a rebuilt `ZS_BIN` for a live run,
+    /// freshly captured evidence for a fixture or a regrade.
     Absent,
     /// The trials that produced sessions did not agree, including one
     /// recording a prompt where another recorded none. Nothing about identical
@@ -424,8 +462,10 @@ fn record_prompt(
         Reconciled::Absent => {
             warnings.push(format!(
                 "scenario {}: no trial's session recorded which prompt it loaded, so its \
-                 prompt is unknown — ZS_BIN likely predates prompt recording (zerostack \
-                 PR #228); rebuild it from a mainline that carries it",
+                 prompt is unknown — whatever produced those sessions predates prompt \
+                 recording (zerostack PR #228): rebuild a live ZS_BIN from a mainline that \
+                 carries it, or re-capture the mock fixture or run dir being graded from a \
+                 binary that does",
                 sc.id
             ));
             return unknown(warnings);
@@ -549,10 +589,11 @@ pub fn run_suite(
         .and_then(crate::target::default_prompt);
 
     let mut budget_truncated = false;
-    // Whether any scenario was skipped because the pack shadowed the built-in
-    // its pin watches — which is also evidence about the pack, read at the end
-    // of the run (`unloaded_pack_warning`).
-    let mut shadowed_any = false;
+    // Which scenarios were skipped because the pack shadowed the built-in
+    // their pin watches: they observed nothing, so the end-of-run pack check
+    // names them rather than counting them either way
+    // (`unloaded_pack_warning`).
+    let mut shadowed_skips: Vec<String> = Vec::new();
     for sc in scenarios {
         // Check the cost cap once per scenario, so a scenario always runs its
         // full trial count or not at all — never a partial, misleading pass^k.
@@ -572,9 +613,9 @@ pub fn run_suite(
         // exactly the report's existing shape for "ungradable"
         // (`ScenarioResult::is_gradable`), and dropping the scenario would
         // instead make it vanish from a report that declared it.
-        if let Some(warning) = shadowed_built_in_pin(sc, pack) {
+        if let Some(warning) = shadowed_built_in_pin(sc, pack, config_default_prompt.as_deref()) {
             eprintln!("{warning}");
-            shadowed_any = true;
+            shadowed_skips.push(sc.id.clone());
             // Nothing observed which prompt loaded, because nothing ran:
             // `prompt_name`/`prompt_source` stay at their empty/`Unknown`
             // defaults rather than recording a derivation as an observation.
@@ -614,7 +655,7 @@ pub fn run_suite(
         results.push(sr);
     }
 
-    if let Some(warning) = pack.and_then(|p| unloaded_pack_warning(p, &results, shadowed_any)) {
+    if let Some(warning) = pack.and_then(|p| unloaded_pack_warning(p, &results, &shadowed_skips)) {
         eprintln!("{warning}");
     }
 
@@ -1511,6 +1552,31 @@ mod prompt_resolution_tests {
         );
     }
 
+    /// The same warning also serves `--backend mock=<fixture>` and a
+    /// `regrade` over a captured run dir, neither of which has a live `ZS_BIN`
+    /// to rebuild. It has to name the artifact whose `prompt` field is missing
+    /// and offer the rebuild as one cause, without going vague on the live run
+    /// it was written for.
+    #[test]
+    fn the_absent_readback_warning_names_the_sessions_not_only_a_stale_zs_bin() {
+        let sc = scenario(Some("code"), &[]);
+        let got = record_prompt(&sc, None, None, &[no_prompt()]);
+        let warned = got.warnings.join(" | ");
+        assert!(
+            warned.contains("session"),
+            "the artifact missing the field is the session: {warned}"
+        );
+        assert!(
+            warned.contains("ZS_BIN"),
+            "a live run against an old binary must still be told plainly what to do: {warned}"
+        );
+        assert!(
+            warned.contains("fixture") || warned.contains("run dir"),
+            "a mock fixture or a regraded run dir has no ZS_BIN to rebuild, so the rebuild \
+             cannot be the only instruction: {warned}"
+        );
+    }
+
     // A trial that produced nothing observed nothing, so it is not a party to
     // the reconciliation at all — an absence it never observed must neither
     // outvote the trials that did read a prompt back, nor be blamed on a
@@ -1614,7 +1680,7 @@ mod shadowed_pin_tests {
     use crate::asserts::Assert;
     use crate::backend::RunArtifacts;
     use crate::judge::{Judge, JudgeOutcome};
-    use crate::scenario::{Kind, Task};
+    use crate::scenario::{FileSeed, Kind, Task};
     use crate::verdict::{Final, Report, ZsIdentity};
 
     /// The shipped prompt pin's shape: no `prompt` of its own (so it resolves
@@ -1663,9 +1729,13 @@ mod shadowed_pin_tests {
     }
 
     /// A backend that spends nothing and writes one session recording the
-    /// compiled-in `code` prompt, counting every trial it is asked to drive —
-    /// the count is how "no trial ran" is checked, since a skipped scenario
-    /// and a scenario whose trials all failed both leave no graded trial.
+    /// built-in of whichever prompt the scenario declares (`code` when it
+    /// declares none, the same name the fallback resolves), counting every
+    /// trial it is asked to drive — the count is how "no trial ran" is
+    /// checked, since a skipped scenario and a scenario whose trials all
+    /// failed both leave no graded trial. Honouring the declared name is what
+    /// lets a pin on a name its scenario never resolves grade and fail here,
+    /// rather than accidentally passing on a session that ignored it.
     struct StubBackend {
         pack: Option<PromptPack>,
         runs: AtomicUsize,
@@ -1690,15 +1760,18 @@ mod shadowed_pin_tests {
             self.pack.as_ref()
         }
 
-        fn run(&self, _sc: &Scenario, run_dir: &Path) -> Result<RunArtifacts> {
+        fn run(&self, sc: &Scenario, run_dir: &Path) -> Result<RunArtifacts> {
             self.runs.fetch_add(1, Ordering::SeqCst);
             let data = run_dir.join("data");
             std::fs::create_dir_all(data.join("sessions"))?;
             let session = data.join("sessions").join("session.json");
+            let loaded = sc.prompt.as_deref().unwrap_or(DEFAULT_PROMPT_FALLBACK);
             std::fs::write(
                 &session,
-                r#"{"id":"stub","messages":[{"role":"assistant","content":"Paris."}],
-                    "prompt":{"name":"code","source":"built_in"}}"#,
+                format!(
+                    r#"{{"id":"stub","messages":[{{"role":"assistant","content":"Paris."}}],
+                    "prompt":{{"name":"{loaded}","source":"built_in"}}}}"#
+                ),
             )?;
             Ok(RunArtifacts {
                 session_files: vec![session],
@@ -1782,11 +1855,59 @@ mod shadowed_pin_tests {
 
     #[test]
     fn the_skip_line_names_the_scenario_and_the_prompt_the_pack_shadowed() {
-        let line = shadowed_built_in_pin(&stock_pin(), Some(&pack("skip-line", &["code"])))
+        let line = shadowed_built_in_pin(&stock_pin(), Some(&pack("skip-line", &["code"])), None)
             .expect("the pack provides the pinned name");
         assert!(
             line.contains("session-prompt-recorded-stock") && line.contains("'code'"),
             "a reader has to be told which scenario and which prompt: {line}"
+        );
+    }
+
+    // The skip is gated on the scenario resolving the pinned name, not merely
+    // asserting it: only a pin the pack really did take out of the picture is
+    // ungradable, everything else grades.
+
+    #[test]
+    fn the_shipped_pin_shape_is_skipped_because_the_name_it_resolves_is_the_one_it_pins() {
+        // No `prompt` of its own and no config default, so it resolves `code`
+        // through the fallback — the very name this pack replaces.
+        assert!(
+            shadowed_built_in_pin(&stock_pin(), Some(&pack("shipped-shape", &["code"])), None)
+                .is_some(),
+            "the shipped pin is exactly what this rule exists for"
+        );
+    }
+
+    #[test]
+    fn a_config_default_steering_the_scenario_off_the_pinned_name_leaves_it_grading() {
+        // The scenario declares no prompt, so the target's `default_prompt`
+        // decides: it loads `review`, and the pack's `code` replaces nothing
+        // this pin watches.
+        assert_eq!(
+            shadowed_built_in_pin(
+                &stock_pin(),
+                Some(&pack("config-default", &["code"])),
+                Some("review")
+            ),
+            None,
+            "the pack shadows a built-in this scenario never loads"
+        );
+    }
+
+    #[test]
+    fn a_pin_whose_scenario_seeds_that_prompt_itself_is_graded_not_skipped() {
+        // The scenario's own placement lands after the pack's, so what
+        // replaced the built-in here is the scenario, not the run's pack —
+        // its pin failing is its own authoring to answer for.
+        let mut sc = stock_pin();
+        sc.files = vec![FileSeed {
+            src: PathBuf::from("_fixtures/code.md"),
+            dest: "work:.zerostack/prompts/code.md".into(),
+        }];
+        assert_eq!(
+            shadowed_built_in_pin(&sc, Some(&pack("self-seeded", &["code"])), None),
+            None,
+            "the pack is not what took this built-in out of the picture"
         );
     }
 
@@ -1805,30 +1926,93 @@ mod shadowed_pin_tests {
 
     // The end-of-run "pack seeded but never loaded" check reads the same skip:
     // a scenario that ran no trials resolved no prompt, so it can no longer
-    // contribute the `Pack` source that check looks for.
+    // contribute the `Pack` source that check looks for — but neither can it
+    // speak for the scenarios that did run.
+
+    /// A scenario result as a run records one: `source` is what its trials'
+    /// sessions read back, and `Unknown` is what a scenario that observed
+    /// nothing keeps — a skipped pin (no trial ran at all) among them.
+    fn recorded(id: &str, source: PromptSource) -> ScenarioResult {
+        let mut sr = ScenarioResult::from_trials(id.into(), Kind::Regression, Vec::new());
+        sr.prompt_source = source;
+        sr
+    }
+
+    /// The shipped pin, skipped: what a run of `scenarios/` with a pack
+    /// providing `code` hands the end-of-run check every time.
+    fn skipped_stock_pin() -> [String; 1] {
+        ["session-prompt-recorded-stock".to_string()]
+    }
 
     #[test]
-    fn a_run_whose_only_pack_scenario_was_skipped_is_not_told_its_pack_never_loaded() {
-        let p = pack("unloaded-skipped", &["code"]);
-        let skipped = ScenarioResult::from_trials(
-            "session-prompt-recorded-stock".into(),
-            Kind::Regression,
-            Vec::new(),
+    fn a_pack_no_scenario_that_ran_resolved_is_reported_unloaded_even_when_a_pin_was_skipped() {
+        let p = pack("unloaded-with-skip", &["code"]);
+        let results = [
+            recorded("session-prompt-recorded-stock", PromptSource::Unknown),
+            recorded("declares-ask", PromptSource::Stock),
+        ];
+        let warning = unloaded_pack_warning(&p, &results, &skipped_stock_pin()).expect(
+            "a scenario ran and resolved a built-in, which is evidence about the pack that a \
+             different scenario's skip cannot mute",
         );
+        assert!(warning.contains("never loaded"), "{warning}");
+        assert!(
+            warning.contains("session-prompt-recorded-stock"),
+            "the skipped scenario has to be accounted for in the same breath, not ignored: \
+             {warning}"
+        );
+    }
+
+    #[test]
+    fn a_pack_another_scenario_resolved_is_not_reported_unloaded_when_a_pin_was_skipped() {
+        let p = pack("loaded-with-skip", &["code"]);
+        let results = [
+            recorded("session-prompt-recorded-stock", PromptSource::Unknown),
+            recorded("declares-code", PromptSource::Pack),
+        ];
         assert_eq!(
-            unloaded_pack_warning(&p, &[skipped], true),
+            unloaded_pack_warning(&p, &results, &skipped_stock_pin()),
             None,
-            "the skip is evidence the pack reaches a scenario, not that it went unused"
+            "a scenario resolved a prompt from the pack, so it plainly loaded"
+        );
+    }
+
+    #[test]
+    fn a_run_whose_scenarios_were_all_skipped_claims_nothing_about_its_pack() {
+        let p = pack("unloaded-all-skipped", &["code"]);
+        let results = [recorded(
+            "session-prompt-recorded-stock",
+            PromptSource::Unknown,
+        )];
+        assert_eq!(
+            unloaded_pack_warning(&p, &results, &skipped_stock_pin()),
+            None,
+            "nothing ran, so nothing was observed about the pack either way"
+        );
+    }
+
+    #[test]
+    fn a_scenario_that_observed_no_prompt_is_no_evidence_the_pack_went_unloaded() {
+        let p = pack("unloaded-unobserved", &["code"]);
+        let results = [recorded("every-trial-failed", PromptSource::Unknown)];
+        assert_eq!(
+            unloaded_pack_warning(&p, &results, &[]),
+            None,
+            "a scenario that ran but read back nothing observed no absence either"
         );
     }
 
     #[test]
     fn a_pack_no_scenario_resolved_is_still_reported_unloaded_when_nothing_was_skipped() {
         let p = pack("unloaded-plain", &["code"]);
-        let ran = ScenarioResult::from_trials("declares-ask".into(), Kind::Regression, Vec::new());
-        let warning = unloaded_pack_warning(&p, &[ran], false)
-            .expect("no scenario resolved the pack and none was skipped");
+        let results = [recorded("declares-ask", PromptSource::Stock)];
+        let warning = unloaded_pack_warning(&p, &results, &[])
+            .expect("a scenario ran, resolved a built-in, and nothing was skipped");
         assert!(warning.contains("never loaded"), "{warning}");
+        assert!(
+            !warning.contains("skipped"),
+            "nothing was skipped, so there is nothing to account for: {warning}"
+        );
     }
 
     #[test]
@@ -1849,6 +2033,24 @@ mod shadowed_pin_tests {
         assert_eq!(runs, 1);
         assert_eq!(report.scenarios[0].trials.len(), 1);
         assert_eq!(report.scenarios[0].trials[0].outcome, Final::Pass);
+    }
+
+    #[test]
+    fn a_pin_naming_a_prompt_its_scenario_never_resolves_is_graded_not_skipped() {
+        // Declaring `prompt = "ask"` while pinning `code`'s built-in is an
+        // authoring error: the scenario loads `ask`, so the pack's `code`
+        // shadows nothing it watches. The honest answer is the failing grade,
+        // not a silent ungradable.
+        let mut sc = pinned("session-pin-mismatch", "prompt_recorded code built_in");
+        sc.prompt = Some("ask".into());
+        let (report, runs) = run("pin-mismatch", &[sc], Some(pack("pin-mismatch", &["code"])));
+        assert_eq!(runs, 1, "the pack shadows nothing this scenario resolves");
+        assert!(report.scenarios[0].is_gradable());
+        assert_eq!(
+            report.scenarios[0].trials[0].outcome,
+            Final::Fail,
+            "the session loaded 'ask', so a pin on 'code' fails on its own terms"
+        );
     }
 
     #[test]
