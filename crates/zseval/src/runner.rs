@@ -210,34 +210,68 @@ fn derive_prompt(
     (name, source)
 }
 
-/// What one scenario's trials agreed their sessions recorded (design D4).
-/// `prompt_name`/`prompt_source` are scenario-level facts, so the trials have
-/// to produce one answer between them; the two ways they can fail to are kept
-/// apart here because they have different fixes.
-enum Reconciled {
-    /// Every trial read back the same prompt — the expected case, since the
-    /// trials of one scenario are identically seeded and prompt resolution is
-    /// deterministic.
-    Agreed(RecordedPrompt),
-    /// No trial read back a prompt at all: the binary under test predates
-    /// upstream's prompt recording (PR #228), and the fix is a rebuild.
+/// What one trial's session had to say about which prompt it loaded (design
+/// D3). Three states, not two: a trial that produced no readable session
+/// observed nothing, which is not the same evidence as a session that was read
+/// and recorded no prompt. Conflating them makes a trial that timed out or
+/// failed its schema check look like a binary too old to record prompts, and
+/// makes it outvote the trials that did read one back.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum PromptReadback {
+    /// The trial's session recorded which prompt it loaded.
+    Recorded(RecordedPrompt),
+    /// The trial's session was read and carries no `prompt` field: an
+    /// observed absence, so the binary under test is the finding.
     Absent,
-    /// The trials did not agree, including one recording a prompt where
-    /// another recorded none. Nothing about identical seeds should produce
-    /// two answers, so the disagreement is itself the finding.
-    Split,
+    /// The trial never produced a readable session at all (a backend error, a
+    /// transcript schema mismatch), so it observed nothing — its own failure
+    /// is already reported on the trial, with its real reason.
+    Unobserved,
 }
 
-fn reconcile(readbacks: &[Option<RecordedPrompt>]) -> Reconciled {
-    let Some(first) = readbacks.first() else {
-        return Reconciled::Absent;
+/// What one scenario's trials agreed their sessions recorded (design D4).
+/// `prompt_name`/`prompt_source` are scenario-level facts, so the trials have
+/// to produce one answer between them; the ways they can fail to are kept
+/// apart here because they have different fixes.
+enum Reconciled {
+    /// Every trial that produced a session read back the same prompt — the
+    /// expected case, since the trials of one scenario are identically seeded
+    /// and prompt resolution is deterministic.
+    Agreed(RecordedPrompt),
+    /// Every trial that produced a session read back no prompt at all: the
+    /// binary under test predates upstream's prompt recording (PR #228), and
+    /// the fix is a rebuild.
+    Absent,
+    /// The trials that produced sessions did not agree, including one
+    /// recording a prompt where another recorded none. Nothing about identical
+    /// seeds should produce two answers, so the disagreement is itself the
+    /// finding.
+    Split,
+    /// No trial produced a readable session, so there was nothing to reconcile
+    /// — the trials' own failures are the finding, and the binary's age is not
+    /// in evidence either way.
+    Unobserved,
+}
+
+/// Reconcile over only the trials that actually produced a readable session: a
+/// trial that observed nothing is no party to what the others observed, so it
+/// neither votes for an absence nor counts as disagreement.
+fn reconcile(readbacks: &[PromptReadback]) -> Reconciled {
+    let observed: Vec<&PromptReadback> = readbacks
+        .iter()
+        .filter(|r| **r != PromptReadback::Unobserved)
+        .collect();
+    let Some(first) = observed.first() else {
+        return Reconciled::Unobserved;
     };
-    if readbacks.iter().any(|r| r != first) {
+    if observed.iter().any(|r| r != first) {
         return Reconciled::Split;
     }
     match first {
-        Some(p) => Reconciled::Agreed(p.clone()),
-        None => Reconciled::Absent,
+        PromptReadback::Recorded(p) => Reconciled::Agreed(p.clone()),
+        // Everything left agrees with `first`, and `Unobserved` was filtered
+        // out of `observed`, so this is the observed absence.
+        _ => Reconciled::Absent,
     }
 }
 
@@ -254,13 +288,16 @@ fn source_label(source: PromptSource) -> &'static str {
 
 /// Every distinct readback the trials produced, for the disagreement warning
 /// to name: `<name>/<source>` in upstream's two-value vocabulary, or `none`
-/// for a trial whose session recorded no prompt.
-fn describe_readbacks(readbacks: &[Option<RecordedPrompt>]) -> String {
+/// for a trial whose session recorded no prompt. Trials that produced no
+/// session are left out, the same as in `reconcile` — they observed nothing,
+/// so they are not among the answers being disagreed over.
+fn describe_readbacks(readbacks: &[PromptReadback]) -> String {
     let mut seen: Vec<String> = readbacks
         .iter()
-        .map(|r| match r {
-            Some(p) => format!("{}/{}", p.name, p.source),
-            None => "none".to_string(),
+        .filter_map(|r| match r {
+            PromptReadback::Recorded(p) => Some(format!("{}/{}", p.name, p.source)),
+            PromptReadback::Absent => Some("none".to_string()),
+            PromptReadback::Unobserved => None,
         })
         .collect();
     seen.sort();
@@ -288,7 +325,7 @@ fn record_prompt(
     sc: &Scenario,
     pack: Option<&PromptPack>,
     config_default_prompt: Option<&str>,
-    readbacks: &[Option<RecordedPrompt>],
+    readbacks: &[PromptReadback],
 ) -> PromptRecord {
     let (derived_name, derived_source) = derive_prompt(sc, pack, config_default_prompt);
     // A loop run writes no session (see `scenario::LoopCfg`), so its silence
@@ -326,6 +363,15 @@ fn record_prompt(
                  itself evidence something is wrong",
                 sc.id,
                 describe_readbacks(readbacks)
+            ));
+            return unknown(warnings);
+        }
+        Reconciled::Unobserved => {
+            warnings.push(format!(
+                "scenario {}: no trial produced a readable session, so nothing could be read \
+                 back and its prompt is unknown — every trial failed before it could observe \
+                 one, each for the reason recorded on it",
+                sc.id
             ));
             return unknown(warnings);
         }
@@ -445,7 +491,7 @@ pub fn run_suite(
         let trials = opts.trials_override.unwrap_or(sc.trials).max(1);
         let graded =
             run_trials_for_scenario(sc, backend, judge, &judge_file, opts, trials, &run_root)?;
-        let (trial_results, readbacks): (Vec<TrialResult>, Vec<Option<RecordedPrompt>>) =
+        let (trial_results, readbacks): (Vec<TrialResult>, Vec<PromptReadback>) =
             graded.into_iter().map(|g| (g.result, g.prompt)).unzip();
         for tr in &trial_results {
             spent += tr.cost_usd;
@@ -569,7 +615,7 @@ pub fn run_suite(
 /// no reader for.
 struct GradedTrial {
     result: TrialResult,
-    prompt: Option<RecordedPrompt>,
+    prompt: PromptReadback,
 }
 
 /// Run every trial of one scenario, then return results ordered by trial
@@ -695,12 +741,13 @@ fn run_trial(
     grade_trial(sc, grading, trial, run_dir, &artifacts)
 }
 
-/// A trial that never produced a readable transcript, so it read back no
-/// prompt either — there was no session to read one out of.
+/// A trial that never produced a readable transcript, so it observed nothing
+/// about the prompt — there was no session to read one out of, which is not
+/// the same as a session that recorded none (`PromptReadback`).
 fn ungraded(result: TrialResult) -> GradedTrial {
     GradedTrial {
         result,
-        prompt: None,
+        prompt: PromptReadback::Unobserved,
     }
 }
 
@@ -807,8 +854,14 @@ fn grade_trial(
     };
     // Which prompt the session recorded is evidence about the environment,
     // not about how the trial graded, so it is carried out of every path
-    // below — a trial that grades Indeterminate still observed it.
-    let prompt = transcript.prompt.clone();
+    // below — a trial that grades Indeterminate still observed it. The
+    // transcript was assembled, so whatever it says is an observation:
+    // `Absent` here means the session recorded no prompt, never that no
+    // session was read (`PromptReadback`).
+    let prompt = match transcript.prompt.clone() {
+        Some(p) => PromptReadback::Recorded(p),
+        None => PromptReadback::Absent,
+    };
 
     let roots = artifacts.roots();
 
@@ -1069,11 +1122,23 @@ mod prompt_resolution_tests {
     /// One trial's session readback, in upstream's two-value vocabulary
     /// (`built_in` / `user_file`) — never this crate's four-value
     /// `PromptSource`.
-    fn readback(name: &str, source: &str) -> Option<RecordedPrompt> {
-        Some(RecordedPrompt {
+    fn readback(name: &str, source: &str) -> PromptReadback {
+        PromptReadback::Recorded(RecordedPrompt {
             name: name.into(),
             source: source.into(),
         })
+    }
+
+    /// A trial whose session was read and recorded no `prompt` field: an
+    /// observed absence, which is what the PR #228 rebuild message is for.
+    fn no_prompt() -> PromptReadback {
+        PromptReadback::Absent
+    }
+
+    /// A trial that never produced a readable session (a backend error, a
+    /// schema mismatch), so it observed nothing at all.
+    fn no_session() -> PromptReadback {
+        PromptReadback::Unobserved
     }
 
     /// A validated pack over the given `<name>.md` files, in a fresh temp dir.
@@ -1330,7 +1395,12 @@ mod prompt_resolution_tests {
     fn one_trial_missing_the_readback_is_a_disagreement_not_an_absence() {
         let sc = scenario(Some("code"), &[]);
         let p = pack("reconcile-mixed", &["code"]);
-        let got = record_prompt(&sc, Some(&p), None, &[readback("code", "user_file"), None]);
+        let got = record_prompt(
+            &sc,
+            Some(&p),
+            None,
+            &[readback("code", "user_file"), no_prompt()],
+        );
         assert_eq!((got.name.as_str(), got.source), ("", PromptSource::Unknown));
         let warned = got.warnings.join(" | ");
         assert!(
@@ -1351,12 +1421,60 @@ mod prompt_resolution_tests {
     fn every_session_lacking_the_prompt_records_unknown_and_names_the_rebuild() {
         let sc = scenario(Some("code"), &[]);
         let p = pack("reconcile-absent", &["code"]);
-        let got = record_prompt(&sc, Some(&p), None, &[None, None]);
+        let got = record_prompt(&sc, Some(&p), None, &[no_prompt(), no_prompt()]);
         assert_eq!((got.name.as_str(), got.source), ("", PromptSource::Unknown));
         let warned = got.warnings.join(" | ");
         assert!(
             warned.contains("ZS_BIN"),
             "the warning must name the ZS_BIN rebuild: {warned}"
+        );
+    }
+
+    // A trial that produced nothing observed nothing, so it is not a party to
+    // the reconciliation at all — an absence it never observed must neither
+    // outvote the trials that did read a prompt back, nor be blamed on a
+    // binary too old to record one.
+
+    #[test]
+    fn a_trial_that_produced_no_session_does_not_disagree_with_the_trials_that_read_one() {
+        let sc = scenario(Some("code"), &[]);
+        let p = pack("reconcile-unobserved-partial", &["code"]);
+        let got = record_prompt(
+            &sc,
+            Some(&p),
+            None,
+            &[
+                readback("code", "user_file"),
+                no_session(),
+                readback("code", "user_file"),
+            ],
+        );
+        assert_eq!(
+            (got.name.as_str(), got.source),
+            ("code", PromptSource::Pack),
+            "two trials read the same prompt back; the third read nothing at all"
+        );
+        assert!(
+            got.warnings.is_empty(),
+            "a trial that observed nothing is not a disagreement: {:?}",
+            got.warnings
+        );
+    }
+
+    #[test]
+    fn no_trial_producing_a_session_records_unknown_and_blames_the_trials_not_the_binary() {
+        let sc = scenario(Some("code"), &[]);
+        let p = pack("reconcile-unobserved-all", &["code"]);
+        let got = record_prompt(&sc, Some(&p), None, &[no_session(), no_session()]);
+        assert_eq!((got.name.as_str(), got.source), ("", PromptSource::Unknown));
+        let warned = got.warnings.join(" | ");
+        assert!(
+            warned.contains("no trial produced a readable session"),
+            "the warning must say nothing could be read back because nothing ran: {warned}"
+        );
+        assert!(
+            !warned.contains("#228") && !warned.contains("rebuild") && !warned.contains("ZS_BIN"),
+            "the binary is not the finding when no trial got far enough to read it: {warned}"
         );
     }
 
@@ -1368,7 +1486,7 @@ mod prompt_resolution_tests {
     fn a_loop_scenario_records_its_derivation_not_the_absent_readback() {
         let sc = loop_scenario(None, &[]);
         let p = pack("loop-derive", &["code"]);
-        let got = record_prompt(&sc, Some(&p), Some("review"), &[None]);
+        let got = record_prompt(&sc, Some(&p), Some("review"), &[no_session()]);
         assert_eq!(
             (got.name.as_str(), got.source),
             ("review", PromptSource::Stock)
@@ -1384,7 +1502,7 @@ mod prompt_resolution_tests {
     #[test]
     fn a_config_seeding_loop_scenario_still_records_unknown() {
         let sc = loop_scenario(None, &["work:.zerostack/config.toml"]);
-        let got = record_prompt(&sc, None, Some("review"), &[None]);
+        let got = record_prompt(&sc, None, Some("review"), &[no_session()]);
         assert_eq!((got.name.as_str(), got.source), ("", PromptSource::Unknown));
         assert!(got.warnings.is_empty(), "{:?}", got.warnings);
     }
