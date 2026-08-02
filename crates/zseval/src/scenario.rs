@@ -247,6 +247,10 @@ fn loop_incompatible_assert(a: &crate::asserts::Assert) -> Option<&'static str> 
         ToolArgContains { .. } => Some("tool_arg_contains"),
         NoToolCallContains(_) => Some("no_tool_call_contains"),
         TokensUnder(_) => Some("tokens_under"),
+        // Loop mode writes no session file (design D6's Non-Goals), so
+        // `Transcript.prompt` is always `None` there — same evidence gap as
+        // the tool-call asserts above.
+        PromptRecorded { .. } => Some("prompt_recorded"),
         FinalContains(_)
         | FinalNotContains(_)
         | FinalMaxLines(_)

@@ -57,8 +57,8 @@ Vocabulary, fixed for this document:
 
 ## 5. The `prompt_recorded` assert (design D6) [dispatch: too-te, depends: 2, parallel: no, reason: one assert added to an existing DSL with its neighbours to copy]
 
-- [ ] 5.1 Write the failing tests first: `prompt_recorded code built_in` passes against a transcript whose readback matches; a mismatch in either the name or the `source` fails naming both sides; a transcript with no readback **fails**, never passes vacuously. Cite red output.
-- [ ] 5.2 Add `prompt_recorded <name> <built_in|user_file>` to `asserts.rs`: the header-doc entry, the parser arm, and grading against the transcript's raw readback. It takes upstream's two-value vocabulary deliberately, not the report's four-value `prompt_source`: the assert's job is to pin the evidence channel, not this repo's reading of it. Evidence: 5.1 green.
+- [x] 5.1 Write the failing tests first: `prompt_recorded code built_in` passes against a transcript whose readback matches; a mismatch in either the name or the `source` fails naming both sides; a transcript with no readback **fails**, never passes vacuously. Cite red output.
+- [x] 5.2 Add `prompt_recorded <name> <built_in|user_file>` to `asserts.rs`: the header-doc entry, the parser arm, and grading against the transcript's raw readback. It takes upstream's two-value vocabulary deliberately, not the report's four-value `prompt_source`: the assert's job is to pin the evidence channel, not this repo's reading of it. Evidence: 5.1 green.
 
 ## 6. Regression scenarios and the ledger (design D6) [dispatch: too-te, depends: 5, parallel: no, reason: two scenario files copying the conventions of their neighbours, plus the ledger entry the drift gate requires]
 

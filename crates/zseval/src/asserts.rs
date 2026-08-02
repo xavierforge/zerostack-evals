@@ -15,6 +15,9 @@
 //!   transcript_contains <needle...>
 //!   transcript_not_contains <needle...>
 //!   tokens_under <n>
+//!   prompt_recorded <name> <built_in|user_file>  # session's raw readback (design D6);
+//!                                                 # not this crate's four-way prompt_source, and
+//!                                                 # fails rather than passing when nothing was recorded
 //!   file_contains <path> <needle...>       # outcome check; fails if nothing matches
 //!   file_not_contains <path> <needle...>   # supports one *; fails if nothing matches
 //!   path_not_exists <path>                 # supports one *; dirs count as existing
@@ -51,6 +54,7 @@ pub enum Assert {
     TranscriptContains(String),
     TranscriptNotContains(String),
     TokensUnder(u64),
+    PromptRecorded { name: String, source: String },
     FileContains { path: String, needle: String },
     FileNotContains { path: String, needle: String },
     PathNotExists(String),
@@ -148,6 +152,10 @@ impl Assert {
                 rest.parse()
                     .map_err(|_| anyhow::anyhow!("tokens_under: bad number '{rest}'"))?,
             ),
+            "prompt_recorded" => {
+                let (name, source) = split1(rest)?;
+                Assert::PromptRecorded { name, source }
+            }
             "file_contains" => {
                 let (path, needle) = split1(rest)?;
                 Assert::FileContains { path, needle }
@@ -253,6 +261,27 @@ impl Assert {
                 let total = t.total_tokens();
                 (total < *limit, format!("total tokens {total} < {limit}"))
             }
+            // Grades the session's raw readback, not this crate's four-way
+            // `verdict::PromptSource` (design D6). `None` fails rather than
+            // passing vacuously: a trial whose transcript recorded no
+            // prompt has no evidence to grade, which is not the same as
+            // agreement (this repo's `absence-asserts` posture).
+            Assert::PromptRecorded { name, source } => match &t.prompt {
+                Some(p) => {
+                    let hit = &p.name == name && &p.source == source;
+                    (
+                        hit,
+                        format!(
+                            "prompt recorded name='{}' source='{}', want name='{name}' source='{source}': {hit}",
+                            p.name, p.source
+                        ),
+                    )
+                }
+                None => (
+                    false,
+                    format!("no prompt recorded, want name='{name}' source='{source}'"),
+                ),
+            },
             Assert::FileContains { path, needle } => match read_glob(roots, path) {
                 Ok(contents) => {
                     let hit = contents.iter().any(|(_, c)| c.contains(needle.as_str()));
@@ -377,7 +406,7 @@ pub struct AssertResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transcript::Transcript;
+    use crate::transcript::{RecordedPrompt, Transcript};
 
     /// A fresh empty directory named after the test, so parallel tests in
     /// this process never share one.
@@ -508,5 +537,78 @@ mod tests {
         let err = Assert::parse("path_not_exists projects/*/notes/*").unwrap_err();
         let msg = format!("{err:#}");
         assert!(msg.contains('*'), "{msg}");
+    }
+
+    // spec `session-evidence`, "A scenario can assert the recorded prompt"
+    // (design D6): `prompt_recorded <name> <built_in|user_file>` grades
+    // against the transcript's raw readback, upstream's own two-value
+    // vocabulary, not this crate's four-way `prompt_source`.
+
+    /// spec scenario "Asserting the stock prompt on a bare run".
+    #[test]
+    fn prompt_recorded_passes_when_the_readback_matches() {
+        let dir = tmp("prompt-recorded-match");
+        let mut t = Transcript::default();
+        t.prompt = Some(RecordedPrompt {
+            name: "code".to_string(),
+            source: "built_in".to_string(),
+        });
+        let roots = flat_roots(&dir);
+        let r = Assert::parse("prompt_recorded code built_in")
+            .unwrap()
+            .eval(&t, &roots);
+        assert!(r.pass, "{}", r.detail);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn prompt_recorded_fails_on_a_name_mismatch_naming_both_sides() {
+        let dir = tmp("prompt-recorded-name-mismatch");
+        let mut t = Transcript::default();
+        t.prompt = Some(RecordedPrompt {
+            name: "ask".to_string(),
+            source: "built_in".to_string(),
+        });
+        let roots = flat_roots(&dir);
+        let r = Assert::parse("prompt_recorded code built_in")
+            .unwrap()
+            .eval(&t, &roots);
+        assert!(!r.pass, "{}", r.detail);
+        assert!(r.detail.contains("ask"), "{}", r.detail);
+        assert!(r.detail.contains("code"), "{}", r.detail);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn prompt_recorded_fails_on_a_source_mismatch_naming_both_sides() {
+        let dir = tmp("prompt-recorded-source-mismatch");
+        let mut t = Transcript::default();
+        t.prompt = Some(RecordedPrompt {
+            name: "code".to_string(),
+            source: "user_file".to_string(),
+        });
+        let roots = flat_roots(&dir);
+        let r = Assert::parse("prompt_recorded code built_in")
+            .unwrap()
+            .eval(&t, &roots);
+        assert!(!r.pass, "{}", r.detail);
+        assert!(r.detail.contains("user_file"), "{}", r.detail);
+        assert!(r.detail.contains("built_in"), "{}", r.detail);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// spec scenario "A missing prompt record fails the assert": a
+    /// transcript carrying no readback must fail, never pass vacuously
+    /// (this repo's `absence-asserts` posture).
+    #[test]
+    fn prompt_recorded_fails_rather_than_passing_vacuously_when_no_prompt_was_recorded() {
+        let dir = tmp("prompt-recorded-absent");
+        let t = Transcript::default();
+        let roots = flat_roots(&dir);
+        let r = Assert::parse("prompt_recorded code built_in")
+            .unwrap()
+            .eval(&t, &roots);
+        assert!(!r.pass, "{}", r.detail);
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
