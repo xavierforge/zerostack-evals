@@ -132,11 +132,12 @@ pub struct ScenarioResult {
     pub indeterminate: usize,
     /// Sum of `tool_call_count` across all trials — see `TrialResult`'s doc.
     pub total_tool_calls: usize,
-    /// `Scenario::content_hash` at run time — lets `compare` warn when a
-    /// scenario's own definition changed between baseline and candidate.
-    /// `""` when unknown (a hand-built `ScenarioResult` in a test), which
-    /// `compare` treats as "unknown, skip the check" rather than a
-    /// false-positive warning on every scenario.
+    /// `Scenario::content_hash` at run time — lets `compare` warn and
+    /// `matrix` mark DRIFT when a scenario's own definition changed between
+    /// runs. `""` when unknown (a hand-built `ScenarioResult` in a test; the
+    /// run path always records a real hash). `compare` reports any recorded
+    /// mismatch; `matrix`'s `drift_for_row` skips unknowns — observing no
+    /// hash is not observing a change.
     pub content_hash: String,
     /// The prompt name this scenario actually loaded — `""` when unresolved.
     /// Scenario-level rather than trial-level: constant across a scenario's

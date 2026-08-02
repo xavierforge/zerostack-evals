@@ -406,11 +406,11 @@ fn spread_for_row(reports: &[&Report], id: &str) -> bool {
 }
 
 /// Per-row DRIFT: `content_hash` mismatch across the columns that graded
-/// this scenario, grouped by hash. An empty `content_hash` (a baseline
-/// predating the field) is "unknown, skip" — same precedent as
-/// `ScenarioResult::content_hash`'s own doc — never treated as a mismatch on
-/// its own. No group is named "correct" (design.md, "DRIFT marks, never
-/// adjudicates").
+/// this scenario, grouped by hash. An empty `content_hash` (a hand-built
+/// report; the run path always records one) is "unknown, skip": observing no
+/// hash is not observing a change — the same reasoning as
+/// `judge_drift_flags`' no-known-ruler rule. No group is named "correct"
+/// (design.md, "DRIFT marks, never adjudicates").
 fn drift_for_row(reports: &[&Report], labels: &[String], id: &str) -> Vec<DriftGroup> {
     let entries: Vec<(String, String, String)> = reports
         .iter()
