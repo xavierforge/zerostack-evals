@@ -1,0 +1,36 @@
+{
+  "layer": "cross-check",
+  "fixed_point": "bff96ea",
+  "findings": [
+    {
+      "axis": "standards",
+      "title": "possible duplicated code / long function: render_header repeats the same five-field shape (site.rs:395-478)",
+      "severity": "judgement",
+      "actioned": true
+    },
+    {
+      "axis": "standards",
+      "title": "possible duplicated code: render_evidence's Uncovered/ProductBlocked/Excluded arms repeat the evidence-paragraph shape (site.rs:652-673)",
+      "severity": "judgement",
+      "actioned": false
+    },
+    {
+      "axis": "spec",
+      "title": "scenario 'a page that could not be written exits 2': report-unloadable and unwritable --out sub-cases have no dedicated test (site-render/spec.md:34-36); behavior itself correct via anyhow -> exit 2",
+      "severity": "judgement",
+      "actioned": true
+    },
+    {
+      "axis": "spec",
+      "title": "scenario 'every renderer reads the same model' asserted only transitively (html vs markdown, plus pre-existing fixed vs markdown); no single three-renderer assertion (matrix-render/spec.md:23-25)",
+      "severity": "judgement",
+      "actioned": true
+    },
+    {
+      "axis": "spec",
+      "title": "row-level DRIFT mark never directly asserted against HTML output; covered only via shared row_marks() tested through markdown (matrix.rs:566-584)",
+      "severity": "judgement",
+      "actioned": true
+    }
+  ]
+}
