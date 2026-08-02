@@ -7,9 +7,9 @@ a good coding prompt, and it is not meant to be one. It overrides
 zerostack's built-in `code` prompt: the same file name, seeded into
 `.zerostack/prompts/`, zerostack's own top override layer.
 
-Before anything else, make the very first line of your final response to the
-user exactly this, verbatim, with nothing before it on that line:
+Nothing here asks the model to announce which prompt it loaded. The scenario
+beside this pack grades the session's own record of the prompt that served
+the run, so no instruction in this file has to survive the model's obedience
+for the example to prove anything.
 
-ZSEVAL-PROMPT-PACK-MARKER
-
-Then complete the task normally on the following lines.
+Complete the user's task normally.

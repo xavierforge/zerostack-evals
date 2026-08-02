@@ -10,7 +10,7 @@ every subcommand takes `--json`, and exit codes are the contract
    `zseval run scenarios/prompts --target targets/anthropic.toml --tag baseline --trials 3 --json`
 2. Edit the prompt in the zerostack checkout (`data/prompts/<name>.md`, or
    `src/agent/prompt.rs` for the base system prompt), then rebuild
-   `cargo build --release`.
+   `cargo build --release --all-features`.
 3. `zseval run scenarios/prompts --target targets/anthropic.toml --tag attempt-N --trials 3 --json`
 4. `zseval compare results/baseline/report.json results/attempt-N/report.json`
    - exit 0 and the target scenario went up → done; hand the diff to a human.
@@ -96,6 +96,14 @@ when unknown, never the configured model echoed back) — see `judges/README.md`
   second.
 - `pass^k` is the stability floor; a change that lifts `pass@k` but not
   `pass^k` is not yet an improvement.
+- The evidence channel is the session JSON zerostack writes: its `tool`
+  records are what tool asserts grade, and its `prompt` record is what
+  `prompt_source` and `prompt_recorded` read. `turn-N.stdout` is a debugging
+  artifact, graded by nothing. `ZS_BIN` therefore has a floor: an
+  `--all-features` build from a mainline carrying PR #230 (tool records) and
+  PR #228 (the prompt record). Older binaries grade tool scenarios
+  *indeterminate* and report `prompt_source: "unknown"` with a warning naming
+  the rebuild, rather than silently reporting an agent that used no tools.
 - `zseval compare` also warns when tool-call evidence drops to zero on the
   candidate (`⚠ tool-call evidence dropped to zero`). A `tool_not_called`-only
   scenario passes vacuously if the evidence channel itself breaks — that's

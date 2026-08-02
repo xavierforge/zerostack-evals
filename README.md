@@ -38,8 +38,10 @@ as a usage mistake: a broken environment never looks like a clean pass.
 
 ## Quick start
 
-    # build zerostack somewhere
-    cargo build --release --manifest-path ../zerostack/Cargo.toml
+    # build zerostack somewhere. --all-features because several suites need
+    # non-default features (memory, mcp), and the build has to be recent
+    # enough to record its own evidence: see "How it drives zerostack".
+    cargo build --release --all-features --manifest-path ../zerostack/Cargo.toml
     export ZS_BIN=../zerostack/target/release/zerostack
 
     # pick what to evaluate against: a target is a zerostack config.toml
@@ -75,9 +77,11 @@ No zerostack build handy? Exercise the plumbing with the mock backend:
       --no-judge
 
 `--backend mock=<path>` also accepts a *directory* shaped like a captured
-trial dir (`data/sessions/*.json` plus `turn-N.{stdout,stderr,zslog}`), which
-replays the stdout-based tool-call markers too, the only channel that
-carries tool calls in headless mode (see "How it drives zerostack" below).
+trial dir (`data/sessions/*.json` plus `turn-N.{stdout,stderr,zslog}`),
+replayed exactly as a real run produced it. Either form grades off the same
+evidence a live run does, because tool calls and prompt identity are read
+from the session JSON (see "How it drives zerostack" below); the turn logs a
+directory fixture carries are along for the ride, not graded.
 
 Edited an assert and want to know if it would flip a past trial's verdict,
 without spending another API call?
@@ -101,6 +105,27 @@ test, and `--yolo`; per-run isolation via `ZS_DATA_DIR` / `ZS_CONFIG_DIR` /
 `$ZS_DATA_DIR/sessions/*.json`. If zerostack's session schema changes, adapt
 `src/transcript.rs`; an unreadable schema grades as *indeterminate*, never as an
 agent failure.
+
+**The session JSON is the evidence channel, and the only one.** A headless
+turn persists structured `tool` records for every call it made (subagent
+calls included) and a `prompt: { name, source }` record naming the prompt
+file it actually loaded and whether that file was built into the binary or
+came from disk. Both are read straight out of the session: `tool_called` and
+friends grade the records, and each scenario's reported `prompt_source`
+starts from the recorded `source` rather than from an inference about what
+the harness seeded. The `turn-N.stdout` capture (`--pure-stdout`, `◈ {name}
+{summary}` marker lines) is still taken and still worth reading while
+debugging, but nothing grades it: a marker line is a line prefix any tool's
+own output can forge.
+
+**So `ZS_BIN` has a floor.** It must be an `--all-features` build from a
+zerostack mainline carrying PR #230 (tool records in headless session JSON)
+and PR #228 (the prompt record). Against an older binary this is loud rather
+than quiet: a tool-call message with no record makes the transcript
+unreadable, so the scenario grades *indeterminate*, and a missing `prompt`
+record makes the run warn and report `prompt_source: "unknown"` (and fails
+any `prompt_recorded` assert). Neither degrades into "the agent called no
+tools", which is the failure mode this design exists to prevent.
 
 **Provider + model come from a target, not from your machine.** `--target
 <config.toml>` seeds a zerostack config into the isolated `ZS_CONFIG_DIR`, so a
@@ -199,9 +224,11 @@ can't silently ship a footgun:
   Grading evidence is `$ZS_DATA_DIR/loops/<uuid>/iter-NNNN.json` records
   (prompt/response/validation_output per iteration), which `transcript.rs`
   folds in as ordinary messages: `final_contains`/`transcript_contains`/
-  `file_*` all work unchanged; `zseval explain` dumps them too.
-- **No tool-call evidence at all**: the loop's own headless call hardcodes
-  no stdout tool-call markers, regardless of CLI flags. `tool_called` /
+  `file_*` all work unchanged; `zseval explain` dumps them too. With no
+  session there is no recorded prompt either, so a loop scenario's
+  `prompt_source` stays the old derivation from what the harness seeded.
+- **No tool-call evidence at all**: no session file means no `tool` records,
+  and the iteration records carry only prompt/response text. `tool_called` /
   `tool_not_called` / `tool_called_after` / `tool_count` /
   `tool_arg_contains` / `no_tool_call_contains` / `tokens_under` are all
   rejected on a `mode = "loop"` scenario at load time: grade on
@@ -321,14 +348,19 @@ pack that ships `code.md` reaches further than the scenarios that declare
 `prompt = "code"`, though: a scenario that declares no prompt at all falls
 back to the target's `default_prompt`, or to `code` when that's unset too, so
 it changes as well. `report.json` records each scenario's `prompt_source`
-(`pack` / `stock` / `scenario` / `unknown`), so which prompt actually applied
-is never a guess.
+(`pack` / `stock` / `scenario` / `unknown`), read back from the session's own
+record of the prompt it loaded, so which prompt actually applied is never a
+guess.
 
 `examples/prompt-pack/` is a minimal pack plus a scenario that only passes
-when the pack, not the built-in `code` prompt, is what the model loaded:
-copy it as a starting point. Its own README covers running it against a real
-zerostack build, and how to tell "the pack never reached the model" apart
-from "the model didn't obey the marker instruction."
+when the pack, not the built-in `code` prompt, is what the run loaded: copy
+it as a starting point. It asserts that identity directly
+(`prompt_recorded code user_file`), so nothing rides on the model repeating a
+marker string back. Its own README covers running it against a real zerostack
+build, what each way of failing means, and the one rule to keep when copying
+it: a pack prompt must not be byte-identical to the built-in it overrides,
+because zerostack classifies `built_in` by content and would record the pack's
+own file as the built-in.
 
 Deciding between N targets instead of gating a migration is a different
 question, so it gets a different command. Give `run` repeated `--target` to

@@ -21,6 +21,7 @@ Upstream zerostack now records the evidence zseval has been reconstructing by ha
 ### Modified Capabilities
 
 - `prompts-pack-identity`: the requirements "Each scenario records the prompt it actually loaded" and "The default prompt name is derived only where derivation holds" change from seed-based derivation to session readback with a derivation cross-check; the config-seeding `unknown` scenario is replaced (readback stays valid there); `unknown` narrows to "the evidence was not observed" (old reports).
+- `scenario-kind`: the adjudicated classification table gains the two evidence-channel regression scenarios this change adds, so the suite moves from 42 scenarios (29 regression) to 44 (31 regression). The count is enforced by `the_committed_suite_is_...` in `tests/harness.rs`, so the main spec had to move with the scenarios rather than at archive time; this delta is the record of that edit, carrying the requirement in the same form the main spec now holds.
 
 ## Impact
 
