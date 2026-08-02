@@ -62,8 +62,8 @@ Vocabulary, fixed for this document:
 
 ## 6. Regression scenarios and the ledger (design D6) [dispatch: too-te, depends: 5, parallel: no, reason: two scenario files copying the conventions of their neighbours, plus the ledger entry the drift gate requires]
 
-- [ ] 6.1 Add the two `scenarios/session/` regression scenarios: one that has the agent perform a trivial tool call and asserts `tool_called` (after section 1, its passing is itself proof that headless sessions carry tool records), and one bare run asserting `prompt_recorded code built_in`.
-- [ ] 6.2 Register both ids in `scenarios/coverage.toml` under the area they belong to, because the coverage-ledger drift check fails on any scenario no `covered` claim cites. Evidence: `cargo test --workspace` green, which is where that drift check runs.
+- [x] 6.1 Add the two `scenarios/session/` regression scenarios: one that has the agent perform a trivial tool call and asserts `tool_called` (after section 1, its passing is itself proof that headless sessions carry tool records), and one bare run asserting `prompt_recorded code built_in`.
+- [x] 6.2 Register both ids in `scenarios/coverage.toml` under the area they belong to, because the coverage-ledger drift check fails on any scenario no `covered` claim cites. Evidence: `cargo test --workspace` green, which is where that drift check runs.
 
 ## 7. Example and docs [dispatch: too-te, depends: 3, 5, 6, parallel: no, reason: mechanical edits against criteria this document and the design already state]
 

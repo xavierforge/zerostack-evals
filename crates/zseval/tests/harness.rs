@@ -1174,10 +1174,10 @@ fn discover_walks_a_scenario_directory_without_counting_its_fixtures() {
 }
 
 #[test]
-fn the_committed_suite_is_29_regression_and_13_capability() {
+fn the_committed_suite_is_31_regression_and_13_capability() {
     // The adjudicated in-tree classification (scenario-kind spec table): the
-    // whole 42-scenario suite, the 41 under `scenarios/` plus the
-    // `examples/prompt-pack` coverage marker, labels to exactly 29 regression
+    // whole 44-scenario suite, the 43 under `scenarios/` plus the
+    // `examples/prompt-pack` coverage marker, labels to exactly 31 regression
     // and 13 capability.
     let mut all = discover(&scenarios_root()).unwrap();
     let marker = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/prompt-pack/scenario");
@@ -1185,10 +1185,10 @@ fn the_committed_suite_is_29_regression_and_13_capability() {
 
     let regression = all.iter().filter(|s| s.kind == Kind::Regression).count();
     let capability = all.iter().filter(|s| s.kind == Kind::Capability).count();
-    assert_eq!(all.len(), 42, "expected the full in-tree suite");
+    assert_eq!(all.len(), 44, "expected the full in-tree suite");
     assert_eq!(
         (regression, capability),
-        (29, 13),
+        (31, 13),
         "regression/capability split off the adjudicated table"
     );
 }

@@ -1,0 +1,18 @@
+id = "session-tool-call-recorded"
+kind = "regression"
+trials = 3
+task = "What is the launch code recorded in notes.txt?"
+
+# Evidence-channel regression pin (design D6): reading notes.txt forces one
+# trivial `read` call, so `tool_called` passing here is proof, after section
+# 1's switch to session `tool` records, that a headless run's session JSON
+# actually carries tool records rather than an empty list. This is the same
+# claim the coverage ledger's tool-use area records against issue #229.
+expect = [
+  "tool_called read",
+  "final_contains 4821",
+]
+
+[[files]]
+src = "_fixtures/notes.txt"
+dest = "work:notes.txt"

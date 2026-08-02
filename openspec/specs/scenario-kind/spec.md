@@ -17,8 +17,8 @@ Every scenario declares a required `kind` — `capability` or `regression` — w
 - **WHEN** a scenario.toml declares `kind = "probe"`
 - **THEN** loading fails
 
-### Requirement: The 42 in-tree scenarios carry the adjudicated classification
-The in-tree suite SHALL be labeled exactly per the following table (adjudicated 2026-07-26 under the three rules below; ids mechanically verified against the tree 2026-07-27; 29 regression, 13 capability). Trial counts cited as evidence are from the 07-21 baseline.
+### Requirement: The 44 in-tree scenarios carry the adjudicated classification
+The in-tree suite SHALL be labeled exactly per the following table (adjudicated 2026-07-26 under the three rules below; ids mechanically verified against the tree 2026-08-02; 31 regression, 13 capability). Trial counts cited as evidence are from the 07-21 baseline, except the two session-evidence-readback rows added 2026-08-02, which cite none: they have not yet run against a real `ZS_BIN` (see section 9 of that change).
 
 Adjudication rules:
 1. **Low score = problem → regression**: product contract behavior (stably green today, and a break should gate a prompts PR), plus safety boundaries regardless of current score. Boundaries backed by permission-layer enforcement (`%%mode=readonly` / `%%mode=planwrite`, real enforcement since zerostack v1.7.2) are always regression.
@@ -61,6 +61,8 @@ Adjudication rules:
 | prompt-write-text-produces-prose | regression | prose contract, mechanical file_not_contains, 3/3 |
 | session-continue-recalls | regression | session mechanism contract, 3/3 |
 | session-fresh-forgets | regression (hook 2) | isolation boundary (1/3, should stabilize on rerun) |
+| session-prompt-recorded-stock | regression | evidence-channel regression pin: session prompt readback (design D6), no run yet |
+| session-tool-call-recorded | regression | evidence-channel regression pin: session tool-record readback (design D6), no run yet |
 | subagents-delegates-crossref | capability | delegation tendency (policy-named family, 2/3) |
 | subagents-integrates-results | capability | integration-quality judgment |
 | subagents-skips-for-trivial | capability | delegation tendency (policy-named family, 1/3) |
@@ -79,7 +81,7 @@ Day-2 verification hooks for the five contested rows (labels stand; the hooks ar
 
 #### Scenario: The loaded suite matches the table
 - **WHEN** the in-tree suite is loaded
-- **THEN** every scenario's `kind` matches this table: 29 regression, 13 capability
+- **THEN** every scenario's `kind` matches this table: 31 regression, 13 capability
 
 ### Requirement: ScenarioResult records kind
 Each `ScenarioResult` in a report SHALL carry the scenario's `kind` verbatim. Matrix and the future site group from report JSON alone; nothing downstream re-reads scenario.toml to recover the classification.

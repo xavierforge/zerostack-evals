@@ -307,10 +307,9 @@ blocked_by = "The transition is offered in the interactive interface, and the ha
 
 [[areas.claims]]
 claim = "A run reports which prompt file it actually loaded, and where that file came from"
-status = "product-blocked"
-reason = "zerostack keeps the loaded prompt's name in memory only: the session file has no field for it and nothing prints it, so which prompt served a run can only be inferred from what the harness put in place."
-zs = "issue #227"
-note = "This is exactly what makes the prompt-pack claim above a proxy indicator. Once a run reports its own prompt, the marker string drops back to a supporting role and the pack claim becomes a direct observation."
+status = "covered"
+scenarios = ["session-prompt-recorded-stock"]
+note = "The session JSON now records a `prompt: { name, source }` field at every prompt resolution, so which prompt served a run is read directly rather than inferred from what the harness seeded. This is exactly what would let the prompt-pack claim above graduate from a proxy indicator to a direct observation, once that example is updated to assert the readback."
 
 [[areas.claims]]
 claim = "Naming a prompt that does not exist lists the prompts that do"
@@ -414,10 +413,9 @@ note = "Recorded as unmeasured rather than as a permanent exclusion: the older j
 
 [[areas.claims]]
 claim = "The tool calls a headless run made are recorded as data rather than reconstructed from printed output"
-status = "product-blocked"
-reason = "A headless run writes no tool calls into its session file; the only trace is a marker line on stdout, and that marker is printed only when the run was asked to print tool calls in the first place."
-zs = "issue #229"
-note = "Every tool-call assertion in this suite rests on parsing that marker, so a change in how zerostack prints it would quietly rewrite what the suite believes it observed. There is no second channel to cross-check against."
+status = "covered"
+scenarios = ["session-tool-call-recorded"]
+note = "The session JSON now carries a structured tool record per call, and the transcript reader reads that record directly instead of reconstructing calls from the stdout marker. Every other tool-call assertion in this suite now rests on the same session evidence."
 
 [[areas.claims]]
 claim = "The content-addressed edit guard rejects an edit built against a stale read"
