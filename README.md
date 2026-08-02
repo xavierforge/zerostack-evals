@@ -115,8 +115,9 @@ friends grade the records, and each scenario's reported `prompt_source`
 starts from the recorded `source` rather than from an inference about what
 the harness seeded. The `turn-N.stdout` capture (`--pure-stdout`, `◈ {name}
 {summary}` marker lines) is still taken and still worth reading while
-debugging, but nothing grades it: a marker line is a line prefix any tool's
-own output can forge.
+debugging, but nothing grades it: a `◈ ` sequence inside a tool's own output
+is indistinguishable from a real marker line, so parsing it risks seeing
+tool calls that never happened.
 
 **So `ZS_BIN` has a floor.** It must be an `--all-features` build from a
 zerostack mainline carrying PR #230 (tool records in headless session JSON)

@@ -23,8 +23,9 @@
 //! feed `Transcript.tool_calls` identically. `backend::ZsCli` still passes
 //! `--pure-stdout` and still tees each turn to `turn-N.stdout`, but those
 //! `◈ {name} {summary}` marker lines are a human-facing debugging artifact
-//! only. Nothing here parses them, and nothing should: they are a
-//! line-prefix convention that a tool's own output can forge.
+//! only. Nothing here parses them, and nothing should: a `◈ ` sequence
+//! inside a tool's own output is indistinguishable from a real marker
+//! line, so parsing it risks phantom tool calls.
 //!
 //! A schema we cannot parse becomes an `Err`, which the runner maps to an
 //! `Indeterminate` verdict — an unreadable transcript is not an agent
@@ -387,8 +388,9 @@ pub fn parse_str(text: &str) -> Result<Transcript> {
                 let record = m.tool.as_ref().ok_or_else(|| {
                     anyhow!(
                         "message {i} has role '{}' but no structured `tool` record — \
-                         the binary that wrote this session predates zerostack's \
-                         structured tool records (PR #230); rebuild ZS_BIN",
+                         this session predates zerostack's structured tool records \
+                         (PR #230); rebuild ZS_BIN if this is a live run, or \
+                         regenerate the mock fixture or captured trial otherwise",
                         m.role
                     )
                 })?;
