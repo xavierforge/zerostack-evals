@@ -1,0 +1,12 @@
+{
+  "layer": "cross-check",
+  "fixed_point": "main",
+  "findings": [
+    {
+      "axis": "standards",
+      "title": "possible long function: record_prompt in runner.rs carries four mapping arms plus two reconciliation-failure branches",
+      "severity": "judgement",
+      "actioned": false
+    }
+  ]
+}
