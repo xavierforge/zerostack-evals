@@ -54,6 +54,21 @@ The pack SHALL be seeded before the scenario's own file placements, so a scenari
 - **WHEN** a scenario seeds a prompt name the pack does not provide
 - **THEN** both the scenario's file and the pack's files are present
 
+### Requirement: A pin the run's own pack shadows is skipped, not graded
+A `prompt_recorded <name> built_in` assert pins the compiled-in default, and the pack is seeded into every trial, so a pack providing that same `<name>` replaces the very thing the pin watches; grading it would report the harness's own seeding as a product regression. WHEN a scenario resolves its prompt from the run's pack and one of its asserts pins that same name as `built_in`, the scenario SHALL be skipped before any trial runs: the run SHALL say so on stderr naming the scenario and the shadowed name, and the scenario SHALL be ungradable, not failed. The skip SHALL be exactly that narrow: a scenario seeding the pinned name itself SHALL grade normally (the shadowing is the scenario's own doing, not the run's pack), a pin on a name the scenario never resolves SHALL grade and fail honestly (an authoring error the pack does not excuse), and a `user_file` pin SHALL always grade.
+
+#### Scenario: The shipped built-in pin is skipped under a pack that shadows it
+- **WHEN** a run seeds a pack providing `code.md` and a scenario resolves `code` from that pack while asserting `prompt_recorded code built_in`
+- **THEN** the scenario runs no trial, the skip line names the scenario and `code`, and the scenario is ungradable, not failed
+
+#### Scenario: A scenario shadowing the built-in itself still grades
+- **WHEN** the scenario's own seed supplies the pinned name, pack or no pack
+- **THEN** the scenario is graded normally
+
+#### Scenario: A skipped pin does not stop the suite
+- **WHEN** one scenario is skipped for a shadowed pin
+- **THEN** every other scenario still runs and the report still builds
+
 ### Requirement: --prompts is rejected under the mock backend
 `--prompts` with `--backend mock` SHALL be a usage error. The mock backend replays canned artifacts and never constructs a zerostack invocation or seeds a run directory, so a pack could not affect its results; accepting the flag would produce a report advertising a pack that could not possibly have been read. This mirrors the existing rejection of `--target` under mock.
 
