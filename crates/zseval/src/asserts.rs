@@ -548,11 +548,13 @@ mod tests {
     #[test]
     fn prompt_recorded_passes_when_the_readback_matches() {
         let dir = tmp("prompt-recorded-match");
-        let mut t = Transcript::default();
-        t.prompt = Some(RecordedPrompt {
-            name: "code".to_string(),
-            source: "built_in".to_string(),
-        });
+        let t = Transcript {
+            prompt: Some(RecordedPrompt {
+                name: "code".to_string(),
+                source: "built_in".to_string(),
+            }),
+            ..Default::default()
+        };
         let roots = flat_roots(&dir);
         let r = Assert::parse("prompt_recorded code built_in")
             .unwrap()
@@ -564,11 +566,13 @@ mod tests {
     #[test]
     fn prompt_recorded_fails_on_a_name_mismatch_naming_both_sides() {
         let dir = tmp("prompt-recorded-name-mismatch");
-        let mut t = Transcript::default();
-        t.prompt = Some(RecordedPrompt {
-            name: "ask".to_string(),
-            source: "built_in".to_string(),
-        });
+        let t = Transcript {
+            prompt: Some(RecordedPrompt {
+                name: "ask".to_string(),
+                source: "built_in".to_string(),
+            }),
+            ..Default::default()
+        };
         let roots = flat_roots(&dir);
         let r = Assert::parse("prompt_recorded code built_in")
             .unwrap()
@@ -582,11 +586,13 @@ mod tests {
     #[test]
     fn prompt_recorded_fails_on_a_source_mismatch_naming_both_sides() {
         let dir = tmp("prompt-recorded-source-mismatch");
-        let mut t = Transcript::default();
-        t.prompt = Some(RecordedPrompt {
-            name: "code".to_string(),
-            source: "user_file".to_string(),
-        });
+        let t = Transcript {
+            prompt: Some(RecordedPrompt {
+                name: "code".to_string(),
+                source: "user_file".to_string(),
+            }),
+            ..Default::default()
+        };
         let roots = flat_roots(&dir);
         let r = Assert::parse("prompt_recorded code built_in")
             .unwrap()

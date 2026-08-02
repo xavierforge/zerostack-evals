@@ -74,8 +74,8 @@ Vocabulary, fixed for this document:
 
 ## 8. Harness integration and the full gate [dispatch: too-te, depends: 7, parallel: no, reason: one test fixture update and the standing gate commands]
 
-- [ ] 8.1 Confirm the harness's stub-backed paths carry the new shape end to end. Section 1.4 regenerated the two fixtures the stub copies, so this is a check rather than a second edit: run the stub-backed tests, and if any session JSON authored inline in `tests/harness.rs` still writes a tool-call-role message without a record, bring it to the new shape here.
-- [ ] 8.2 Evidence: `cargo test --workspace` green, `cargo fmt --all --check` clean, `cargo clippy --workspace --all-targets` clean.
+- [x] 8.1 Confirm the harness's stub-backed paths carry the new shape end to end. Section 1.4 regenerated the two fixtures the stub copies, so this is a check rather than a second edit: run the stub-backed tests, and if any session JSON authored inline in `tests/harness.rs` still writes a tool-call-role message without a record, bring it to the new shape here.
+- [x] 8.2 Evidence: `cargo test --workspace` green, `cargo fmt --all --check` clean, `cargo clippy --workspace --all-targets` clean.
 
 ## 9. Operator verification (not a factory round) [dispatch: operator, depends: 8, parallel: no, reason: needs a rebuilt binary and a paid API call, so no subagent can run or verify it]
 
