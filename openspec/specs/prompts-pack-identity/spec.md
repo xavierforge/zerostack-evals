@@ -29,37 +29,42 @@
 - **THEN** the recorded hash differs
 
 ### Requirement: Each scenario records the prompt it actually loaded
-Seeding a file is not loading it: which prompt a trial loads is decided by the scenario's `prompt` field or the config default, so a pack whose names no scenario calls sits inert while the report advertises it. `ScenarioResult` SHALL therefore record `prompt_name` and `prompt_source`, resolved in this order:
+Seeding a file is not loading it — and inferring from seeds is not observing. `ScenarioResult` SHALL record `prompt_name` and `prompt_source` from the session's own recorded prompt (the `session-evidence` capability's readback), mapped as follows:
 
-1. WHEN the prompt name cannot be determined (see the derivation requirement below), the source SHALL be `unknown`.
-2. WHEN the scenario's own file placements provide that name under `work:.zerostack/prompts/`, the source SHALL be `scenario`.
-3. WHEN the pack provides that name, the source SHALL be `pack`. This is exact rather than inferred: `.zerostack/prompts/` is the top layer of zerostack's override chain, so a name the pack provides is the content that loads.
-4. Otherwise the source SHALL be `stock`, meaning zerostack's built-in prompt.
+1. WHEN the readback's source is `built_in`, the recorded source SHALL be `stock`, and the name the readback's name.
+2. WHEN the readback's source is `user_file` and the scenario's own file placements provide that name under `work:.zerostack/prompts/`, the source SHALL be `scenario` — the scenario's placement lands last, so it is the content that loaded.
+3. WHEN the readback's source is `user_file` and the pack provides that name, the source SHALL be `pack`.
+4. WHEN the readback's source is `user_file` and neither layer provides that name, the source SHALL be `unknown` and the run SHALL warn: a user file the harness did not plant means the trial environment is not what the harness thinks it is.
+5. WHEN no session in the trial recorded a prompt at all (a `ZS_BIN` predating the readback), the source SHALL be `unknown` with an empty name, and the run SHALL warn, naming the `ZS_BIN` rebuild as the likely fix.
 
-These are scenario-level facts, constant across a scenario's trials, and belong beside `content_hash` rather than being repeated per trial.
+These are scenario-level facts, constant across a scenario's trials: each trial's readback is reconciled, and WHEN the trials of one scenario disagree, the scenario SHALL record `unknown` and the run SHALL warn — disagreement between identically-seeded trials is itself evidence something is wrong.
 
 #### Scenario: A scenario naming a prompt the pack provides
-- **WHEN** a scenario declares `prompt = "code"` and the pack provides `code.md`
+- **WHEN** a scenario declares `prompt = "code"`, the pack provides `code.md`, and the session records `{"name": "code", "source": "user_file"}`
 - **THEN** its recorded name is `code` and its source is `pack`
 
 #### Scenario: A scenario naming a prompt the pack does not provide
-- **WHEN** a scenario declares `prompt = "ask"` and the pack provides only `code.md`
+- **WHEN** a scenario declares `prompt = "ask"`, the pack provides only `code.md`, and the session records `{"name": "ask", "source": "built_in"}`
 - **THEN** its recorded name is `ask` and its source is `stock`
 
 #### Scenario: A scenario that seeds its own prompt
-- **WHEN** a scenario seeds `work:.zerostack/prompts/code.md` and the pack also provides `code.md`
+- **WHEN** a scenario seeds `work:.zerostack/prompts/code.md`, the pack also provides `code.md`, and the session records `{"name": "code", "source": "user_file"}`
 - **THEN** its source is `scenario`
 
-### Requirement: The default prompt name is derived only where derivation holds
-A scenario that declares no `prompt` does not run without one: zerostack falls back to the config's `default_prompt`, and to `code` when the config sets none. The harness SHALL derive that name from the target config it seeds, so the scenarios that declare no prompt are covered rather than blank. The derivation SHALL be abandoned, recording `unknown`, WHEN the scenario places any file that could move the effective config out from under it, namely a placement into the run's config directory or into `work:.zerostack/config.toml`. In that case the harness's own copy is no longer the last word, and reading it would record a value that never took effect.
+#### Scenario: A session without a recorded prompt records unknown, loudly
+- **WHEN** a trial's sessions carry no `prompt` field
+- **THEN** the scenario records source `unknown` with an empty name, and the run warns that `ZS_BIN` likely predates prompt recording
 
-#### Scenario: A scenario without a prompt field resolves to the default
-- **WHEN** a scenario declares no `prompt` and the target config sets no `default_prompt`
-- **THEN** its recorded name is `code`, sourced by the same rules as a declared name
+### Requirement: The derivation survives as a cross-check
+The seed-based derivation (scenario `prompt` field, else the target config's `default_prompt`, else zerostack's `code` fallback; layered scenario-over-pack-over-stock) SHALL still be computed for session-backed scenarios, and WHEN it disagrees with the readback-mapped value, the readback SHALL win and the run SHALL warn, naming both values. This is where a pack prompt whose bytes equal the built-in surfaces benignly: upstream classifies it `built_in` by content, the recorded source is `stock`, and the warning explains the disagreement instead of either value being silently wrong. For loop-mode scenarios, which produce no session file, the derivation SHALL remain the recorded value under the old rules, including recording `unknown` when the scenario seeds the effective config.
 
-#### Scenario: A config-seeding scenario records unknown
-- **WHEN** a scenario declares no `prompt` and places a file into the config directory or `work:.zerostack/config.toml`
-- **THEN** its recorded source is `unknown` rather than a derived name
+#### Scenario: Derivation disagreement warns but does not override
+- **WHEN** the derivation says `pack` but the session records `{"name": "code", "source": "built_in"}` because the pack's `code.md` is byte-identical to the built-in
+- **THEN** the scenario records source `stock` and the run warns, naming both the derived and read-back values
+
+#### Scenario: A loop-mode scenario still derives
+- **WHEN** a `mode = "loop"` scenario runs (no session file is written)
+- **THEN** its prompt name and source are derived exactly as before, and a config-seeding loop scenario records `unknown`
 
 ### Requirement: A pack that never loads is reported
 A run SHALL report, on its own output, how many scenarios actually loaded a prompt from the pack. WHEN a pack was given and no scenario resolved to source `pack`, the run SHALL warn that the pack was seeded but never loaded, so a report advertising a pack cannot be read as that pack's score when it is the built-in prompts' score. This is a run-level check about whether the independent variable was manipulated at all, distinct from the cross-run checks in the `controlled-variables` capability.
