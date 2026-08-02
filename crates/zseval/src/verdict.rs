@@ -187,9 +187,7 @@ impl ScenarioResult {
     /// A scenario is gradable if at least one trial produced a verdict; a
     /// fully-indeterminate scenario is excluded from pass rates and diffs.
     pub fn is_gradable(&self) -> bool {
-        self.trials
-            .iter()
-            .any(|t| t.outcome != Final::Indeterminate)
+        self.n_graded_trials() > 0
     }
 
     /// How many trials actually produced a verdict — the pass-rate

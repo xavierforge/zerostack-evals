@@ -357,14 +357,10 @@ impl Assert {
             }
         };
         AssertResult {
-            spec: self.spec(),
+            spec: format!("{self:?}"),
             pass,
             detail,
         }
-    }
-
-    fn spec(&self) -> String {
-        format!("{self:?}")
     }
 }
 
