@@ -18,7 +18,7 @@
 - **THEN** `Report.target` still names the target it was run against, so `matrix` can label the column without the run directory
 
 ### Requirement: The schema version is frozen, not gated on
-`REPORT_SCHEMA_VERSION` SHALL be frozen at `1` and SHALL NOT be bumped for this change. No code SHALL branch on `schema_version`. The new `target` field SHALL deserialize with a default so a report lacking it still loads; consumers that need the target (see `matrix-render`, `multi-target-run`) SHALL check for a non-empty target on its own merits rather than gating on the version number.
+`REPORT_SCHEMA_VERSION` SHALL be frozen at `1` and SHALL NOT be bumped for this change. No code SHALL branch on `schema_version`. The `target` field originally deserialized with a default so a report lacking it still loaded; `report-strict-read` has since retired that escape hatch: a missing `target` is a load error. Consumers that need a *non-empty* target (see `matrix-render`, `multi-target-run`) still check that on its own merits rather than gating on the version number.
 
 #### Scenario: Nothing reads the version number
 - **WHEN** a report is loaded
