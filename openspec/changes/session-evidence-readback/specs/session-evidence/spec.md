@@ -54,11 +54,15 @@ The scenario assert vocabulary SHALL include `prompt_recorded <name> <built_in|u
 
 ### Requirement: Regression scenarios pin both channels
 
-The shipped suite SHALL include, under `scenarios/session/` and registered in the coverage ledger, one scenario whose passing proves headless sessions carry tool records (a trivial tool task asserted with `tool_called`) and one whose passing proves sessions carry the prompt field (a bare run asserted with `prompt_recorded code built_in`). These exist so an upstream regression of either channel fails a named scenario instead of silently emptying every report's evidence.
+The shipped suite SHALL include, under `scenarios/session/` and registered in the coverage ledger, one scenario whose passing proves headless sessions carry tool records (a trivial tool task asserted with `tool_called_any`) and one whose passing proves sessions carry the prompt field (a bare run asserted with `prompt_recorded code built_in`). The tool-side pin SHALL NOT name a specific tool: which tool the model picks to satisfy the task is not itself a claim this scenario makes, only that some tool call was recorded. These exist so an upstream regression of either channel fails a named scenario instead of silently emptying every report's evidence.
 
 #### Scenario: The tool-record channel regression is detectable
 - **WHEN** a `ZS_BIN` that stops writing tool records runs the tool-record regression scenario
-- **THEN** the trial grades Indeterminate or fails its `tool_called` assert, rather than passing
+- **THEN** the trial grades Indeterminate or fails its `tool_called_any` assert, rather than passing
+
+#### Scenario: The tool-side pin does not name a tool
+- **WHEN** the tool-record regression scenario's task is satisfiable by more than one tool and the model answers it with a tool other than the one the scenario's author had in mind
+- **THEN** its `tool_called_any` assert still passes, because the assert names no tool
 
 #### Scenario: The prompt-record channel regression is detectable
 - **WHEN** a `ZS_BIN` that stops writing the prompt field runs the prompt regression scenario

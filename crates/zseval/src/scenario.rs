@@ -241,6 +241,7 @@ fn loop_incompatible_assert(a: &crate::asserts::Assert) -> Option<&'static str> 
     use crate::asserts::Assert::*;
     match a {
         ToolCalled(_) => Some("tool_called"),
+        ToolCalledAny => Some("tool_called_any"),
         ToolNotCalled(_) => Some("tool_not_called"),
         ToolCalledAfter { .. } => Some("tool_called_after"),
         ToolCount { .. } => Some("tool_count"),

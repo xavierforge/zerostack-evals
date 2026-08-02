@@ -4,6 +4,8 @@
 //! rest of the line verbatim, so needles may contain spaces.
 //!
 //!   tool_called <name>
+//!   tool_called_any                            # any tool call recorded, name-agnostic (design D6, section 10);
+//!                                                 # no argument, and fails rather than passing vacuously
 //!   tool_not_called <name>
 //!   tool_called_after <later> <earlier>       # order in the transcript
 //!   tool_count <name> <op> <n>                # op: < <= == >= >
@@ -43,10 +45,25 @@ use crate::transcript::Transcript;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Assert {
     ToolCalled(String),
+    /// Any tool call, whatever its name (design D6, section 10): a
+    /// name-agnostic evidence-channel pin, deliberately not `tool_count *
+    /// >= 1`, since `*` in a name slot would then have to mean something
+    /// for `tool_not_called`/`tool_arg_contains` too, and it does not.
+    ToolCalledAny,
     ToolNotCalled(String),
-    ToolCalledAfter { later: String, earlier: String },
-    ToolCount { tool: String, op: CmpOp, n: usize },
-    ToolArgContains { tool: String, needle: String },
+    ToolCalledAfter {
+        later: String,
+        earlier: String,
+    },
+    ToolCount {
+        tool: String,
+        op: CmpOp,
+        n: usize,
+    },
+    ToolArgContains {
+        tool: String,
+        needle: String,
+    },
     NoToolCallContains(String),
     FinalContains(String),
     FinalNotContains(String),
@@ -54,9 +71,18 @@ pub enum Assert {
     TranscriptContains(String),
     TranscriptNotContains(String),
     TokensUnder(u64),
-    PromptRecorded { name: String, source: String },
-    FileContains { path: String, needle: String },
-    FileNotContains { path: String, needle: String },
+    PromptRecorded {
+        name: String,
+        source: String,
+    },
+    FileContains {
+        path: String,
+        needle: String,
+    },
+    FileNotContains {
+        path: String,
+        needle: String,
+    },
     PathNotExists(String),
 }
 
@@ -114,11 +140,19 @@ impl Assert {
             .split_once(char::is_whitespace)
             .map(|(a, b)| (a, b.trim()))
             .unwrap_or((line, ""));
-        if rest.is_empty() {
+        // `tool_called_any` is the one op that takes no argument; every
+        // other op needs the `rest` this guard requires.
+        if rest.is_empty() && op != "tool_called_any" {
             bail!("assert '{op}' needs arguments");
         }
         Ok(match op {
             "tool_called" => Assert::ToolCalled(rest.to_string()),
+            "tool_called_any" => {
+                if !rest.is_empty() {
+                    bail!("tool_called_any takes no argument, got '{rest}'");
+                }
+                Assert::ToolCalledAny
+            }
             "tool_not_called" => Assert::ToolNotCalled(rest.to_string()),
             "tool_called_after" => {
                 let (later, earlier) = split1(rest)?;
@@ -185,6 +219,13 @@ impl Assert {
             Assert::ToolCalled(name) => {
                 let hit = t.tool_calls.iter().any(|c| &c.name == name);
                 (hit, format!("tool '{name}' called: {hit}"))
+            }
+            // Name-agnostic: fails on an empty transcript rather than
+            // passing vacuously, same posture as `PromptRecorded`'s `None`
+            // arm below.
+            Assert::ToolCalledAny => {
+                let n = t.tool_calls.len();
+                (n > 0, format!("any tool called: {n} recorded"))
             }
             Assert::ToolNotCalled(name) => {
                 let n = t.tool_calls.iter().filter(|c| &c.name == name).count();
@@ -406,6 +447,7 @@ pub struct AssertResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::transcript::ToolCall;
     use crate::transcript::{RecordedPrompt, Transcript};
 
     /// A fresh empty directory named after the test, so parallel tests in
@@ -616,5 +658,66 @@ mod tests {
             .eval(&t, &roots);
         assert!(!r.pass, "{}", r.detail);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    // spec `session-evidence`, "Regression scenarios pin both channels"
+    // (section 10, opened from 9.2's first live run): `tool_called_any`
+    // proves a headless session carries tool records without naming which
+    // tool the model picked, since which tool it picks is not itself a
+    // claim any fixture here makes.
+
+    fn tool_call(name: &str) -> ToolCall {
+        ToolCall {
+            index: 0,
+            name: name.to_string(),
+            summary: String::new(),
+            subagent: false,
+        }
+    }
+
+    #[test]
+    fn tool_called_any_passes_on_one_tool_call() {
+        let dir = tmp("tool-called-any-one");
+        let t = Transcript {
+            tool_calls: vec![tool_call("bash")],
+            ..Default::default()
+        };
+        let roots = flat_roots(&dir);
+        let r = Assert::parse("tool_called_any").unwrap().eval(&t, &roots);
+        assert!(r.pass, "{}", r.detail);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn tool_called_any_passes_on_several_tool_calls() {
+        let dir = tmp("tool-called-any-several");
+        let t = Transcript {
+            tool_calls: vec![tool_call("bash"), tool_call("read"), tool_call("write")],
+            ..Default::default()
+        };
+        let roots = flat_roots(&dir);
+        let r = Assert::parse("tool_called_any").unwrap().eval(&t, &roots);
+        assert!(r.pass, "{}", r.detail);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A transcript with no tool calls must fail this assert, never pass
+    /// vacuously (this repo's `absence-asserts` posture, matching
+    /// `prompt_recorded`'s rule above).
+    #[test]
+    fn tool_called_any_fails_rather_than_passing_vacuously_on_no_tool_calls() {
+        let dir = tmp("tool-called-any-empty");
+        let t = Transcript::default();
+        let roots = flat_roots(&dir);
+        let r = Assert::parse("tool_called_any").unwrap().eval(&t, &roots);
+        assert!(!r.pass, "{}", r.detail);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn tool_called_any_rejects_a_trailing_argument() {
+        let err = Assert::parse("tool_called_any bash").unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("tool_called_any"), "{msg}");
     }
 }
