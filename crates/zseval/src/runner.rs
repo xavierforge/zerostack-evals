@@ -8,8 +8,8 @@ use anyhow::{Context, Result};
 use crate::backend::AgentBackend;
 use crate::judge::{Judge, JudgeVerdict};
 use crate::prompts::PromptPack;
-use crate::scenario::Scenario;
-use crate::transcript::Transcript;
+use crate::scenario::{Mode, Scenario};
+use crate::transcript::{RecordedPrompt, Transcript};
 use crate::verdict::{
     Final, JudgeFileRef, PromptSource, Report, ReportMeta, ScenarioResult, TrialResult,
 };
@@ -152,19 +152,38 @@ fn scenario_seeds_prompt(sc: &Scenario, name: &str) -> bool {
     })
 }
 
-/// Resolve which prompt a scenario actually loaded and from which layer, given
-/// the run's pack and the `default_prompt` read off the target config.
+/// The prompt identity one scenario records, plus whatever the run has to say
+/// out loud while recording it. The warnings are returned rather than printed
+/// so the mapping stays a pure function the tests can read: `run_suite` is the
+/// one place that puts them on stderr.
+struct PromptRecord {
+    name: String,
+    source: PromptSource,
+    warnings: Vec<String>,
+}
+
+/// Derive which prompt a scenario would have loaded and from which layer,
+/// given the run's pack and the `default_prompt` read off the target config.
+///
+/// Inferring from seeds is not observing, so this is no longer what a
+/// session-backed scenario records (`record_prompt` reads that back off the
+/// session, design D3): here it is the cross-check that warns when the two
+/// disagree. It is still the recorded value for a `mode = "loop"` scenario,
+/// which upstream's `run_headless_loop` leaves no session file for.
 ///
 /// The prompt *name* comes first: a scenario's own `prompt` field if set,
 /// otherwise the config's `default_prompt`, otherwise zerostack's `code`
-/// fallback. That derivation is abandoned — recording `unknown` with no name —
-/// when the scenario seeds the effective config out from under the harness's
-/// copy (`seeds_effective_config`), since the value read would be one that
-/// never took effect.
+/// fallback. A loop scenario abandons that derivation — recording `unknown`
+/// with no name — when it seeds the effective config out from under the
+/// harness's copy (`seeds_effective_config`), since the value read would be
+/// one that never took effect and, with no session, nothing else can say
+/// which prompt did. A session-backed scenario keeps deriving through that
+/// case: its readback is the last word on what loaded whoever wrote the
+/// config, so the derivation's job there is only to have a value to compare.
 ///
 /// The *source* then answers which layer supplied that name: the scenario's
 /// own seed wins (it lands last), then the pack, then the built-in `stock`.
-fn resolve_prompt(
+fn derive_prompt(
     sc: &Scenario,
     pack: Option<&PromptPack>,
     config_default_prompt: Option<&str>,
@@ -172,7 +191,7 @@ fn resolve_prompt(
     let name = match &sc.prompt {
         Some(p) => p.clone(),
         None => {
-            if seeds_effective_config(sc) {
+            if sc.mode == Mode::Loop && seeds_effective_config(sc) {
                 return (String::new(), PromptSource::Unknown);
             }
             config_default_prompt
@@ -189,6 +208,163 @@ fn resolve_prompt(
         PromptSource::Stock
     };
     (name, source)
+}
+
+/// What one scenario's trials agreed their sessions recorded (design D4).
+/// `prompt_name`/`prompt_source` are scenario-level facts, so the trials have
+/// to produce one answer between them; the two ways they can fail to are kept
+/// apart here because they have different fixes.
+enum Reconciled {
+    /// Every trial read back the same prompt — the expected case, since the
+    /// trials of one scenario are identically seeded and prompt resolution is
+    /// deterministic.
+    Agreed(RecordedPrompt),
+    /// No trial read back a prompt at all: the binary under test predates
+    /// upstream's prompt recording (PR #228), and the fix is a rebuild.
+    Absent,
+    /// The trials did not agree, including one recording a prompt where
+    /// another recorded none. Nothing about identical seeds should produce
+    /// two answers, so the disagreement is itself the finding.
+    Split,
+}
+
+fn reconcile(readbacks: &[Option<RecordedPrompt>]) -> Reconciled {
+    let Some(first) = readbacks.first() else {
+        return Reconciled::Absent;
+    };
+    if readbacks.iter().any(|r| r != first) {
+        return Reconciled::Split;
+    }
+    match first {
+        Some(p) => Reconciled::Agreed(p.clone()),
+        None => Reconciled::Absent,
+    }
+}
+
+/// The report's own spelling of a `PromptSource`, so a warning names the value
+/// its reader will find in `report.json` rather than a Rust debug name.
+fn source_label(source: PromptSource) -> &'static str {
+    match source {
+        PromptSource::Unknown => "unknown",
+        PromptSource::Stock => "stock",
+        PromptSource::Pack => "pack",
+        PromptSource::Scenario => "scenario",
+    }
+}
+
+/// Every distinct readback the trials produced, for the disagreement warning
+/// to name: `<name>/<source>` in upstream's two-value vocabulary, or `none`
+/// for a trial whose session recorded no prompt.
+fn describe_readbacks(readbacks: &[Option<RecordedPrompt>]) -> String {
+    let mut seen: Vec<String> = readbacks
+        .iter()
+        .map(|r| match r {
+            Some(p) => format!("{}/{}", p.name, p.source),
+            None => "none".to_string(),
+        })
+        .collect();
+    seen.sort();
+    seen.dedup();
+    seen.join(", ")
+}
+
+/// What one scenario records for its prompt identity, given every trial's
+/// session readback (design D3/D4).
+///
+/// The readback is the value: which prompt zerostack loaded is something the
+/// session observed, not something the harness can infer from what it seeded.
+/// This maps upstream's two-value `source` (`built_in` / `user_file`) onto the
+/// report's four-way `prompt_source` by asking which layer provided the name
+/// that loaded — the scenario's own seed lands last and so wins over the pack,
+/// and a user file from neither layer means the trial environment is not what
+/// the harness planted, which is `unknown` plus a warning.
+///
+/// The derivation stays as a cross-check: when it disagrees, the readback wins
+/// and the run warns naming both. That is where the known upstream edge
+/// surfaces benignly — a pack prompt whose bytes equal the built-in is
+/// classified `built_in` by upstream's content comparison, records `stock`,
+/// and the warning explains why rather than either value being silently wrong.
+fn record_prompt(
+    sc: &Scenario,
+    pack: Option<&PromptPack>,
+    config_default_prompt: Option<&str>,
+    readbacks: &[Option<RecordedPrompt>],
+) -> PromptRecord {
+    let (derived_name, derived_source) = derive_prompt(sc, pack, config_default_prompt);
+    // A loop run writes no session (see `scenario::LoopCfg`), so its silence
+    // is expected rather than evidence of a stale binary, and the derivation
+    // is all there is to record.
+    if sc.mode == Mode::Loop {
+        return PromptRecord {
+            name: derived_name,
+            source: derived_source,
+            warnings: Vec::new(),
+        };
+    }
+
+    let mut warnings = Vec::new();
+    let unknown = |warnings: Vec<String>| PromptRecord {
+        name: String::new(),
+        source: PromptSource::Unknown,
+        warnings,
+    };
+    let readback = match reconcile(readbacks) {
+        Reconciled::Agreed(p) => p,
+        Reconciled::Absent => {
+            warnings.push(format!(
+                "scenario {}: no trial's session recorded which prompt it loaded, so its \
+                 prompt is unknown — ZS_BIN likely predates prompt recording (zerostack \
+                 PR #228); rebuild it from a mainline that carries it",
+                sc.id
+            ));
+            return unknown(warnings);
+        }
+        Reconciled::Split => {
+            warnings.push(format!(
+                "scenario {}: its trials disagree on the prompt they recorded ({}), so its \
+                 prompt is unknown — identically seeded trials resolving two prompts is \
+                 itself evidence something is wrong",
+                sc.id,
+                describe_readbacks(readbacks)
+            ));
+            return unknown(warnings);
+        }
+    };
+
+    let source = if readback.source == "built_in" {
+        PromptSource::Stock
+    } else if scenario_seeds_prompt(sc, &readback.name) {
+        PromptSource::Scenario
+    } else if pack.is_some_and(|p| p.names().iter().any(|n| *n == readback.name)) {
+        PromptSource::Pack
+    } else {
+        warnings.push(format!(
+            "scenario {}: its session loaded prompt '{}' from a user file that neither the \
+             scenario's own placements nor the pack provide, so its source is unknown — the \
+             trial environment is not what the harness planted",
+            sc.id, readback.name
+        ));
+        PromptSource::Unknown
+    };
+
+    if (readback.name.as_str(), source) != (derived_name.as_str(), derived_source) {
+        warnings.push(format!(
+            "scenario {}: the harness's seeds derive prompt '{}' ({}), but its session \
+             recorded '{}' ({}) — the session is what actually loaded, so that is what is \
+             recorded",
+            sc.id,
+            derived_name,
+            source_label(derived_source),
+            readback.name,
+            source_label(source),
+        ));
+    }
+
+    PromptRecord {
+        name: readback.name,
+        source,
+        warnings,
+    }
 }
 
 pub fn run_suite(
@@ -267,8 +443,10 @@ pub fn run_suite(
             }
         }
         let trials = opts.trials_override.unwrap_or(sc.trials).max(1);
-        let trial_results =
+        let graded =
             run_trials_for_scenario(sc, backend, judge, &judge_file, opts, trials, &run_root)?;
+        let (trial_results, readbacks): (Vec<TrialResult>, Vec<Option<RecordedPrompt>>) =
+            graded.into_iter().map(|g| (g.result, g.prompt)).unzip();
         for tr in &trial_results {
             spent += tr.cost_usd;
         }
@@ -280,10 +458,15 @@ pub fn run_suite(
             sc.content_hash.clone(),
             trial_results,
         );
-        let (prompt_name, prompt_source) =
-            resolve_prompt(sc, pack, config_default_prompt.as_deref());
-        sr.prompt_name = prompt_name;
-        sr.prompt_source = prompt_source;
+        // Which prompt this scenario loaded is read back off its trials'
+        // sessions and reconciled here, because it is one fact per scenario,
+        // not per trial (design D4).
+        let prompt = record_prompt(sc, pack, config_default_prompt.as_deref(), &readbacks);
+        for warning in &prompt.warnings {
+            eprintln!("{warning}");
+        }
+        sr.prompt_name = prompt.name;
+        sr.prompt_source = prompt.source;
         results.push(sr);
     }
 
@@ -379,6 +562,16 @@ pub fn run_suite(
     Ok(report)
 }
 
+/// One trial's graded result and the prompt its session recorded. The
+/// readback rides beside `TrialResult` rather than on it: the prompt is a
+/// scenario-level report field, reconciled across trials (`record_prompt`),
+/// so hanging it off every trial would add a per-trial field the report has
+/// no reader for.
+struct GradedTrial {
+    result: TrialResult,
+    prompt: Option<RecordedPrompt>,
+}
+
 /// Run every trial of one scenario, then return results ordered by trial
 /// index regardless of completion order. `jobs <= 1` keeps the exact old
 /// path (sequential, printed as each trial finishes) since that's the
@@ -395,8 +588,8 @@ fn run_trials_for_scenario(
     opts: &RunOptions,
     trials: usize,
     run_root: &Path,
-) -> Result<Vec<TrialResult>> {
-    let run_one = |trial: usize| -> Result<TrialResult> {
+) -> Result<Vec<GradedTrial>> {
+    let run_one = |trial: usize| -> Result<GradedTrial> {
         let run_dir = run_root.join(&sc.id).join(format!("trial-{trial}"));
         std::fs::create_dir_all(&run_dir)?;
         let grading = Grading {
@@ -405,18 +598,21 @@ fn run_trials_for_scenario(
             no_judge: opts.no_judge,
             judge_artifacts_dir: &run_dir,
         };
-        let tr = run_trial(sc, backend, &grading, trial, &run_dir);
+        let graded = run_trial(sc, backend, &grading, trial, &run_dir);
         // Persist per-trial for `explain`.
-        std::fs::write(run_dir.join("trial.json"), serde_json::to_vec_pretty(&tr)?)?;
-        Ok(tr)
+        std::fs::write(
+            run_dir.join("trial.json"),
+            serde_json::to_vec_pretty(&graded.result)?,
+        )?;
+        Ok(graded)
     };
 
     if opts.jobs <= 1 {
         let mut out = Vec::with_capacity(trials);
         for trial in 0..trials {
-            let tr = run_one(trial)?;
-            print_trial_line(&sc.id, &tr);
-            out.push(tr);
+            let graded = run_one(trial)?;
+            print_trial_line(&sc.id, &graded.result);
+            out.push(graded);
         }
         return Ok(out);
     }
@@ -431,17 +627,17 @@ fn run_trials_for_scenario(
     // scenario. Grading is untouched: trials stay fully independent; this
     // only changes when they start.
     let first = run_one(0)?;
-    print_trial_line(&sc.id, &first);
+    print_trial_line(&sc.id, &first.result);
     if trials == 1 {
         return Ok(vec![first]);
     }
 
     let jobs = opts.jobs.min(trials - 1);
     let next = AtomicUsize::new(1);
-    let outcome: Result<Vec<(usize, TrialResult)>> = std::thread::scope(|scope| {
+    let outcome: Result<Vec<(usize, GradedTrial)>> = std::thread::scope(|scope| {
         let handles: Vec<_> = (0..jobs)
             .map(|_| {
-                scope.spawn(|| -> Result<Vec<(usize, TrialResult)>> {
+                scope.spawn(|| -> Result<Vec<(usize, GradedTrial)>> {
                     let mut mine = Vec::new();
                     loop {
                         let trial = next.fetch_add(1, Ordering::SeqCst);
@@ -469,9 +665,9 @@ fn run_trials_for_scenario(
     all.sort_by_key(|(trial, _)| *trial);
     let mut out = Vec::with_capacity(trials);
     out.push(first);
-    for (_, tr) in all {
-        print_trial_line(&sc.id, &tr);
-        out.push(tr);
+    for (_, graded) in all {
+        print_trial_line(&sc.id, &graded.result);
+        out.push(graded);
     }
     Ok(out)
 }
@@ -482,16 +678,30 @@ fn run_trial(
     grading: &Grading,
     trial: usize,
     run_dir: &Path,
-) -> TrialResult {
+) -> GradedTrial {
     // 1. Drive the agent. Backend errors = indeterminate (we never got a
     //    gradable transcript), not fail.
     let artifacts = match backend.run(sc, run_dir) {
         Ok(a) => a,
         Err(e) => {
-            return indeterminate(grading, trial, run_dir, format!("backend: {e:#}"));
+            return ungraded(indeterminate(
+                grading,
+                trial,
+                run_dir,
+                format!("backend: {e:#}"),
+            ));
         }
     };
     grade_trial(sc, grading, trial, run_dir, &artifacts)
+}
+
+/// A trial that never produced a readable transcript, so it read back no
+/// prompt either — there was no session to read one out of.
+fn ungraded(result: TrialResult) -> GradedTrial {
+    GradedTrial {
+        result,
+        prompt: None,
+    }
 }
 
 /// Re-grade an already-completed run_dir (produced by a prior `run` or a
@@ -558,7 +768,10 @@ pub fn regrade(
         no_judge,
         judge_artifacts_dir: &judge_artifacts_dir,
     };
-    let tr = grade_trial(sc, &grading, trial, run_dir, &artifacts);
+    // The prompt readback is dropped here: it is a scenario-level fact
+    // reconciled across a scenario's trials (`record_prompt`), and a regrade
+    // re-scores exactly one trial dir, which is not a scenario.
+    let tr = grade_trial(sc, &grading, trial, run_dir, &artifacts).result;
     std::fs::write(run_dir.join("trial.json"), serde_json::to_vec_pretty(&tr)?)
         .with_context(|| format!("write {}", run_dir.join("trial.json").display()))?;
     Ok(tr)
@@ -574,19 +787,28 @@ fn grade_trial(
     trial: usize,
     run_dir: &Path,
     artifacts: &crate::backend::RunArtifacts,
-) -> TrialResult {
+) -> GradedTrial {
     let mut reasons = Vec::new();
 
-    // 2. Assemble the gradable transcript: messages/tokens/cost from session
-    // JSON plus tool calls from stdout (see Transcript::from_run and the
-    // transcript.rs module doc for why both channels exist). Schema mismatch
+    // 2. Assemble the gradable transcript from the trial's session JSON: the
+    // one evidence channel, tool records and prompt readback included (see
+    // Transcript::from_run and the transcript.rs module doc). Schema mismatch
     // = indeterminate.
     let transcript = match Transcript::from_run(artifacts) {
         Ok(t) => t,
         Err(e) => {
-            return indeterminate(grading, trial, run_dir, format!("transcript: {e:#}"));
+            return ungraded(indeterminate(
+                grading,
+                trial,
+                run_dir,
+                format!("transcript: {e:#}"),
+            ));
         }
     };
+    // Which prompt the session recorded is evidence about the environment,
+    // not about how the trial graded, so it is carried out of every path
+    // below — a trial that grades Indeterminate still observed it.
+    let prompt = transcript.prompt.clone();
 
     let roots = artifacts.roots();
 
@@ -597,7 +819,10 @@ fn grade_trial(
     // them, so there's one computation to keep in sync, not two.
     let zslogs: Vec<PathBuf> = artifacts.turns.iter().map(|t| t.zslog.clone()).collect();
     if let Err(reason) = crate::domains::verify(sc, &roots, &zslogs) {
-        return indeterminate(grading, trial, run_dir, format!("domain drift: {reason}"));
+        return GradedTrial {
+            result: indeterminate(grading, trial, run_dir, format!("domain drift: {reason}")),
+            prompt,
+        };
     }
 
     // 3. Deterministic floor.
@@ -648,17 +873,20 @@ fn grade_trial(
             if grading.no_judge {
                 reasons.push("judge skipped (--no-judge)".into());
             } else if !grading.judge.available() {
-                return TrialResult {
-                    judge: None,
-                    ..indeterminate(
-                        grading,
-                        trial,
-                        run_dir,
-                        format!(
-                            "judge required but not available ({})",
-                            grading.judge.unavailable_hint()
-                        ),
-                    )
+                return GradedTrial {
+                    result: TrialResult {
+                        judge: None,
+                        ..indeterminate(
+                            grading,
+                            trial,
+                            run_dir,
+                            format!(
+                                "judge required but not available ({})",
+                                grading.judge.unavailable_hint()
+                            ),
+                        )
+                    },
+                    prompt,
                 };
             } else {
                 match grading.judge.judge(
@@ -699,7 +927,7 @@ fn grade_trial(
         }
     }
 
-    TrialResult {
+    let result = TrialResult {
         trial,
         outcome,
         reasons,
@@ -722,7 +950,8 @@ fn grade_trial(
         // report-paths: recorded working-directory-relative, forward-slashed,
         // never absolute — see `verdict::record_path`.
         run_dir: crate::verdict::record_path(run_dir),
-    }
+    };
+    GradedTrial { result, prompt }
 }
 
 fn indeterminate(grading: &Grading, trial: usize, run_dir: &Path, reason: String) -> TrialResult {
@@ -790,17 +1019,18 @@ fn print_trial_line(id: &str, tr: &TrialResult) {
 #[cfg(test)]
 mod prompt_resolution_tests {
     use super::*;
-    use crate::scenario::{FileSeed, Kind, Mode, Task};
+    use crate::scenario::{FileSeed, Kind, Task};
 
-    /// A minimal scenario carrying only the two things resolution reads: its
-    /// `prompt` field and its `[[files]]` dests. Everything else is filler.
-    fn scenario(prompt: Option<&str>, dests: &[&str]) -> Scenario {
+    /// A minimal scenario carrying only the three things resolution reads: its
+    /// `mode`, its `prompt` field and its `[[files]]` dests. Everything else
+    /// is filler.
+    fn scenario_in(mode: Mode, prompt: Option<&str>, dests: &[&str]) -> Scenario {
         Scenario {
             id: "t".into(),
             kind: Kind::Regression,
             prompt: prompt.map(String::from),
             trials: 1,
-            mode: Mode::Print,
+            mode,
             loop_cfg: None,
             task: Task::Single("do it".into()),
             expect: vec!["final_contains x".into()],
@@ -823,6 +1053,29 @@ mod prompt_resolution_tests {
         }
     }
 
+    /// The session-backed shape every scenario has unless it says `mode =
+    /// "loop"`: a `-p` run, so there is a session file to read a prompt back
+    /// out of.
+    fn scenario(prompt: Option<&str>, dests: &[&str]) -> Scenario {
+        scenario_in(Mode::Print, prompt, dests)
+    }
+
+    /// `mode = "loop"`: upstream's `run_headless_loop` writes no session, so
+    /// this is the one shape with nothing to read back (design D3).
+    fn loop_scenario(prompt: Option<&str>, dests: &[&str]) -> Scenario {
+        scenario_in(Mode::Loop, prompt, dests)
+    }
+
+    /// One trial's session readback, in upstream's two-value vocabulary
+    /// (`built_in` / `user_file`) — never this crate's four-value
+    /// `PromptSource`.
+    fn readback(name: &str, source: &str) -> Option<RecordedPrompt> {
+        Some(RecordedPrompt {
+            name: name.into(),
+            source: source.into(),
+        })
+    }
+
     /// A validated pack over the given `<name>.md` files, in a fresh temp dir.
     fn pack(test: &str, names: &[&str]) -> PromptPack {
         let dir =
@@ -835,36 +1088,37 @@ mod prompt_resolution_tests {
         PromptPack::load(&dir).unwrap()
     }
 
-    // 6.1: the four-value resolution order.
+    // 6.1: the four-value derivation order — now the cross-check for a
+    // session-backed scenario, and still the recorded value for a loop one.
 
     #[test]
-    fn declared_prompt_the_pack_provides_resolves_pack() {
+    fn declared_prompt_the_pack_provides_derives_pack() {
         let sc = scenario(Some("code"), &[]);
         let p = pack("pack-provides", &["code", "review"]);
         assert_eq!(
-            resolve_prompt(&sc, Some(&p), None),
+            derive_prompt(&sc, Some(&p), None),
             ("code".into(), PromptSource::Pack)
         );
     }
 
     #[test]
-    fn declared_prompt_the_pack_lacks_resolves_stock() {
+    fn declared_prompt_the_pack_lacks_derives_stock() {
         let sc = scenario(Some("ask"), &[]);
         let p = pack("pack-lacks", &["code"]);
         assert_eq!(
-            resolve_prompt(&sc, Some(&p), None),
+            derive_prompt(&sc, Some(&p), None),
             ("ask".into(), PromptSource::Stock)
         );
     }
 
     #[test]
-    fn a_scenario_seeding_the_same_name_resolves_scenario() {
+    fn a_scenario_seeding_the_same_name_derives_scenario() {
         // The pack also provides `code`, but the scenario's own seed lands last
         // and wins.
         let sc = scenario(Some("code"), &["work:.zerostack/prompts/code.md"]);
         let p = pack("scenario-seed", &["code"]);
         assert_eq!(
-            resolve_prompt(&sc, Some(&p), None),
+            derive_prompt(&sc, Some(&p), None),
             ("code".into(), PromptSource::Scenario)
         );
     }
@@ -872,54 +1126,57 @@ mod prompt_resolution_tests {
     // 6.2: the default-prompt derivation.
 
     #[test]
-    fn no_prompt_and_no_config_default_resolves_to_code() {
+    fn no_prompt_and_no_config_default_derives_code() {
         // No pack provides `code`, so the derived name lands as `stock`.
         let sc = scenario(None, &[]);
         let p = pack("derive-code", &["review"]);
         assert_eq!(
-            resolve_prompt(&sc, Some(&p), None),
+            derive_prompt(&sc, Some(&p), None),
             ("code".into(), PromptSource::Stock)
         );
     }
 
     #[test]
-    fn no_prompt_with_a_config_default_resolves_to_that_name() {
+    fn no_prompt_with_a_config_default_derives_that_name() {
         let sc = scenario(None, &[]);
         let p = pack("derive-configured", &["code"]);
         assert_eq!(
-            resolve_prompt(&sc, Some(&p), Some("review")),
+            derive_prompt(&sc, Some(&p), Some("review")),
             ("review".into(), PromptSource::Stock)
         );
     }
 
-    // 6.3: the config-seeding guard abandons derivation.
+    // 6.3: the config-seeding guard abandons derivation — for a loop
+    // scenario, whose derivation is still the recorded value. A session-backed
+    // scenario has a readback that is the last word regardless of who wrote
+    // the config, so the guard is gone there (design D3).
 
     #[test]
-    fn no_prompt_seeding_the_config_directory_resolves_unknown() {
-        let sc = scenario(None, &["config:config.toml"]);
+    fn a_loop_scenario_seeding_the_config_directory_derives_unknown() {
+        let sc = loop_scenario(None, &["config:config.toml"]);
         assert_eq!(
-            resolve_prompt(&sc, None, Some("review")),
+            derive_prompt(&sc, None, Some("review")),
             (String::new(), PromptSource::Unknown)
         );
     }
 
     #[test]
-    fn no_prompt_seeding_a_non_config_file_under_config_still_derives() {
+    fn a_loop_scenario_seeding_a_non_config_file_under_config_still_derives() {
         // A `config:` seed that is *not* the config.toml (an agent doc, a
         // memory file) leaves `default_prompt` untouched, so derivation must
         // proceed rather than blanking the prompt to Unknown.
-        let sc = scenario(None, &["config:agent/instructions.md"]);
+        let sc = loop_scenario(None, &["config:agent/instructions.md"]);
         assert_eq!(
-            resolve_prompt(&sc, None, Some("review")),
+            derive_prompt(&sc, None, Some("review")),
             ("review".into(), PromptSource::Stock)
         );
     }
 
     #[test]
-    fn no_prompt_seeding_work_zerostack_config_resolves_unknown() {
-        let sc = scenario(None, &["work:.zerostack/config.toml"]);
+    fn a_loop_scenario_seeding_work_zerostack_config_derives_unknown() {
+        let sc = loop_scenario(None, &["work:.zerostack/config.toml"]);
         assert_eq!(
-            resolve_prompt(&sc, None, Some("review")),
+            derive_prompt(&sc, None, Some("review")),
             (String::new(), PromptSource::Unknown)
         );
     }
@@ -928,10 +1185,220 @@ mod prompt_resolution_tests {
     fn a_declared_prompt_survives_a_config_seed() {
         // The guard only abandons *derivation*; an explicitly declared prompt
         // needs no config default, so a config seed does not blind it.
-        let sc = scenario(Some("ask"), &["config:config.toml"]);
+        let sc = loop_scenario(Some("ask"), &["config:config.toml"]);
         assert_eq!(
-            resolve_prompt(&sc, None, None),
+            derive_prompt(&sc, None, None),
             ("ask".into(), PromptSource::Stock)
         );
+    }
+
+    #[test]
+    fn a_session_backed_scenario_seeding_the_config_still_derives() {
+        // The deleted branch (design D3): the harness's seeded config is no
+        // longer the last word, but the readback is, so derivation has no
+        // reason to abandon itself here — it is only the cross-check now.
+        let sc = scenario(None, &["config:config.toml"]);
+        assert_eq!(
+            derive_prompt(&sc, None, Some("review")),
+            ("review".into(), PromptSource::Stock)
+        );
+    }
+
+    // D3's four mapping arms: what the readback records, per scenario.
+
+    /// prompts-pack-identity mapping 1, and "A scenario naming a prompt the
+    /// pack does not provide".
+    #[test]
+    fn a_built_in_readback_records_stock() {
+        let sc = scenario(Some("ask"), &[]);
+        let p = pack("map-built-in", &["code"]);
+        let got = record_prompt(&sc, Some(&p), None, &[readback("ask", "built_in")]);
+        assert_eq!(
+            (got.name.as_str(), got.source),
+            ("ask", PromptSource::Stock)
+        );
+        assert!(got.warnings.is_empty(), "{:?}", got.warnings);
+    }
+
+    /// prompts-pack-identity mapping 2, "A scenario that seeds its own
+    /// prompt": the scenario's placement lands last, so it is the content
+    /// that loaded.
+    #[test]
+    fn a_user_file_readback_the_scenario_seeded_records_scenario() {
+        let sc = scenario(Some("code"), &["work:.zerostack/prompts/code.md"]);
+        let p = pack("map-scenario", &["code"]);
+        let got = record_prompt(&sc, Some(&p), None, &[readback("code", "user_file")]);
+        assert_eq!(
+            (got.name.as_str(), got.source),
+            ("code", PromptSource::Scenario)
+        );
+        assert!(got.warnings.is_empty(), "{:?}", got.warnings);
+    }
+
+    /// prompts-pack-identity mapping 3, "A scenario naming a prompt the pack
+    /// provides".
+    #[test]
+    fn a_user_file_readback_the_pack_provides_records_pack() {
+        let sc = scenario(Some("code"), &[]);
+        let p = pack("map-pack", &["code"]);
+        let got = record_prompt(&sc, Some(&p), None, &[readback("code", "user_file")]);
+        assert_eq!(
+            (got.name.as_str(), got.source),
+            ("code", PromptSource::Pack)
+        );
+        assert!(got.warnings.is_empty(), "{:?}", got.warnings);
+    }
+
+    /// prompts-pack-identity mapping 4: a user file the harness never planted
+    /// means the trial environment is not what the harness thinks it is.
+    #[test]
+    fn a_user_file_readback_nobody_planted_records_unknown_and_warns() {
+        let sc = scenario(Some("code"), &[]);
+        let p = pack("map-unplanted", &["code"]);
+        let got = record_prompt(&sc, Some(&p), None, &[readback("rogue", "user_file")]);
+        assert_eq!(
+            (got.name.as_str(), got.source),
+            ("rogue", PromptSource::Unknown)
+        );
+        assert!(
+            got.warnings.iter().any(|w| w.contains("rogue")),
+            "the warning must name the prompt nobody planted: {:?}",
+            got.warnings
+        );
+    }
+
+    /// prompts-pack-identity, "Derivation disagreement warns but does not
+    /// override": upstream classifies a pack prompt whose bytes equal the
+    /// built-in as `built_in` (its `source_of` compares content), so the
+    /// derivation's `pack` and the readback's `stock` disagree benignly.
+    #[test]
+    fn a_pack_prompt_identical_to_the_built_in_records_stock_and_warns() {
+        let sc = scenario(Some("code"), &[]);
+        let p = pack("crosscheck-identical", &["code"]);
+        let got = record_prompt(&sc, Some(&p), None, &[readback("code", "built_in")]);
+        assert_eq!(
+            (got.name.as_str(), got.source),
+            ("code", PromptSource::Stock),
+            "the readback wins over the derivation"
+        );
+        let warned = got.warnings.join(" | ");
+        assert!(
+            warned.contains("pack") && warned.contains("stock"),
+            "the warning must name both the derived and the read-back value: {warned}"
+        );
+    }
+
+    // D4: the two trials-to-scenario reconciliations, which carry different
+    // messages because they have different fixes.
+
+    #[test]
+    fn trials_that_agree_record_what_they_agreed_on() {
+        let sc = scenario(Some("code"), &[]);
+        let p = pack("reconcile-agree", &["code"]);
+        let got = record_prompt(
+            &sc,
+            Some(&p),
+            None,
+            &[readback("code", "user_file"), readback("code", "user_file")],
+        );
+        assert_eq!(
+            (got.name.as_str(), got.source),
+            ("code", PromptSource::Pack)
+        );
+        assert!(got.warnings.is_empty(), "{:?}", got.warnings);
+    }
+
+    #[test]
+    fn trials_that_disagree_record_unknown_and_warn() {
+        let sc = scenario(Some("code"), &[]);
+        let p = pack("reconcile-split", &["code"]);
+        let got = record_prompt(
+            &sc,
+            Some(&p),
+            None,
+            &[readback("code", "user_file"), readback("code", "built_in")],
+        );
+        assert_eq!((got.name.as_str(), got.source), ("", PromptSource::Unknown));
+        let warned = got.warnings.join(" | ");
+        assert!(
+            warned.contains("disagree"),
+            "identically-seeded trials disagreeing is itself the finding: {warned}"
+        );
+    }
+
+    #[test]
+    fn one_trial_missing_the_readback_is_a_disagreement_not_an_absence() {
+        let sc = scenario(Some("code"), &[]);
+        let p = pack("reconcile-mixed", &["code"]);
+        let got = record_prompt(&sc, Some(&p), None, &[readback("code", "user_file"), None]);
+        assert_eq!((got.name.as_str(), got.source), ("", PromptSource::Unknown));
+        let warned = got.warnings.join(" | ");
+        assert!(
+            warned.contains("disagree"),
+            "one trial recording a prompt and another recording none is a \
+             disagreement, not a stale binary: {warned}"
+        );
+        assert!(
+            !warned.contains("ZS_BIN"),
+            "the rebuild is not the fix when a trial did record a prompt: {warned}"
+        );
+    }
+
+    /// prompts-pack-identity mapping 5, "A session without a recorded prompt
+    /// records unknown, loudly" — the warning names the rebuild because that
+    /// is the actual fix.
+    #[test]
+    fn every_session_lacking_the_prompt_records_unknown_and_names_the_rebuild() {
+        let sc = scenario(Some("code"), &[]);
+        let p = pack("reconcile-absent", &["code"]);
+        let got = record_prompt(&sc, Some(&p), None, &[None, None]);
+        assert_eq!((got.name.as_str(), got.source), ("", PromptSource::Unknown));
+        let warned = got.warnings.join(" | ");
+        assert!(
+            warned.contains("ZS_BIN"),
+            "the warning must name the ZS_BIN rebuild: {warned}"
+        );
+    }
+
+    // A loop scenario has no session to read back, so it keeps the whole
+    // derivation — including the config-seeding branch — and its silence is
+    // not a missing-record alarm (design D3, Non-Goals).
+
+    #[test]
+    fn a_loop_scenario_records_its_derivation_not_the_absent_readback() {
+        let sc = loop_scenario(None, &[]);
+        let p = pack("loop-derive", &["code"]);
+        let got = record_prompt(&sc, Some(&p), Some("review"), &[None]);
+        assert_eq!(
+            (got.name.as_str(), got.source),
+            ("review", PromptSource::Stock)
+        );
+        assert!(
+            got.warnings.is_empty(),
+            "a loop run writes no session, so an absent readback is expected, not a \
+             stale binary: {:?}",
+            got.warnings
+        );
+    }
+
+    #[test]
+    fn a_config_seeding_loop_scenario_still_records_unknown() {
+        let sc = loop_scenario(None, &["work:.zerostack/config.toml"]);
+        let got = record_prompt(&sc, None, Some("review"), &[None]);
+        assert_eq!((got.name.as_str(), got.source), ("", PromptSource::Unknown));
+        assert!(got.warnings.is_empty(), "{:?}", got.warnings);
+    }
+
+    #[test]
+    fn a_config_seeding_session_backed_scenario_records_its_readback() {
+        // The branch this change deletes: the readback is the last word on
+        // which prompt loaded, whoever wrote the config.
+        let sc = scenario(None, &["work:.zerostack/config.toml"]);
+        let got = record_prompt(&sc, None, Some("review"), &[readback("review", "built_in")]);
+        assert_eq!(
+            (got.name.as_str(), got.source),
+            ("review", PromptSource::Stock)
+        );
+        assert!(got.warnings.is_empty(), "{:?}", got.warnings);
     }
 }

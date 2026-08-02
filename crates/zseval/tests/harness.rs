@@ -3402,6 +3402,48 @@ fn write_stub_zs_bin(bin: &Path, listing_log: &Path) {
         log = listing_log.display(),
         fixture = fixture("session-ask-readonly.json").display(),
     );
+    install_stub(bin, &script);
+}
+
+/// Write an executable stub `--zs-bin` script that resolves a prompt the way
+/// zerostack does and records what it resolved, so a run driven by it
+/// exercises the session readback (design D3) rather than the harness's own
+/// derivation: the prompt name is `--load-prompt`'s argument (else the `code`
+/// fallback), and its source is `user_file` when a matching
+/// `.zerostack/prompts/<name>.md` exists in the working directory the child
+/// was given, `built_in` otherwise.
+///
+/// It writes its own minimal session rather than copying a fixture, because
+/// the recorded prompt is exactly what varies per call — the fixtures are
+/// fixed files, and a scenario's expectations here are about prompt identity,
+/// not about tool records.
+fn write_prompt_reporting_stub_zs_bin(bin: &Path) {
+    install_stub(
+        bin,
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+if [ "${1:-}" = "--version" ]; then
+  echo 'zerostack 0.0.0-stub'
+  exit 0
+fi
+name=code
+prev=
+for arg in "$@"; do
+  if [ "$prev" = "--load-prompt" ]; then name="$arg"; fi
+  prev="$arg"
+done
+if [ -f ".zerostack/prompts/$name.md" ]; then source=user_file; else source=built_in; fi
+mkdir -p "$ZS_DATA_DIR/sessions"
+cat > "$ZS_DATA_DIR/sessions/s.json" <<EOF
+{"id":"stub","messages":[{"role":"assistant","content":"done"}],
+ "prompt":{"name":"$name","source":"$source"},
+ "total_input_tokens":0,"total_output_tokens":0,"total_cost":0}
+EOF
+"#,
+    );
+}
+
+fn install_stub(bin: &Path, script: &str) {
     std::fs::write(bin, script).unwrap();
     #[cfg(unix)]
     {
@@ -3667,12 +3709,17 @@ fn a_run_without_a_pack_records_empty_pack_identity() {
 /// prompts-pack 6.5 (spec `prompts-pack-identity`, "Each scenario records the
 /// prompt it actually loaded"): drive a mixed suite through a stub bin with a
 /// one-prompt pack (`code.md`) and read the per-scenario `prompt_name` /
-/// `prompt_source` back off the emitted report. Four scenarios span three
+/// `prompt_source` back off the emitted report. Five scenarios span three
 /// sources, so the fields are shown to discriminate rather than print one
 /// constant: a declared name the pack provides (`pack`), a declared name it
 /// lacks (`stock`), a scenario seeding its own same-named file (`scenario`),
-/// and a no-prompt scenario whose derived `code` default the pack provides
-/// (`pack`).
+/// a no-prompt scenario whose `code` default the pack provides (`pack`), and
+/// a scenario that seeds the effective config, which the harness once
+/// recorded `unknown` for and now reads back like any other (design D3).
+///
+/// The stub reports what it resolved (`write_prompt_reporting_stub_zs_bin`),
+/// so these values come off the session readback rather than off the
+/// harness's own derivation of what it seeded.
 #[test]
 fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
     use zseval::verdict::PromptSource;
@@ -3682,8 +3729,7 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
     let pack = PromptPack::load(&pack_dir).unwrap();
 
     let stub = scratch_dir("s6-stub").join("fake-zs");
-    let listing_log = scratch_dir("s6-log").join("listing.log");
-    write_stub_zs_bin(&stub, &listing_log);
+    write_prompt_reporting_stub_zs_bin(&stub);
 
     // A: declares `code`, which the pack provides -> pack.
     let a_dir = scratch_dir("s6-a");
@@ -3714,7 +3760,7 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
     )
     .unwrap();
 
-    // D: no prompt, no target -> derives `code`, which the pack provides -> pack.
+    // D: no prompt, no target -> loads `code`, which the pack provides -> pack.
     let d_dir = scratch_dir("s6-d");
     std::fs::write(
         d_dir.join("scenario.toml"),
@@ -3722,7 +3768,22 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
     )
     .unwrap();
 
-    let scenarios: Vec<Scenario> = [&a_dir, &b_dir, &c_dir, &d_dir]
+    // E: no prompt, and it seeds the effective config out from under the
+    // harness's copy. Derivation had to abandon itself here (the seeded
+    // `default_prompt` was no longer the last word); the readback is the last
+    // word regardless of who wrote the config, so this records what actually
+    // loaded -> pack.
+    let e_dir = scratch_dir("s6-e");
+    std::fs::write(e_dir.join("own-config.toml"), "default_prompt = \"code\"\n").unwrap();
+    std::fs::write(
+        e_dir.join("scenario.toml"),
+        "id = \"seeds-config\"\nkind = \"regression\"\ntask = \"say hi\"\n\
+         expect = [\"tool_not_called write\"]\n\n\
+         [[files]]\nsrc = \"own-config.toml\"\ndest = \"work:.zerostack/config.toml\"\n",
+    )
+    .unwrap();
+
+    let scenarios: Vec<Scenario> = [&a_dir, &b_dir, &c_dir, &d_dir, &e_dir]
         .iter()
         .map(|d| Scenario::load(d).unwrap())
         .collect();
@@ -3753,6 +3814,7 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
         ("code".into(), PromptSource::Scenario)
     );
     assert_eq!(got("no-prompt"), ("code".into(), PromptSource::Pack));
+    assert_eq!(got("seeds-config"), ("code".into(), PromptSource::Pack));
 
     let mut sources: Vec<String> = report
         .scenarios
@@ -3766,7 +3828,15 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
         "expected >=2 distinct sources: {sources:?}"
     );
 
-    for d in [&pack_dir, &a_dir, &b_dir, &c_dir, &d_dir, &results_root] {
+    for d in [
+        &pack_dir,
+        &a_dir,
+        &b_dir,
+        &c_dir,
+        &d_dir,
+        &e_dir,
+        &results_root,
+    ] {
         std::fs::remove_dir_all(d).ok();
     }
 }
@@ -3814,8 +3884,7 @@ fn a_pack_no_scenario_calls_warns_it_was_never_loaded() {
     let target = scratch_target_toml("never-loaded");
 
     let stub = scratch_dir("s7-never-loaded-stub").join("fake-zs");
-    let listing_log = scratch_dir("s7-never-loaded-log").join("listing.log");
-    write_stub_zs_bin(&stub, &listing_log);
+    write_prompt_reporting_stub_zs_bin(&stub);
 
     let results = scratch_dir("s7-never-loaded-results");
 
@@ -3877,8 +3946,7 @@ fn a_partially_used_pack_emits_no_never_loaded_warning() {
     let target = scratch_target_toml("partial");
 
     let stub = scratch_dir("s7-partial-stub").join("fake-zs");
-    let listing_log = scratch_dir("s7-partial-log").join("listing.log");
-    write_stub_zs_bin(&stub, &listing_log);
+    write_prompt_reporting_stub_zs_bin(&stub);
 
     let results = scratch_dir("s7-partial-results");
 
