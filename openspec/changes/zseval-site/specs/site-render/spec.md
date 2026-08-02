@@ -74,6 +74,10 @@ A field whose schema documents `""` as "none was named" SHALL be rendered as tha
 - **WHEN** the report's `judge_file` is `""`, the documented value for "none was named"
 - **THEN** the header states that no judge was configured, with no blank filename and no hash beside it
 
+#### Scenario: A run with no target file says so
+- **WHEN** the report's `target` is `""`, the documented value for "no target file was named"
+- **THEN** the header states no target file rather than rendering a blank row
+
 #### Scenario: An unavailable build fact is not shown as empty
 - **WHEN** the report's `git_sha` and `features` are `null`
 - **THEN** the header shows them as not provided, not as an empty string or an empty list

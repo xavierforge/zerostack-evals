@@ -4213,3 +4213,90 @@ fn site_renders_a_mock_run_against_the_real_ledger() {
         "the scenario's pass rate is not on the page:\n{page}"
     );
 }
+
+/// zseval-site tasks.md 8.1, covering spec.md's "Rendering spends nothing"
+/// scenario, which had no test: `site` must write its page with no API key
+/// present and no network reachable. The report comes from a real `run`
+/// against the mock backend (that half is not the scenario under test, so
+/// its environment is left alone); only the `site` invocation has its
+/// environment scrubbed, both the four provider keys and `ZS_BIN` (`site`
+/// reads a report, never the binary), plus a proxy that refuses every
+/// connection. A zero connection count is the real assertion: surviving
+/// without a key only shows nothing demanded one, a zero counter shows
+/// nothing was dialled.
+#[test]
+fn site_renders_with_no_api_key_and_no_network() {
+    let root = repo_root();
+    let sc_dir = scenarios_root().join("prompts/ask-readonly");
+    let results = std::env::temp_dir().join(format!(
+        "zseval-test-site-offline-results-{}",
+        std::process::id()
+    ));
+    let out_path = std::env::temp_dir().join(format!(
+        "zseval-test-site-offline-page-{}.html",
+        std::process::id()
+    ));
+    std::fs::remove_dir_all(&results).ok();
+    std::fs::remove_file(&out_path).ok();
+
+    let ran = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "run",
+            sc_dir.to_str().unwrap(),
+            "--backend",
+            &format!("mock={}", fixture("session-ask-readonly.json").display()),
+            "--trials",
+            "1",
+            "--no-judge",
+            "--results",
+            results.to_str().unwrap(),
+            "--tag",
+            "site-offline-int",
+        ])
+        .output()
+        .unwrap();
+    let run_err = String::from_utf8_lossy(&ran.stderr);
+    assert_eq!(ran.status.code(), Some(0), "stderr: {run_err}");
+
+    let report_path = results.join("site-offline-int/report.json");
+    assert!(report_path.is_file(), "{}", report_path.display());
+
+    let (proxy_url, counter) = refusing_proxy();
+
+    let sited = std::process::Command::new(env!("CARGO_BIN_EXE_zseval"))
+        .args([
+            "site",
+            report_path.to_str().unwrap(),
+            "--out",
+            out_path.to_str().unwrap(),
+            "--ledger",
+            root.join("scenarios/coverage.toml").to_str().unwrap(),
+        ])
+        .env_remove("ANTHROPIC_API_KEY")
+        .env_remove("OPENAI_API_KEY")
+        .env_remove("OPENROUTER_API_KEY")
+        .env_remove("GEMINI_API_KEY")
+        .env_remove("ZS_BIN")
+        .env("HTTPS_PROXY", &proxy_url)
+        .env("https_proxy", &proxy_url)
+        .env("HTTP_PROXY", &proxy_url)
+        .env("http_proxy", &proxy_url)
+        .env("ALL_PROXY", &proxy_url)
+        .env("all_proxy", &proxy_url)
+        .env_remove("NO_PROXY")
+        .env_remove("no_proxy")
+        .output()
+        .unwrap();
+    let site_err = String::from_utf8_lossy(&sited.stderr);
+    std::fs::remove_dir_all(&results).ok();
+
+    assert_eq!(sited.status.code(), Some(0), "stderr: {site_err}");
+    assert!(out_path.is_file(), "{}", out_path.display());
+    std::fs::remove_file(&out_path).ok();
+
+    assert_eq!(
+        counter.load(std::sync::atomic::Ordering::SeqCst),
+        0,
+        "site must dial nothing to render a page"
+    );
+}
