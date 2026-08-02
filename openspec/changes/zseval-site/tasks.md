@@ -77,3 +77,18 @@ else, and the bare word it disambiguates is never used alone:
 - [x] 6.3 Confirm no dependency was added: `git diff` shows `Cargo.toml` and `Cargo.lock` unchanged.
 - [x] 6.4 Confirm the three counts the page states, against the committed ledger and one real mock run, and cite all three: the headline (`Areas with no scenario at all: 7 of 15`), the cited ids marked `not exercised by this run` (41 of the ledger's 42, this run exercising 1), and the results table's scenario rows (1, matching the report's scenario count, above the seven footer rows).
 - [x] 6.5 Evidence: `cargo test --workspace` green, `cargo fmt --all --check` clean, `cargo clippy --workspace --all-targets` clean.
+
+## 7. Documented empty-string sentinels render as absences [dispatch: sai-hu, depends: 6, parallel: no, reason: it amends a normative requirement and a design decision, which is contract writing rather than a mechanical edit; the rendering it turns on is four lines]
+
+Added after sections 1-6 landed, on the 08-02 ruling in decisions.md. Two header
+fields encode "there wasn't one" as `""` while `judge_hash` beside them encodes it
+as `None`, so verbatim readback (D5) puts `configured: (hash: not provided)` on the
+page of a run that configured no judge, and a blank `target` row on the canonical
+`--backend mock` flow. Both are claims the data does not make, which is the failure
+this whole capability exists to prevent.
+
+- [ ] 7.1 Write the failing tests first in `crates/zseval/src/site.rs`: a report whose `judge_file` is `""` renders `<dt>configured</dt><dd>no judge configured</dd>`, and that row carries neither `(hash:` nor an empty `<dd>`; a report whose `target` is `""` renders `<dt>target</dt><dd>no target file</dd>`; a report naming a real judge file and a real target still renders both verbatim, so the amendment cannot swallow a present value. Cite red `cargo test` output.
+- [ ] 7.2 Document `target`'s empty state in `crates/zseval/src/verdict.rs` beside the field, in the shape `judge_file`'s doc already uses (`""` when no target file was named). 7.3 rests on both fields' `""` being documented; `target`'s was not, and an undocumented sentinel is exactly what a readback rule must not special-case.
+- [ ] 7.3 Amend the contract in both places, in the same commit as the code so the page and its spec never disagree. `specs/site-render/spec.md`, requirement "The header reads report fields back without deriving them": a field whose schema documents `""` as "none was named" is rendered as that absence, naming `judge_file` and `target` as today's two, plus a `#### Scenario` for it. `design.md` D5: the same rule, its reason (the schema spells one absence two ways, so verbatim readback states a judge was configured when none was), and its expiry (the exemption ends when these fields become `Option` in the report schema, which is its own change).
+- [ ] 7.4 Implement the two renderings. `--json` keeps emitting the raw field verbatim: machines read the model, and `""` is what the report holds; the absence wording is the page's reading for a human. Do not touch the results table's column label — `target::stem`'s `"target"` fallback (`crates/zseval/src/target.rs:69-75`) is one rule shared by all three renderers, and changing it here would give one renderer its own labelling, which is the drift D4 exists to prevent.
+- [ ] 7.5 Update 2.2's `target` and `configured` rows to the new spellings, so this document states one answer rather than two. Evidence: 7.1 green, `cargo test --workspace` green, `cargo fmt --all --check` clean, `cargo clippy --workspace --all-targets` clean, plus the 5.5 page regenerated and its header showing no empty `<dd>`.
