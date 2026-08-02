@@ -1,0 +1,14 @@
+id = "session-prompt-recorded-stock"
+kind = "regression"
+trials = 3
+task = "In one sentence, what is the capital of France?"
+
+# Evidence-channel regression pin (design D6): no `prompt` field here, so
+# zerostack resolves its own default prompt with no `--load-prompt` flag in
+# play. `prompt_recorded` grades the session's raw readback, so this passing
+# is proof that a bare headless run's session JSON records which prompt it
+# loaded and that it came from the compiled-in default. This is the same
+# claim the coverage ledger's prompts area records against issue #227.
+expect = [
+  "prompt_recorded code built_in",
+]

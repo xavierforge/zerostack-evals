@@ -136,12 +136,11 @@ pub enum Mode {
 ///     filesystem. `transcript.rs`'s `from_run` folds these in as ordinary
 ///     messages; `final_contains`/`transcript_contains`/`file_*` all work
 ///     unchanged.
-///   - **No tool-call evidence at all.** The loop's own `run_print` call
-///     hardcodes `pure_stdout: false`, so the `◈ name ...` markers that are
-///     the *only* tool-call channel in headless mode never appear —
-///     regardless of what CLI flags the harness passes. A `tool_not_called`
-///     assert would therefore pass vacuously against evidence that could
-///     never have shown a call either way. `Scenario::load` rejects every
+///   - **No tool-call evidence at all.** Tool calls are read from a
+///     session's structured `tool` records (see `transcript.rs`'s module
+///     doc), and a loop run writes no session at all — so a
+///     `tool_not_called` assert would pass vacuously against evidence that
+///     could never have shown a call either way. `Scenario::load` rejects every
 ///     `tool_*` assert and `tokens_under` (no usage evidence either, same
 ///     root cause) on a loop scenario at load time instead of letting that
 ///     footgun ship.
@@ -242,12 +241,17 @@ fn loop_incompatible_assert(a: &crate::asserts::Assert) -> Option<&'static str> 
     use crate::asserts::Assert::*;
     match a {
         ToolCalled(_) => Some("tool_called"),
+        ToolCalledAny => Some("tool_called_any"),
         ToolNotCalled(_) => Some("tool_not_called"),
         ToolCalledAfter { .. } => Some("tool_called_after"),
         ToolCount { .. } => Some("tool_count"),
         ToolArgContains { .. } => Some("tool_arg_contains"),
         NoToolCallContains(_) => Some("no_tool_call_contains"),
         TokensUnder(_) => Some("tokens_under"),
+        // Loop mode writes no session file (design D6's Non-Goals), so
+        // `Transcript.prompt` is always `None` there — same evidence gap as
+        // the tool-call asserts above.
+        PromptRecorded { .. } => Some("prompt_recorded"),
         FinalContains(_)
         | FinalNotContains(_)
         | FinalMaxLines(_)

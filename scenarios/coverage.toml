@@ -293,7 +293,7 @@ scenarios = ["prompt-write-text-produces-prose"]
 claim = "A prompt pack in the working tree overrides zerostack's built-in prompt of the same name"
 status = "covered"
 scenarios = ["prompt-pack-example-marker"]
-note = "A proxy indicator rather than a direct observation: zerostack does not report which prompt file a run loaded, so the evidence is a marker string only the pack's own prompt asks for, and a run where the model simply dropped the marker is indistinguishable from a run where the built-in prompt won. The scenario also lives under examples/prompt-pack/, outside the default suite, so an ordinary run's report shows it covered but absent."
+note = "A direct observation: the scenario asserts the prompt identity the session itself recorded (`code`, from a `user_file`), so a run where the model ignored the pack's instructions no longer looks like a run where the built-in prompt won. One residual gap the readback cannot close: zerostack classifies `built_in` by content, so a pack prompt whose bytes equal the built-in would record `built_in` even though the pack won, which is why the example's pack file is deliberately nothing like it. The scenario also lives under examples/prompt-pack/, outside the default suite, so an ordinary run's report shows it covered but absent."
 
 [[areas.claims]]
 claim = "A prompt directory inside the project overrides a user-level prompt of the same name, which in turn overrides the built-in one"
@@ -307,10 +307,9 @@ blocked_by = "The transition is offered in the interactive interface, and the ha
 
 [[areas.claims]]
 claim = "A run reports which prompt file it actually loaded, and where that file came from"
-status = "product-blocked"
-reason = "zerostack keeps the loaded prompt's name in memory only: the session file has no field for it and nothing prints it, so which prompt served a run can only be inferred from what the harness put in place."
-zs = "issue #227"
-note = "This is exactly what makes the prompt-pack claim above a proxy indicator. Once a run reports its own prompt, the marker string drops back to a supporting role and the pack claim becomes a direct observation."
+status = "covered"
+scenarios = ["session-prompt-recorded-stock"]
+note = "The session JSON now records a `prompt: { name, source }` field at every prompt resolution, so which prompt served a run is read directly rather than inferred from what the harness seeded. That readback is what lets the prompt-pack claim above rest on a direct observation instead of a marker string the model had to repeat."
 
 [[areas.claims]]
 claim = "Naming a prompt that does not exist lists the prompts that do"
@@ -414,10 +413,9 @@ note = "Recorded as unmeasured rather than as a permanent exclusion: the older j
 
 [[areas.claims]]
 claim = "The tool calls a headless run made are recorded as data rather than reconstructed from printed output"
-status = "product-blocked"
-reason = "A headless run writes no tool calls into its session file; the only trace is a marker line on stdout, and that marker is printed only when the run was asked to print tool calls in the first place."
-zs = "issue #229"
-note = "Every tool-call assertion in this suite rests on parsing that marker, so a change in how zerostack prints it would quietly rewrite what the suite believes it observed. There is no second channel to cross-check against."
+status = "covered"
+scenarios = ["session-tool-call-recorded"]
+note = "The session JSON now carries a structured tool record per call, and the transcript reader reads that record directly instead of reconstructing calls from the stdout marker. Every other tool-call assertion in this suite now rests on the same session evidence."
 
 [[areas.claims]]
 claim = "The content-addressed edit guard rejects an edit built against a stale read"

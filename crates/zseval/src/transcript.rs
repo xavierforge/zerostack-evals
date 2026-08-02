@@ -3,34 +3,40 @@
 //! Contract (mirrors zerostack's session storage):
 //! - Sessions persist to `{ZS_DATA_DIR}/sessions/{id}.json` as a whole
 //!   `Session { id, messages, total_input_tokens, total_output_tokens,
-//!   total_cost, ... }` with `SessionMessage { role, content }`.
+//!   total_cost, ... }` with `SessionMessage { role, content, tool }`.
 //! - `role` is snake_case: user | assistant | system | tool_call |
 //!   tool_result | subagent_tool_call.
-//! - Tool-call content is `"{name}"` or `"{name} {summary...}"` — the tool
-//!   name is always the first whitespace token. Full args are not persisted,
-//!   so arg asserts match the summary string; outcome asserts (`file_*`)
-//!   check the environment instead.
+//! - A `tool_call` / `tool_result` / `subagent_tool_call` message carries a
+//!   structured `tool` record beside its display `content`: `{ id, name,
+//!   args }` for a call, `{ call_id, name, truncated, full_output_path }`
+//!   for a result, `{ parent_call_id, name, args }` for a subagent's call.
+//!   The `role` already discriminates the three, so `RawToolRecord` below
+//!   mirrors them as one tolerant struct instead of an untagged enum.
+//! - `content` is only the human display summary (zerostack's
+//!   `ui::utils::format_tool_call_summary`, truncated for display); the
+//!   record's `args` carries the complete value. Arg asserts still match the
+//!   summary string; outcome asserts (`file_*`) check the environment.
+//!
+//! The session JSON is the one evidence channel for tool calls, and it is
+//! the same one for both backends: headless `-p` runs persist these records
+//! unconditionally (zerostack PR #230), so a real run and a mock fixture
+//! feed `Transcript.tool_calls` identically. `backend::ZsCli` still passes
+//! `--pure-stdout` and still tees each turn to `turn-N.stdout`, but those
+//! `◈ {name} {summary}` marker lines are a human-facing debugging artifact
+//! only. Nothing here parses them, and nothing should: a `◈ ` sequence
+//! inside a tool's own output is indistinguishable from a real marker
+//! line, so parsing it risks phantom tool calls.
 //!
 //! A schema we cannot parse becomes an `Err`, which the runner maps to an
 //! `Indeterminate` verdict — an unreadable transcript is not an agent
-//! failure. If zerostack's schema changes, adapt this file.
-//!
-//! `tool_call`/`tool_result` roles above are only ever written by
-//! zerostack's *interactive* TUI (`ui/event_handler.rs`) — the headless `-p`
-//! path (`agent/runner.rs::run_print`) never calls `Session::add_tool_call`,
-//! so a real session JSON from this harness's backend never contains one.
-//! The only place tool calls surface in headless mode is stdout, and only
-//! with `--pure-stdout`: `◈ {name} {summary}` for a call, `◈ {name}
-//! result:` (followed by the tool's output) for its result. `backend::ZsCli`
-//! always passes `--pure-stdout` and captures each turn's stdout to
-//! `turn-N.stdout`; `tool_calls_from_stdout` below reconstructs `ToolCall`s
-//! from that text. The mock backend has no stdout logs, so its fixtures keep
-//! authoring tool calls directly in the session JSON as before — both paths
-//! feed the same `Transcript.tool_calls`.
+//! failure. A tool-call-role message carrying no `tool` record is exactly
+//! that case: it means the binary under test predates PR #230, which has to
+//! be visible rather than gradable as "the agent called no tools". If
+//! zerostack's schema changes, adapt this file.
 
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -49,12 +55,56 @@ struct RawSession {
     /// in headless mode today (see `Transcript::total_tokens`).
     #[serde(default)]
     total_estimated_tokens: u64,
+    /// The prompt active when the session was last saved (upstream's PR
+    /// #228, `session::Session::prompt`). Absent on sessions predating that
+    /// field, which must parse as `None`, not an error (design D3).
+    #[serde(default)]
+    prompt: Option<RawPromptRef>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 struct RawMessage {
     role: String,
     content: String,
+    #[serde(default)]
+    tool: Option<RawToolRecord>,
+}
+
+/// Mirror of upstream's `session::ToolRecord`, flattened. Upstream models
+/// the three shapes as an untagged enum; here the message `role` already
+/// says which one it is, so mirroring the enum would buy nothing and would
+/// break outright the day upstream adds a field to any variant. Only `name`
+/// is required, and only `name` is consumed today — the rest is mirrored so
+/// the shape stays documented at the point of use.
+#[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
+struct RawToolRecord {
+    /// Present on all three shapes.
+    name: String,
+    /// `Call`.
+    id: Option<u64>,
+    /// `Result`.
+    call_id: Option<u64>,
+    /// `SubagentCall` — deliberately has no `id` upstream, which is what
+    /// keeps its JSON from also satisfying `Call`.
+    parent_call_id: Option<u64>,
+    /// `Call` / `SubagentCall`: the complete, untruncated arguments.
+    args: Option<serde_json::Value>,
+    /// `Result`.
+    truncated: Option<bool>,
+    /// `Result`: where an over-threshold tool output was spilled.
+    full_output_path: Option<String>,
+}
+
+/// Mirror of upstream's `session::PromptRef`. `source` stays a raw `String`
+/// here rather than upstream's `PromptSource` enum, so an unrecognized value
+/// can be its own schema-`Err` step in `parse_str` (naming the session
+/// file), instead of the whole session failing to deserialize with a bare
+/// serde message (design D3).
+#[derive(Debug, Clone, Deserialize)]
+struct RawPromptRef {
+    name: String,
+    source: String,
 }
 
 /// One `$ZS_DATA_DIR/loops/<session-id>/iter-NNNN.json` record — the
@@ -83,18 +133,29 @@ pub struct Msg {
 #[derive(Debug, Clone)]
 pub struct ToolCall {
     /// A monotonic position for ordering asserts (`tool_called_after`) to
-    /// compare against — *not* an index into `messages`. Tool calls parsed
-    /// from a session's own messages (`tool_call`/`subagent_tool_call` roles)
-    /// do use their message index; ones reconstructed from a `turn-N.stdout`
-    /// log (the real headless-mode path — see this module's doc) instead
-    /// count up from `index_base` across that turn's `◈ ` markers, since
-    /// there's no message list to index into. Both number spaces only need
-    /// to preserve relative order among tool calls, which they do.
+    /// compare against: the call's index in its own session's message list,
+    /// shifted by `absorb` when several sessions are concatenated. Only the
+    /// relative order among tool calls matters, so gaps (every non-tool
+    /// message leaves one) are fine.
     pub index: usize,
     pub name: String,
     /// Human summary of args as zerostack rendered it (may be truncated).
     pub summary: String,
     pub subagent: bool,
+}
+
+/// The session's recorded prompt provenance (mirrors upstream's
+/// `session::PromptRef`, design D3): which prompt shaped the trial, and
+/// whether its content was the compiled-in default or a user file.
+/// `source` is upstream's own two-value vocabulary, `"built_in"` or
+/// `"user_file"`, already validated by `parse_str` — deliberately not this
+/// crate's four-value `verdict::PromptSource` report field. Vocabulary note
+/// (tasks.md): the bare word "source" never stands in for either on its
+/// own, so this type spells out that it is the readback, not the mapping.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecordedPrompt {
+    pub name: String,
+    pub source: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -108,6 +169,11 @@ pub struct Transcript {
     /// zerostack's rough estimate, summed across sessions — see
     /// `total_tokens`'s fallback.
     pub estimated_tokens: u64,
+    /// The session's recorded prompt readback (design D3). `None` when the
+    /// session predates zerostack's PR #228, or the trial recorded no
+    /// prompt at all. `absorb` applies last-wins, matching both upstream's
+    /// own last-write-wins rule and `final_assistant`'s existing one.
+    pub prompt: Option<RecordedPrompt>,
 }
 
 impl Transcript {
@@ -122,6 +188,9 @@ impl Transcript {
         }
         if !other.final_assistant.is_empty() {
             self.final_assistant = other.final_assistant;
+        }
+        if other.prompt.is_some() {
+            self.prompt = other.prompt;
         }
         self.input_tokens += other.input_tokens;
         self.output_tokens += other.output_tokens;
@@ -171,22 +240,17 @@ impl Transcript {
     }
 
     /// Build the complete, gradable `Transcript` for one trial: messages,
-    /// tokens, and cost from every session file, plus tool calls from every
-    /// turn's `--pure-stdout` log. This is the one entry point the runner
-    /// needs — it doesn't know or care that "evidence" currently comes from
-    /// two different channels depending on the backend (session JSON for the
-    /// mock backend's fixtures, stdout markers for a real `zerostack` run;
-    /// see the module doc for why). A schema mismatch in any session file is
-    /// an `Err`, which the caller maps to Indeterminate.
+    /// tool calls, tokens, and cost from every session file, plus any loop
+    /// iteration records. This is the one entry point the runner needs, and
+    /// there is one evidence channel behind it for both backends alike — the
+    /// session JSON. `artifacts.turns` is deliberately not read here: a
+    /// turn's `turn-N.stdout` is a debugging artifact, not evidence (see the
+    /// module doc). A schema mismatch in any session file is an `Err`, which
+    /// the caller maps to Indeterminate.
     pub fn from_run(artifacts: &crate::backend::RunArtifacts) -> Result<Transcript> {
         let mut t = Transcript::default();
         for f in &artifacts.session_files {
             t.absorb(parse_file(f)?);
-        }
-        for turn in &artifacts.turns {
-            let base = t.tool_calls.len();
-            t.tool_calls
-                .extend(tool_calls_from_stdout_file(&turn.stdout, base));
         }
         t.absorb(loop_transcript(&artifacts.data_dir)?);
         Ok(t)
@@ -285,52 +349,6 @@ fn loop_transcript(data_dir: &Path) -> Result<Transcript> {
     Ok(t)
 }
 
-/// Reconstruct `ToolCall`s from a captured `turn-N.stdout` log (see the
-/// module doc for why this, and not session JSON, is the real source in
-/// headless mode). `index_base` lets a caller keep indices monotonic across
-/// several turns' logs, so `tool_called_after` orders correctly.
-///
-/// A `◈ {name} result:` line marks a tool's *result*, not another call, and
-/// is skipped — its output lines don't start with `◈ ` so nothing else needs
-/// filtering out. Caveat: this is a line-prefix match against zerostack's own
-/// marker, not a structured format — a tool's *output* that happens to
-/// contain a line starting with `◈ ` (e.g. `bash cat`-ing a file using that
-/// character) would be misread as another call. Unlikely in practice and not
-/// currently guarded against; this is the one channel that carries tool
-/// calls at all in headless mode, so there's no independent source to
-/// cross-check it against (see the module doc).
-pub fn tool_calls_from_stdout(text: &str, index_base: usize) -> Vec<ToolCall> {
-    let mut out = Vec::new();
-    for line in text.lines() {
-        let Some(rest) = line.strip_prefix("◈ ") else {
-            continue;
-        };
-        let (name, tail) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
-        let tail = tail.trim();
-        if tail == "result:" {
-            continue;
-        }
-        out.push(ToolCall {
-            index: index_base + out.len(),
-            name: name.to_string(),
-            summary: tail.to_string(),
-            subagent: false,
-        });
-    }
-    out
-}
-
-/// `tool_calls_from_stdout` over a `turn-N.stdout` file on disk. A missing or
-/// unreadable file yields no tool calls rather than an error — every
-/// scenario has a `.stdout` log only when driven by the real CLI backend
-/// (the mock backend has none), so "no file" is an expected, silent no-op.
-pub fn tool_calls_from_stdout_file(path: &Path, index_base: usize) -> Vec<ToolCall> {
-    match std::fs::read_to_string(path) {
-        Ok(text) => tool_calls_from_stdout(&text, index_base),
-        Err(_) => Vec::new(),
-    }
-}
-
 pub fn parse_file(path: &Path) -> Result<Transcript> {
     let text = std::fs::read_to_string(path)
         .with_context(|| format!("read session {}", path.display()))?;
@@ -339,22 +357,54 @@ pub fn parse_file(path: &Path) -> Result<Transcript> {
 
 pub fn parse_str(text: &str) -> Result<Transcript> {
     let raw: RawSession = serde_json::from_str(text).context("session schema mismatch")?;
+    // Readback is the value (design D3): an absent `prompt` is `None`, but a
+    // present one with an unrecognized `source` is a schema `Err` — upstream
+    // vocabulary drift stops the run rather than being guessed around.
+    let prompt = raw
+        .prompt
+        .map(|p| match p.source.as_str() {
+            "built_in" | "user_file" => Ok(RecordedPrompt {
+                name: p.name,
+                source: p.source,
+            }),
+            other => Err(anyhow!(
+                "session recorded prompt \"{}\" with unrecognized source '{other}' \
+                 (expected 'built_in' or 'user_file')",
+                p.name
+            )),
+        })
+        .transpose()?;
     let mut t = Transcript {
         input_tokens: raw.total_input_tokens,
         output_tokens: raw.total_output_tokens,
         cost_usd: raw.total_cost,
         estimated_tokens: raw.total_estimated_tokens,
+        prompt,
         ..Default::default()
     };
     for (i, m) in raw.messages.iter().enumerate() {
         match m.role.as_str() {
             "tool_call" | "subagent_tool_call" => {
-                let mut parts = m.content.splitn(2, char::is_whitespace);
-                let name = parts.next().unwrap_or("").to_string();
-                let summary = parts.next().unwrap_or("").trim().to_string();
+                let record = m.tool.as_ref().ok_or_else(|| {
+                    anyhow!(
+                        "message {i} has role '{}' but no structured `tool` record — \
+                         this session predates zerostack's structured tool records \
+                         (PR #230); rebuild ZS_BIN if this is a live run, or \
+                         regenerate the mock fixture or captured trial otherwise",
+                        m.role
+                    )
+                })?;
+                // The name is the record's, never the content's leading
+                // token (design D1); the summary stays the content minus
+                // that token, which is what `tool_arg_contains` matches.
+                let summary = m
+                    .content
+                    .split_once(char::is_whitespace)
+                    .map_or("", |(_, tail)| tail.trim())
+                    .to_string();
                 t.tool_calls.push(ToolCall {
                     index: i,
-                    name,
+                    name: record.name.clone(),
                     summary,
                     subagent: m.role == "subagent_tool_call",
                 });
@@ -371,47 +421,181 @@ pub fn parse_str(text: &str) -> Result<Transcript> {
 }
 
 #[cfg(test)]
-mod stdout_tool_call_tests {
+mod tool_record_tests {
     use super::*;
 
+    /// spec `session-evidence`, "A structured tool record becomes a tool
+    /// call".
     #[test]
-    fn parses_call_and_skips_result_marker() {
-        let text = "\n◈ bash python3 -c 'print(2+2)'\n◈ bash result:\n4\n\n**4**\n";
-        let calls = tool_calls_from_stdout(text, 0);
-        assert_eq!(calls.len(), 1, "{calls:?}");
-        assert_eq!(calls[0].name, "bash");
-        assert_eq!(calls[0].summary, "python3 -c 'print(2+2)'");
-        assert_eq!(calls[0].index, 0);
+    fn a_structured_record_becomes_a_tool_call() {
+        let t = parse_str(
+            r#"{"id":"s","messages":[
+                {"role":"user","content":"list the files"},
+                {"role":"tool_call","content":"bash ls -la","tool":{"id":3,"name":"bash","args":{"command":"ls -la"}}}
+            ]}"#,
+        )
+        .unwrap();
+        assert_eq!(t.tool_calls.len(), 1, "{:?}", t.tool_calls);
+        assert_eq!(t.tool_calls[0].name, "bash");
+        assert_eq!(t.tool_calls[0].summary, "ls -la");
+        assert!(!t.tool_calls[0].subagent);
+    }
+
+    /// The record, not the display text, is the authority for the name.
+    /// Upstream always renders `content` as `"{name} {summary}"`, so a real
+    /// session never diverges — the divergence here is synthetic, and it is
+    /// what pins that `name` is read from `tool.name` rather than tokenized
+    /// off `content` (design D1).
+    #[test]
+    fn the_name_comes_from_the_record_not_the_content_token() {
+        let t = parse_str(
+            r#"{"id":"s","messages":[
+                {"role":"tool_call","content":"display-token deploy-strategy","tool":{"id":0,"name":"memory_read","args":{"name":"deploy-strategy"}}}
+            ]}"#,
+        )
+        .unwrap();
+        assert_eq!(t.tool_calls[0].name, "memory_read");
+        assert_eq!(
+            t.tool_calls[0].summary, "deploy-strategy",
+            "the summary is still the content minus its leading token, so \
+             tool_arg_contains keeps its meaning"
+        );
+    }
+
+    /// spec `session-evidence`, "A subagent record is a subagent call".
+    #[test]
+    fn a_subagent_record_is_a_subagent_call() {
+        let t = parse_str(
+            r#"{"id":"s","messages":[
+                {"role":"tool_call","content":"task investigate","tool":{"id":0,"name":"task","args":{"prompts":["investigate"]}}},
+                {"role":"subagent_tool_call","content":"read src/main.rs","tool":{"parent_call_id":0,"name":"read","args":{"path":"src/main.rs"}}}
+            ]}"#,
+        )
+        .unwrap();
+        assert_eq!(t.tool_calls.len(), 2, "{:?}", t.tool_calls);
+        assert_eq!(t.tool_calls[1].name, "read");
+        assert!(t.tool_calls[1].subagent);
+        assert!(!t.tool_calls[0].subagent);
+    }
+
+    /// A `tool_result`-role message carries a record too, but it is a
+    /// message, not a call (design D1).
+    #[test]
+    fn a_tool_result_record_is_not_a_call() {
+        let t = parse_str(
+            r#"{"id":"s","messages":[
+                {"role":"tool_call","content":"bash ls","tool":{"id":0,"name":"bash","args":{"command":"ls"}}},
+                {"role":"tool_result","content":"bash:\nfile.txt","tool":{"call_id":0,"name":"bash","truncated":false,"full_output_path":null}}
+            ]}"#,
+        )
+        .unwrap();
+        assert_eq!(t.tool_calls.len(), 1, "{:?}", t.tool_calls);
+        assert_eq!(t.messages.len(), 2);
+    }
+
+    /// spec `session-evidence`, "A tool-call-role message without a tool
+    /// record is a schema error" — the rule that makes a pre-#230 `ZS_BIN`
+    /// visible instead of silently gradable.
+    #[test]
+    fn a_tool_call_role_message_without_a_record_is_a_schema_error() {
+        for role in ["tool_call", "subagent_tool_call"] {
+            let text =
+                format!(r#"{{"id":"s","messages":[{{"role":"{role}","content":"bash ls"}}]}}"#);
+            assert!(
+                parse_str(&text).is_err(),
+                "a {role} message with no tool record must not parse"
+            );
+        }
     }
 
     #[test]
-    fn handles_empty_summary() {
-        // format_tool_args_summary can return "", leaving a trailing space:
-        // `println!("\n◈ {} {}", name, "")` -> "◈ memory_search ".
-        let text = "◈ memory_search \n◈ memory_search result:\nNo matches.\n";
-        let calls = tool_calls_from_stdout(text, 0);
-        assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].name, "memory_search");
-        assert_eq!(calls[0].summary, "");
+    fn the_missing_record_error_names_the_session_file() {
+        let dir = std::env::temp_dir().join(format!("zseval-norecord-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let session = dir.join("no-record.json");
+        std::fs::write(
+            &session,
+            r#"{"id":"s","messages":[{"role":"tool_call","content":"bash ls"}]}"#,
+        )
+        .unwrap();
+        let err = parse_file(&session).unwrap_err();
+        let rendered = format!("{err:#}");
+        assert!(
+            rendered.contains("no-record.json"),
+            "the error must name the session file: {rendered}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+}
+
+#[cfg(test)]
+mod prompt_readback_tests {
+    use super::*;
+
+    /// spec `session-evidence`, "A recorded prompt is exposed".
+    #[test]
+    fn a_recorded_prompt_is_exposed() {
+        let t =
+            parse_str(r#"{"id":"s","messages":[],"prompt":{"name":"code","source":"built_in"}}"#)
+                .unwrap();
+        let prompt = t.prompt.expect("prompt readback must be present");
+        assert_eq!(prompt.name, "code");
+        assert_eq!(prompt.source, "built_in");
     }
 
+    /// spec `session-evidence`, "An absent prompt field is exposed as
+    /// absent" — a session predating PR #228 must parse, not error.
     #[test]
-    fn preserves_order_across_multiple_calls_and_respects_index_base() {
-        let text = "◈ memory_search deploy\n◈ memory_search result:\nsnippet\n\
-                    ◈ memory_read deploy-strategy\n◈ memory_read result:\nfull text\n";
-        let calls = tool_calls_from_stdout(text, 5);
-        assert_eq!(calls.len(), 2);
-        assert_eq!(calls[0].name, "memory_search");
-        assert_eq!(calls[0].index, 5);
-        assert_eq!(calls[1].name, "memory_read");
-        assert_eq!(calls[1].index, 6);
-        assert!(calls[0].index < calls[1].index);
+    fn an_absent_prompt_field_is_exposed_as_absent() {
+        let t = parse_str(r#"{"id":"s","messages":[]}"#).unwrap();
+        assert!(t.prompt.is_none());
     }
 
+    /// spec `session-evidence`, "An unrecognized source is a schema error".
     #[test]
-    fn missing_stdout_file_yields_no_calls_not_an_error() {
-        let calls = tool_calls_from_stdout_file(Path::new("/no/such/file.stdout"), 0);
-        assert!(calls.is_empty());
+    fn an_unrecognized_source_is_a_schema_error() {
+        let dir = std::env::temp_dir().join(format!("zseval-badsource-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let session = dir.join("bad-source.json");
+        std::fs::write(
+            &session,
+            r#"{"id":"s","messages":[],"prompt":{"name":"code","source":"global_file"}}"#,
+        )
+        .unwrap();
+        let err = parse_file(&session).unwrap_err();
+        let rendered = format!("{err:#}");
+        assert!(
+            rendered.contains("bad-source.json"),
+            "the error must name the session file: {rendered}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// design D3: `absorb` applies last-wins, matching `final_assistant`'s
+    /// existing rule — a later session with no `prompt` field must not
+    /// erase an earlier session's readback, but a later session that does
+    /// carry one overrides.
+    #[test]
+    fn absorb_applies_last_wins_but_keeps_earlier_when_later_has_none() {
+        let mut t =
+            parse_str(r#"{"id":"a","messages":[],"prompt":{"name":"ask","source":"built_in"}}"#)
+                .unwrap();
+
+        let with_no_prompt = parse_str(r#"{"id":"b","messages":[]}"#).unwrap();
+        t.absorb(with_no_prompt);
+        assert_eq!(
+            t.prompt.as_ref().map(|p| p.name.as_str()),
+            Some("ask"),
+            "a later session with no prompt field must not erase the earlier readback"
+        );
+
+        let switched =
+            parse_str(r#"{"id":"c","messages":[],"prompt":{"name":"code","source":"user_file"}}"#)
+                .unwrap();
+        t.absorb(switched);
+        let prompt = t.prompt.as_ref().expect("prompt must still be present");
+        assert_eq!(prompt.name, "code");
+        assert_eq!(prompt.source, "user_file");
     }
 }
 
@@ -421,13 +605,48 @@ mod from_run_tests {
     use crate::backend::{RunArtifacts, TurnArtifacts};
 
     #[test]
-    fn merges_session_messages_with_stdout_tool_calls() {
+    fn collects_messages_tokens_and_tool_records_from_the_session() {
         let dir = std::env::temp_dir().join(format!("zseval-fromrun-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let session = dir.join("session.json");
         std::fs::write(
             &session,
-            r#"{"id":"s","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"hello"}],"total_input_tokens":10,"total_output_tokens":5,"total_cost":0.01}"#,
+            r#"{"id":"s","messages":[
+                {"role":"user","content":"hi"},
+                {"role":"tool_call","content":"bash ls","tool":{"id":0,"name":"bash","args":{"command":"ls"}}},
+                {"role":"tool_result","content":"bash:\nfile.txt","tool":{"call_id":0,"name":"bash","truncated":false,"full_output_path":null}},
+                {"role":"assistant","content":"hello"}
+            ],"total_input_tokens":10,"total_output_tokens":5,"total_cost":0.01}"#,
+        )
+        .unwrap();
+
+        let artifacts = RunArtifacts {
+            session_files: vec![session],
+            turns: Vec::new(),
+            data_dir: dir.clone(),
+            config_dir: dir.clone(),
+            work_dir: dir.clone(),
+            wall_secs: 0.0,
+        };
+
+        let t = Transcript::from_run(&artifacts).unwrap();
+        assert_eq!(t.final_assistant, "hello");
+        assert_eq!(t.input_tokens, 10);
+        assert_eq!(t.tool_calls.len(), 1, "{:?}", t.tool_calls);
+        assert_eq!(t.tool_calls[0].name, "bash");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// spec `session-evidence`, "Stdout markers are not evidence" — the
+    /// test that makes D1's deletion observable rather than assumed.
+    #[test]
+    fn stdout_markers_are_not_evidence() {
+        let dir = std::env::temp_dir().join(format!("zseval-nomarkers-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let session = dir.join("session.json");
+        std::fs::write(
+            &session,
+            r#"{"id":"s","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"hello"}]}"#,
         )
         .unwrap();
         let stdout = dir.join("turn-0.stdout");
@@ -447,10 +666,11 @@ mod from_run_tests {
         };
 
         let t = Transcript::from_run(&artifacts).unwrap();
-        assert_eq!(t.final_assistant, "hello");
-        assert_eq!(t.input_tokens, 10);
-        assert_eq!(t.tool_calls.len(), 1, "{:?}", t.tool_calls);
-        assert_eq!(t.tool_calls[0].name, "bash");
+        assert!(
+            t.tool_calls.is_empty(),
+            "the stdout log is a diagnostic artifact, not evidence: {:?}",
+            t.tool_calls
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 

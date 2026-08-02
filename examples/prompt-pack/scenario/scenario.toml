@@ -10,10 +10,12 @@ trials = 1
 # need the usual N=3 signal.
 task = "Reply with a one-sentence greeting. No files or tools are needed."
 
-# The marker is defined in ../pack/code.md. This assert is the whole point
-# of the example: it only passes if the pack's code.md, not the built-in
-# one, is what the model actually loaded. See ../README.md for what a
-# failure here can and cannot tell you.
+# The grade is the session's own record of which prompt served the run:
+# `code`, resolved from a user file, which under this invocation can only be
+# the pack's ../pack/code.md seeded into `.zerostack/prompts/` (a built-in
+# `code` records `built_in` instead). Nothing rides on the model repeating a
+# marker string any more, so a disobedient model can no longer read as a
+# pack that never loaded. See ../README.md for what a failure here means.
 expect = [
-  "final_contains ZSEVAL-PROMPT-PACK-MARKER",
+  "prompt_recorded code user_file",
 ]

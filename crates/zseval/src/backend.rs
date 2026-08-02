@@ -5,13 +5,11 @@
 //!   - `-p/--print` headless single-shot, `-c/--continue` to resume,
 //!     `--yolo` (skip permission prompts), `--no-color`, positional message.
 //!   - `--pure-stdout` ("With -p: also print tool calls/results to stdout")
-//!     is the only channel that reveals tool calls at all in headless mode:
-//!     zerostack's session persistence only records `tool_call`/`tool_result`
-//!     messages from the interactive TUI's event handler, never from the `-p`
-//!     path (`agent/runner.rs::run_print`) — so a real session JSON never
-//!     contains a tool call. `transcript.rs` reconstructs `ToolCall`s from
-//!     the `◈ name summary` / `◈ name result:` markers this flag prints,
-//!     captured in `turn-N.stdout` below.
+//!     is kept for the `◈ {name} {summary}` marker lines it tees into
+//!     `turn-N.stdout` below — a human-facing debugging artifact, not the
+//!     evidence channel. Tool-call evidence is the session JSON's structured
+//!     `tool` records instead (zerostack PR #230; see `transcript.rs`'s
+//!     module doc), which headless `-p` runs persist unconditionally.
 //!   - `--log-file <path>` activates zerostack's trace-level file logging
 //!     (`src/logging.rs`); stderr only shows `warn+` by default, which is
 //!     why a hanging API retry looks silent — the real story is in the
@@ -724,14 +722,14 @@ fn collect_files(root: &Path, dir: &Path, out: &mut Vec<(String, Vec<u8>)>) -> R
 
 /// Replays canned artifacts; used by the harness's own tests and by
 /// `--backend mock=<path>` for local plumbing checks. `fixture` is either a
-/// single session JSON file (legacy shape: no turn logs, so stdout-based
-/// tool-call reconstruction is never exercised) or a directory — a
-/// previously captured trial dir (`data/sessions/*.json` plus
-/// `turn-N.{stdout,stderr,zslog}`) — replayed exactly as the real backend
-/// produced it, including the stdout channel that's the only place tool
-/// calls actually appear in headless mode (see `transcript.rs`'s module
-/// doc). The directory form is what backs `zseval regrade` and lets a test
-/// exercise the real evidence path without a live zerostack build.
+/// single session JSON file (legacy shape: no turn logs, so the mock never
+/// replays a `turn-N.stdout` at all) or a directory — a previously captured
+/// trial dir (`data/sessions/*.json` plus `turn-N.{stdout,stderr,zslog}`) —
+/// replayed exactly as the real backend produced it, turn logs included:
+/// they're decorative, since tool-call evidence comes from the session
+/// JSON's `tool` records (see `transcript.rs`'s module doc). The directory
+/// form is what backs `zseval regrade` and lets a test exercise the real
+/// evidence path without a live zerostack build.
 ///
 /// Caveat: a `[seed.memory]` scenario replayed this way (`--backend
 /// mock=<dir> run`, as opposed to `regrade`, which reads the fixture dir
@@ -844,24 +842,29 @@ mod mock_trial_dir_tests {
     use super::*;
 
     #[test]
-    fn mock_replays_a_captured_trial_dir_including_stdout_tool_calls() {
-        // Production evidence for tool calls in headless mode is always
-        // `--pure-stdout` markers, never the session JSON (see
-        // transcript.rs's module doc) — a mock fixture that only writes
-        // tool_call messages into session JSON never exercises that real
-        // path. Pointing Mock at a directory (a previously captured trial
-        // dir) replays both channels exactly as a real run produced them.
+    fn mock_replays_a_captured_trial_dir_including_its_turn_logs() {
+        // Pointing Mock at a directory (a previously captured trial dir)
+        // replays the session files *and* republishes the turn logs, so a
+        // replayed trial's artifacts look like the run that produced them.
+        // The extra `◈ write` marker in the stdout log is the check that
+        // those logs stay decorative: tool-call evidence comes from the
+        // session's `tool` records only (see transcript.rs's module doc).
         let fixture_dir =
             std::env::temp_dir().join(format!("zseval-mockdir-fixture-{}", std::process::id()));
         std::fs::create_dir_all(fixture_dir.join("data/sessions")).unwrap();
         std::fs::write(
             fixture_dir.join("data/sessions/s.json"),
-            r#"{"id":"s","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"done"}],"total_input_tokens":1,"total_output_tokens":1,"total_cost":0.001}"#,
+            r#"{"id":"s","messages":[
+                {"role":"user","content":"hi"},
+                {"role":"tool_call","content":"bash ls","tool":{"id":0,"name":"bash","args":{"command":"ls"}}},
+                {"role":"tool_result","content":"bash:\nfile.txt","tool":{"call_id":0,"name":"bash","truncated":false,"full_output_path":null}},
+                {"role":"assistant","content":"done"}
+            ],"total_input_tokens":1,"total_output_tokens":1,"total_cost":0.001}"#,
         )
         .unwrap();
         std::fs::write(
             fixture_dir.join("turn-0.stdout"),
-            "◈ bash ls\n◈ bash result:\nfile.txt\n",
+            "◈ bash ls\n◈ bash result:\nfile.txt\n◈ write not-evidence\n",
         )
         .unwrap();
 

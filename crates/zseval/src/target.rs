@@ -37,7 +37,7 @@ pub fn peek(path: &Path) -> (Option<String>, Option<String>) {
 /// missing or unparseable (same degradation as `peek`) or simply sets no such
 /// key. The harness derives the prompt a no-`prompt` scenario loads from this,
 /// falling back to zerostack's own `code` default when it is `None` (see
-/// `runner::resolve_prompt`).
+/// `runner::derive_prompt`).
 pub fn default_prompt(path: &Path) -> Option<String> {
     let text = std::fs::read_to_string(path).ok()?;
     toml::from_str::<Peek>(&text).ok()?.default_prompt

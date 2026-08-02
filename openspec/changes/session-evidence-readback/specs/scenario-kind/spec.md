@@ -1,21 +1,6 @@
-# scenario-kind
+# scenario-kind — delta
 
-## Purpose
-
-Every scenario declares a required `kind` — `capability` or `regression` — with no default, so the author must answer whether a low score is a problem or a measurement. The classification flows verbatim into report rows and a fixed per-kind summary, so matrix and future gating can group by kind from report JSON alone.
-
-## Requirements
-
-### Requirement: Every scenario declares kind, with no default
-`scenario.toml` SHALL carry a required field `kind = "capability" | "regression"`. A missing `kind` or any other value SHALL be a load-time error. There is deliberately no default in either direction: defaulting to `capability` would wave new scenarios past the future CI gate; defaulting to `regression` would let unvetted rows throttle it. The field exists to force the author to answer "is a low score here a problem or a measurement?", and a default un-asks the question.
-
-#### Scenario: Missing kind fails to load
-- **WHEN** a scenario.toml declares no `kind`
-- **THEN** loading fails naming the missing field
-
-#### Scenario: Invalid kind fails to load
-- **WHEN** a scenario.toml declares `kind = "probe"`
-- **THEN** loading fails
+## MODIFIED Requirements
 
 ### Requirement: The 44 in-tree scenarios carry the adjudicated classification
 The in-tree suite SHALL be labeled exactly per the following table (adjudicated 2026-07-26 under the three rules below; ids mechanically verified against the tree 2026-08-02; 31 regression, 13 capability). Trial counts cited as evidence are from the 07-21 baseline, except the two session-evidence-readback rows added 2026-08-02, which cite none: they have not yet run against a real `ZS_BIN` (see section 9 of that change).
@@ -82,34 +67,3 @@ Day-2 verification hooks for the five contested rows (labels stand; the hooks ar
 #### Scenario: The loaded suite matches the table
 - **WHEN** the in-tree suite is loaded
 - **THEN** every scenario's `kind` matches this table: 31 regression, 13 capability
-
-### Requirement: ScenarioResult records kind
-Each `ScenarioResult` in a report SHALL carry the scenario's `kind` verbatim. Matrix and the future site group from report JSON alone; nothing downstream re-reads scenario.toml to recover the classification.
-
-#### Scenario: Report rows carry kind
-- **WHEN** a run completes
-- **THEN** every scenario row in report.json records `"kind": "regression"` or `"kind": "capability"`
-
-### Requirement: Summary carries fixed per-kind metrics
-`Summary` SHALL gain two fixed named sub-summaries, `regression` and `capability`, each carrying `n_scenarios`, `n_gradable`, `pass_at_k`, and `pass_hat_k` computed over the gradable scenarios of that kind only. The shape is two named fields, not a map keyed by kind: the kind set is closed, and adding a third kind must be a loud schema decision, not a quiet new key. The existing top-level overall metrics stay exactly where they are — they are the historical yardstick — and render last.
-
-WHEN a kind has `n_gradable = 0`, its rates render as `n/a` (the existing `rate()` convention) and serialize as `0.0`, matching the current overall behavior — no third representation.
-
-#### Scenario: Per-kind numbers are independent
-- **WHEN** a run grades scenarios of both kinds
-- **THEN** the summary carries a regression pass^k computed over regression scenarios only, a capability pass^k over capability scenarios only, and the unchanged overall at top level
-
-#### Scenario: Run summary prints three lines
-- **WHEN** a run finishes
-- **THEN** the human summary prints regression, capability, and overall lines, in that order
-
-#### Scenario: Empty kind renders n/a
-- **WHEN** a filtered run grades only regression scenarios
-- **THEN** the capability line renders its rates as `n/a` and the JSON records `0.0`
-
-### Requirement: JSON scenario order is unchanged by kind
-The `scenarios` array in report.json SHALL keep discovery order. Grouping by kind happens at render time only.
-
-#### Scenario: Grouping is render-only
-- **WHEN** a report is serialized
-- **THEN** the scenarios array order is identical to a pre-kind run's order over the same suite

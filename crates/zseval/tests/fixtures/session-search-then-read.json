@@ -3,15 +3,37 @@
   "name": "eval run",
   "messages": [
     { "role": "user", "content": "What is our deployment strategy, and the decisive reason we chose it over the alternatives?", "estimated_tokens": 40 },
-    { "role": "tool_call", "content": "memory_search deployment strategy", "estimated_tokens": 8 },
-    { "role": "tool_result", "content": "notes/deploy-strategy.md:3: We use blue-green deployment. Staging runs on fly.io. (38 lines, plus appendix)", "estimated_tokens": 60 },
-    { "role": "tool_call", "content": "memory_read deploy-strategy", "estimated_tokens": 8 },
-    { "role": "tool_result", "content": "# Deployment strategy\n...(full text)... the decisive reason: blue-green gives us sub-second rollback...", "estimated_tokens": 700 },
+    {
+      "role": "tool_call",
+      "content": "memory_search \"deployment strategy\"",
+      "estimated_tokens": 8,
+      "tool": { "id": 0, "name": "memory_search", "args": { "query": "deployment strategy" } }
+    },
+    {
+      "role": "tool_result",
+      "content": "memory_search:\nnotes/deploy-strategy.md:3: We use blue-green deployment. Staging runs on fly.io. (38 lines, plus appendix)",
+      "estimated_tokens": 60,
+      "tool": { "call_id": 0, "name": "memory_search", "truncated": false, "full_output_path": null }
+    },
+    {
+      "role": "tool_call",
+      "content": "memory_read \"deploy-strategy\"",
+      "estimated_tokens": 8,
+      "tool": { "id": 1, "name": "memory_read", "args": { "name": "deploy-strategy", "source": "note" } }
+    },
+    {
+      "role": "tool_result",
+      "content": "memory_read:\n# Deployment strategy\n...(full text)... the decisive reason: blue-green gives us sub-second rollback...",
+      "estimated_tokens": 700,
+      "tool": { "call_id": 1, "name": "memory_read", "truncated": false, "full_output_path": null }
+    },
     { "role": "assistant", "content": "We use blue-green deployment. The decisive reason was sub-second rollback: traffic flips back instantly and the old environment stays warm.", "estimated_tokens": 80 }
   ],
   "compactions": [],
   "created_at": "2026-07-05T10:00:00Z",
   "updated_at": "2026-07-05T10:01:00Z",
+  "next_tool_call_id": 2,
+  "prompt": { "name": "code", "source": "built_in" },
   "total_input_tokens": 4200,
   "total_output_tokens": 380,
   "total_cost": 0.0182,

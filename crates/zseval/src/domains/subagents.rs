@@ -9,30 +9,28 @@
 //! root=..., project=...` on every open. The only evidence the `task` tool
 //! exists and ran at all is the harness's *generic* tool-call parsing —
 //! `tool_called task` / `tool_not_called task` already work with zero
-//! domain code, since `transcript::tool_calls_from_stdout` parses any
-//! `◈ {name} ...` marker regardless of name — plus a permission-checker
-//! debug line (`perm check: tool=task, input_len=N`) that fires
-//! identically for every tool, not task-specific.
+//! domain code, since `transcript::parse_str` turns every
+//! `tool_call`-role message's structured `tool` record into a `ToolCall`
+//! regardless of name — plus a permission-checker debug line
+//! (`perm check: tool=task, input_len=N`) that fires identically for every
+//! tool, not task-specific.
 //!
 //! Confirmed empirically (`zerostack -p --yolo --pure-stdout --log-level
 //! debug --no-context-files`, isolated ZS_DATA_DIR/ZS_CONFIG_DIR, a 2-file
 //! project, task "Use the task tool once to look up what functions are
 //! defined in this small project"):
-//!   - the `task` tool's *call* marker (`◈ task `) always has an EMPTY
-//!     summary — its args use a field name (`prompts`, plural, since a
-//!     single call can run several investigations in parallel) that
-//!     doesn't match any key in `format_tool_args_summary`'s priority list
-//!     (path/file_path/pattern/command/description/content/name/question/
-//!     prompt), so `tool_arg_contains task ...` can never usefully match.
-//!   - the subagent's *result* text does appear after a `◈ task result:`
-//!     line in stdout, but `tool_calls_from_stdout` explicitly skips every
-//!     line after a `{name} result:` marker (see transcript.rs's module
-//!     doc) — so that text never reaches an assert or the judge either.
+//!   - the `task` tool's *call* summary was EMPTY — its args use a field
+//!     name (`prompts`, plural, since a single call can run several
+//!     investigations in parallel) that matched no key in the summary
+//!     formatter's priority list, so `tool_arg_contains task ...` could
+//!     never usefully match. Upstream has since given `task` its own
+//!     summary branch (`ui::utils::format_task_summary` renders the
+//!     prompts), so re-check this before relying on it either way.
 //!   - the subagent's *own internal* tool calls (it read files, listed a
-//!     directory, etc. in the test run) appear as ordinary tool debug
-//!     lines in the trace log, completely indistinguishable from the main
-//!     agent's own direct tool calls — nothing tags them as belonging to a
-//!     subagent.
+//!     directory, etc. in the test run) were indistinguishable from the
+//!     main agent's own direct tool calls. Upstream PR #230 fixed this:
+//!     they are now recorded as `subagent_tool_call`-role messages, which
+//!     `transcript.rs` surfaces as `ToolCall { subagent: true }`.
 //!
 //! Net effect: there is no drift check to write. `verify` below is a
 //! deliberate no-op, not a stub — the honest state of the evidence as of
