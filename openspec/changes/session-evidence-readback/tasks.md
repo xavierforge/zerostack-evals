@@ -40,9 +40,9 @@ Vocabulary, fixed for this document:
 
 ## 2. Transcript reads prompt provenance (design D3) [dispatch: too-te, depends: 1, parallel: no, reason: one struct, one field, one last-wins rule, and three spec scenarios that name their own assertions]
 
-- [ ] 2.1 Write the failing tests first, one per session-evidence spec scenario: a session recording `prompt: { name, source }` exposes both on the `Transcript`; a `source` string that is neither `built_in` nor `user_file` is a schema `Err`; an absent `prompt` field parses as `None` rather than erroring. Cite red output.
-- [ ] 2.2 Add `RawPromptRef { name: String, source: String }` and `prompt: Option<RawPromptRef>` on `RawSession`, expose the readback on `Transcript`, and make `absorb` apply last-wins, matching both upstream's last-write-wins and `final_assistant`'s existing rule.
-- [ ] 2.3 Evidence: 2.1 green, `cargo test --workspace` green.
+- [x] 2.1 Write the failing tests first, one per session-evidence spec scenario: a session recording `prompt: { name, source }` exposes both on the `Transcript`; a `source` string that is neither `built_in` nor `user_file` is a schema `Err`; an absent `prompt` field parses as `None` rather than erroring. Cite red output.
+- [x] 2.2 Add `RawPromptRef { name: String, source: String }` and `prompt: Option<RawPromptRef>` on `RawSession`, expose the readback on `Transcript`, and make `absorb` apply last-wins, matching both upstream's last-write-wins and `final_assistant`'s existing rule.
+- [x] 2.3 Evidence: 2.1 green, `cargo test --workspace` green.
 
 ## 3. Runner maps, reconciles, cross-checks (design D3/D4/D5) [dispatch: sai-hu, depends: 2, parallel: no, reason: four mapping arms, a cross-check that must lose to the readback while still warning, and a reconciliation whose two failure cases (disagreement, all-absent) carry different messages; the spec constrains these but does not settle the shape]
 

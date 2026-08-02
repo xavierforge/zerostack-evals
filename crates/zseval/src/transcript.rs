@@ -54,6 +54,11 @@ struct RawSession {
     /// in headless mode today (see `Transcript::total_tokens`).
     #[serde(default)]
     total_estimated_tokens: u64,
+    /// The prompt active when the session was last saved (upstream's PR
+    /// #228, `session::Session::prompt`). Absent on sessions predating that
+    /// field, which must parse as `None`, not an error (design D3).
+    #[serde(default)]
+    prompt: Option<RawPromptRef>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -88,6 +93,17 @@ struct RawToolRecord {
     truncated: Option<bool>,
     /// `Result`: where an over-threshold tool output was spilled.
     full_output_path: Option<String>,
+}
+
+/// Mirror of upstream's `session::PromptRef`. `source` stays a raw `String`
+/// here rather than upstream's `PromptSource` enum, so an unrecognized value
+/// can be its own schema-`Err` step in `parse_str` (naming the session
+/// file), instead of the whole session failing to deserialize with a bare
+/// serde message (design D3).
+#[derive(Debug, Clone, Deserialize)]
+struct RawPromptRef {
+    name: String,
+    source: String,
 }
 
 /// One `$ZS_DATA_DIR/loops/<session-id>/iter-NNNN.json` record — the
@@ -127,6 +143,20 @@ pub struct ToolCall {
     pub subagent: bool,
 }
 
+/// The session's recorded prompt provenance (mirrors upstream's
+/// `session::PromptRef`, design D3): which prompt shaped the trial, and
+/// whether its content was the compiled-in default or a user file.
+/// `source` is upstream's own two-value vocabulary, `"built_in"` or
+/// `"user_file"`, already validated by `parse_str` — deliberately not this
+/// crate's four-value `verdict::PromptSource` report field. Vocabulary note
+/// (tasks.md): the bare word "source" never stands in for either on its
+/// own, so this type spells out that it is the readback, not the mapping.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecordedPrompt {
+    pub name: String,
+    pub source: String,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Transcript {
     pub messages: Vec<Msg>,
@@ -138,6 +168,11 @@ pub struct Transcript {
     /// zerostack's rough estimate, summed across sessions — see
     /// `total_tokens`'s fallback.
     pub estimated_tokens: u64,
+    /// The session's recorded prompt readback (design D3). `None` when the
+    /// session predates zerostack's PR #228, or the trial recorded no
+    /// prompt at all. `absorb` applies last-wins, matching both upstream's
+    /// own last-write-wins rule and `final_assistant`'s existing one.
+    pub prompt: Option<RecordedPrompt>,
 }
 
 impl Transcript {
@@ -152,6 +187,9 @@ impl Transcript {
         }
         if !other.final_assistant.is_empty() {
             self.final_assistant = other.final_assistant;
+        }
+        if other.prompt.is_some() {
+            self.prompt = other.prompt;
         }
         self.input_tokens += other.input_tokens;
         self.output_tokens += other.output_tokens;
@@ -318,11 +356,29 @@ pub fn parse_file(path: &Path) -> Result<Transcript> {
 
 pub fn parse_str(text: &str) -> Result<Transcript> {
     let raw: RawSession = serde_json::from_str(text).context("session schema mismatch")?;
+    // Readback is the value (design D3): an absent `prompt` is `None`, but a
+    // present one with an unrecognized `source` is a schema `Err` — upstream
+    // vocabulary drift stops the run rather than being guessed around.
+    let prompt = raw
+        .prompt
+        .map(|p| match p.source.as_str() {
+            "built_in" | "user_file" => Ok(RecordedPrompt {
+                name: p.name,
+                source: p.source,
+            }),
+            other => Err(anyhow!(
+                "session recorded prompt \"{}\" with unrecognized source '{other}' \
+                 (expected 'built_in' or 'user_file')",
+                p.name
+            )),
+        })
+        .transpose()?;
     let mut t = Transcript {
         input_tokens: raw.total_input_tokens,
         output_tokens: raw.total_output_tokens,
         cost_usd: raw.total_cost,
         estimated_tokens: raw.total_estimated_tokens,
+        prompt,
         ..Default::default()
     };
     for (i, m) in raw.messages.iter().enumerate() {
@@ -467,6 +523,77 @@ mod tool_record_tests {
             "the error must name the session file: {rendered}"
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+}
+
+#[cfg(test)]
+mod prompt_readback_tests {
+    use super::*;
+
+    /// spec `session-evidence`, "A recorded prompt is exposed".
+    #[test]
+    fn a_recorded_prompt_is_exposed() {
+        let t =
+            parse_str(r#"{"id":"s","messages":[],"prompt":{"name":"code","source":"built_in"}}"#)
+                .unwrap();
+        let prompt = t.prompt.expect("prompt readback must be present");
+        assert_eq!(prompt.name, "code");
+        assert_eq!(prompt.source, "built_in");
+    }
+
+    /// spec `session-evidence`, "An absent prompt field is exposed as
+    /// absent" — a session predating PR #228 must parse, not error.
+    #[test]
+    fn an_absent_prompt_field_is_exposed_as_absent() {
+        let t = parse_str(r#"{"id":"s","messages":[]}"#).unwrap();
+        assert!(t.prompt.is_none());
+    }
+
+    /// spec `session-evidence`, "An unrecognized source is a schema error".
+    #[test]
+    fn an_unrecognized_source_is_a_schema_error() {
+        let dir = std::env::temp_dir().join(format!("zseval-badsource-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let session = dir.join("bad-source.json");
+        std::fs::write(
+            &session,
+            r#"{"id":"s","messages":[],"prompt":{"name":"code","source":"global_file"}}"#,
+        )
+        .unwrap();
+        let err = parse_file(&session).unwrap_err();
+        let rendered = format!("{err:#}");
+        assert!(
+            rendered.contains("bad-source.json"),
+            "the error must name the session file: {rendered}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// design D3: `absorb` applies last-wins, matching `final_assistant`'s
+    /// existing rule — a later session with no `prompt` field must not
+    /// erase an earlier session's readback, but a later session that does
+    /// carry one overrides.
+    #[test]
+    fn absorb_applies_last_wins_but_keeps_earlier_when_later_has_none() {
+        let mut t =
+            parse_str(r#"{"id":"a","messages":[],"prompt":{"name":"ask","source":"built_in"}}"#)
+                .unwrap();
+
+        let with_no_prompt = parse_str(r#"{"id":"b","messages":[]}"#).unwrap();
+        t.absorb(with_no_prompt);
+        assert_eq!(
+            t.prompt.as_ref().map(|p| p.name.as_str()),
+            Some("ask"),
+            "a later session with no prompt field must not erase the earlier readback"
+        );
+
+        let switched =
+            parse_str(r#"{"id":"c","messages":[],"prompt":{"name":"code","source":"user_file"}}"#)
+                .unwrap();
+        t.absorb(switched);
+        let prompt = t.prompt.as_ref().expect("prompt must still be present");
+        assert_eq!(prompt.name, "code");
+        assert_eq!(prompt.source, "user_file");
     }
 }
 
