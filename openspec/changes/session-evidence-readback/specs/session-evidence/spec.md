@@ -56,6 +56,16 @@ The scenario assert vocabulary SHALL include `prompt_recorded <name> <built_in|u
 
 The shipped suite SHALL include, under `scenarios/session/` and registered in the coverage ledger, one scenario whose passing proves headless sessions carry tool records (a trivial tool task asserted with `tool_called_any`) and one whose passing proves sessions carry the prompt field (a bare run asserted with `prompt_recorded code built_in`). The tool-side pin SHALL NOT name a specific tool: which tool the model picks to satisfy the task is not itself a claim this scenario makes, only that some tool call was recorded. These exist so an upstream regression of either channel fails a named scenario instead of silently emptying every report's evidence.
 
+A pin that asserts `prompt_recorded <name> built_in` observes the compiled-in default, so a run whose `--prompts` pack provides that same `<name>` has replaced the very thing the pin exists to watch: the harness seeds the pack into every trial of every scenario, including scenarios that declare no prompt of their own. The run SHALL detect that collision before spending anything on the scenario's trials, SHALL record the scenario as ungradable with no trials run, and SHALL say on stderr which prompt name the pack shadowed. It SHALL NOT grade the pin as a failure: a red regression scenario there would report the harness's own seeding as a product regression, which is the same defect — a pin making a claim about something other than the evidence channel — that made the tool-side pin stop naming a tool. The mirror case is deliberately not covered: a `prompt_recorded <name> user_file` assert with no pack in play is a run invoked wrongly, and its failure is the honest signal that the pack never loaded.
+
+#### Scenario: A pack shadowing the built-in makes the prompt pin ungradable
+- **WHEN** a run passes `--prompts <dir>` where `<dir>` provides `code.md`, and the suite contains the prompt regression scenario asserting `prompt_recorded code built_in`
+- **THEN** that scenario runs no trials, is recorded as ungradable rather than failed, and the run names the shadowed prompt on stderr
+
+#### Scenario: A pack that shadows nothing leaves the pin alone
+- **WHEN** a run passes `--prompts <dir>` where `<dir>` provides only names the prompt regression scenario does not resolve
+- **THEN** that scenario runs its trials and grades normally
+
 #### Scenario: The tool-record channel regression is detectable
 - **WHEN** a `ZS_BIN` that stops writing tool records runs the tool-record regression scenario
 - **THEN** the trial grades Indeterminate or fails its `tool_called_any` assert, rather than passing

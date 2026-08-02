@@ -347,10 +347,13 @@ prompt of that name, so a one-file pack overrides only that one prompt. A
 pack that ships `code.md` reaches further than the scenarios that declare
 `prompt = "code"`, though: a scenario that declares no prompt at all falls
 back to the target's `default_prompt`, or to `code` when that's unset too, so
-it changes as well. `report.json` records each scenario's `prompt_source`
-(`pack` / `stock` / `scenario` / `unknown`), read back from the session's own
-record of the prompt it loaded, so which prompt actually applied is never a
-guess.
+it changes as well. A scenario asserting `prompt_recorded <name> built_in` is
+watching the very built-in such a pack replaces, so the run skips it instead
+of grading it: it spends no trials, records the scenario as ungradable, and
+says on stderr which prompt the pack shadowed. `report.json` records each
+scenario's `prompt_source` (`pack` / `stock` / `scenario` / `unknown`), read
+back from the session's own record of the prompt it loaded, so which prompt
+actually applied is never a guess.
 
 `examples/prompt-pack/` is a minimal pack plus a scenario that only passes
 when the pack, not the built-in `code` prompt, is what the run loaded: copy
