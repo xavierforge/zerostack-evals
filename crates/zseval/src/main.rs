@@ -626,6 +626,10 @@ fn print_run_report_summaries(
 
     if multi {
         let report_refs: Vec<&Report> = reports.iter().collect();
+        // No pre-validation here (unlike `cmd_matrix`): these reports all come
+        // from this run's own targets, so a column can't be target-less and the
+        // scenario list is shared — `matrix::build`'s caller-side invariants
+        // hold by construction.
         let m = zseval::matrix::build(&report_refs);
         writeln!(err, "\n{}", zseval::matrix::render_fixed_width(&m))?;
     }
