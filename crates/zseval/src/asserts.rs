@@ -188,6 +188,9 @@ impl Assert {
             ),
             "prompt_recorded" => {
                 let (name, source) = split1(rest)?;
+                if source != "built_in" && source != "user_file" {
+                    bail!("prompt_recorded: bad source '{source}', want 'built_in' or 'user_file'");
+                }
                 Assert::PromptRecorded { name, source }
             }
             "file_contains" => {
@@ -658,6 +661,25 @@ mod tests {
             .eval(&t, &roots);
         assert!(!r.pass, "{}", r.detail);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Upstream's `prompt.source` vocabulary is closed to `built_in` and
+    /// `user_file` (`transcript.rs`); a typo'd operand here must be rejected
+    /// at parse time rather than loading clean and then failing every trial
+    /// forever, same posture as the neighbouring arms (`CmpOp::parse`,
+    /// `tool_called_any`'s trailing-token check).
+    #[test]
+    fn prompt_recorded_rejects_a_source_outside_the_closed_vocabulary() {
+        let err = Assert::parse("prompt_recorded code builtin").unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("built_in"), "{msg}");
+        assert!(msg.contains("user_file"), "{msg}");
+    }
+
+    #[test]
+    fn prompt_recorded_accepts_both_spellings_in_the_closed_vocabulary() {
+        Assert::parse("prompt_recorded code built_in").unwrap();
+        Assert::parse("prompt_recorded code user_file").unwrap();
     }
 
     // spec `session-evidence`, "Regression scenarios pin both channels"
