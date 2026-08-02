@@ -27,6 +27,7 @@ use serde::Serialize;
 
 use crate::scenario::Kind;
 use crate::site::Page;
+use crate::util::round4;
 use crate::verdict::{Report, ScenarioResult};
 
 /// One scenario's outcome in one column. Never a bare `f64` — see the module
@@ -486,10 +487,6 @@ fn multi_variable_flags(reports: &[&Report]) -> Vec<bool> {
             })
         })
         .collect()
-}
-
-fn round4(x: f64) -> f64 {
-    (x * 10_000.0).round() / 10_000.0
 }
 
 fn format_cell(c: Cell) -> String {

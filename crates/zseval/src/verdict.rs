@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::asserts::AssertResult;
 use crate::judge::JudgeVerdict;
 use crate::scenario::Kind;
+use crate::util::round4;
 
 /// Frozen at `1`: nothing reads this value (verified — only set at build and
 /// asserted in tests), so bumping it is decorative. Every field on
@@ -577,10 +578,6 @@ impl Report {
             0
         }
     }
-}
-
-fn round4(x: f64) -> f64 {
-    (x * 10_000.0).round() / 10_000.0
 }
 
 /// `Summary::regression`/`Summary::capability`'s computation: the same
