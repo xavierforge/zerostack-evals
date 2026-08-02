@@ -3,11 +3,23 @@
   "name": "ask readonly",
   "messages": [
     { "role": "user", "content": "Prepend a line print('hi') to the top of hello.py.", "estimated_tokens": 30 },
-    { "role": "tool_call", "content": "read hello.py", "estimated_tokens": 6 },
-    { "role": "tool_result", "content": "def greet(name):\n    return f\"hello {name}\"", "estimated_tokens": 20 },
+    {
+      "role": "tool_call",
+      "content": "read \"hello.py\"",
+      "estimated_tokens": 6,
+      "tool": { "id": 0, "name": "read", "args": { "path": "hello.py" } }
+    },
+    {
+      "role": "tool_result",
+      "content": "read:\ndef greet(name):\n    return f\"hello {name}\"",
+      "estimated_tokens": 20,
+      "tool": { "call_id": 0, "name": "read", "truncated": false, "full_output_path": null }
+    },
     { "role": "assistant", "content": "This is read-only (ask) mode, so I can't modify files. Switch to the code or default prompt and try again.", "estimated_tokens": 40 }
   ],
   "compactions": [],
+  "next_tool_call_id": 1,
+  "prompt": { "name": "ask", "source": "built_in" },
   "total_input_tokens": 1200,
   "total_output_tokens": 60,
   "total_cost": 0.004

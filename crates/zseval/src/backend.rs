@@ -844,24 +844,29 @@ mod mock_trial_dir_tests {
     use super::*;
 
     #[test]
-    fn mock_replays_a_captured_trial_dir_including_stdout_tool_calls() {
-        // Production evidence for tool calls in headless mode is always
-        // `--pure-stdout` markers, never the session JSON (see
-        // transcript.rs's module doc) — a mock fixture that only writes
-        // tool_call messages into session JSON never exercises that real
-        // path. Pointing Mock at a directory (a previously captured trial
-        // dir) replays both channels exactly as a real run produced them.
+    fn mock_replays_a_captured_trial_dir_including_its_turn_logs() {
+        // Pointing Mock at a directory (a previously captured trial dir)
+        // replays the session files *and* republishes the turn logs, so a
+        // replayed trial's artifacts look like the run that produced them.
+        // The extra `◈ write` marker in the stdout log is the check that
+        // those logs stay decorative: tool-call evidence comes from the
+        // session's `tool` records only (see transcript.rs's module doc).
         let fixture_dir =
             std::env::temp_dir().join(format!("zseval-mockdir-fixture-{}", std::process::id()));
         std::fs::create_dir_all(fixture_dir.join("data/sessions")).unwrap();
         std::fs::write(
             fixture_dir.join("data/sessions/s.json"),
-            r#"{"id":"s","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"done"}],"total_input_tokens":1,"total_output_tokens":1,"total_cost":0.001}"#,
+            r#"{"id":"s","messages":[
+                {"role":"user","content":"hi"},
+                {"role":"tool_call","content":"bash ls","tool":{"id":0,"name":"bash","args":{"command":"ls"}}},
+                {"role":"tool_result","content":"bash:\nfile.txt","tool":{"call_id":0,"name":"bash","truncated":false,"full_output_path":null}},
+                {"role":"assistant","content":"done"}
+            ],"total_input_tokens":1,"total_output_tokens":1,"total_cost":0.001}"#,
         )
         .unwrap();
         std::fs::write(
             fixture_dir.join("turn-0.stdout"),
-            "◈ bash ls\n◈ bash result:\nfile.txt\n",
+            "◈ bash ls\n◈ bash result:\nfile.txt\n◈ write not-evidence\n",
         )
         .unwrap();
 
