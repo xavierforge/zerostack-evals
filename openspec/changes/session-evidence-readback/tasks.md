@@ -53,7 +53,7 @@ Vocabulary, fixed for this document:
 
 ## 4. Backend doc posture (design D2) [dispatch: too-te, depends: 1, parallel: no, reason: two doc blocks, and the sentence that must go is quoted below]
 
-- [ ] 4.1 Rewrite `backend.rs`'s module doc and the tool-call comment at the artifact-collection site. The claim that has to go is that `--pure-stdout` is "the only channel that reveals tool calls at all in headless mode": after section 1 it is false, and it invites the next reader to parse markers again. The replacement says the session JSON is the evidence channel and `turn-N.stdout` is a human-facing artifact. `--pure-stdout` keeps being passed and the capture keeps happening; only the rationale changes. Evidence: a grep showing the old sentence is gone, and `cargo test --workspace` green.
+- [x] 4.1 Rewrite `backend.rs`'s module doc and the tool-call comment at the artifact-collection site. The claim that has to go is that `--pure-stdout` is "the only channel that reveals tool calls at all in headless mode": after section 1 it is false, and it invites the next reader to parse markers again. The replacement says the session JSON is the evidence channel and `turn-N.stdout` is a human-facing artifact. `--pure-stdout` keeps being passed and the capture keeps happening; only the rationale changes. Evidence: a grep showing the old sentence is gone, and `cargo test --workspace` green.
 
 ## 5. The `prompt_recorded` assert (design D6) [dispatch: too-te, depends: 2, parallel: no, reason: one assert added to an existing DSL with its neighbours to copy]
 
