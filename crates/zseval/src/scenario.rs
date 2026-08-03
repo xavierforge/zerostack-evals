@@ -18,6 +18,7 @@
 //! by only that `scenario.toml`, or in a suite dir above if shared across it
 //! (e.g. `scenarios/prompts/_fixtures/hello.py` serves every prompt scenario).
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
@@ -383,12 +384,32 @@ impl Scenario {
 /// file a "fix the syntax error in this config" task hands the agent — and
 /// reading a payload as a nested scenario would take the whole tree down over
 /// one fixture's file name.
+///
+/// Arriving at a directory twice is refused on the same grounds. The walk
+/// follows symlinks, so a link pointing back at an ancestor grows the path one
+/// component per lap and is walked until memory or the filesystem's path limit
+/// gives out, by which point the error names neither the link nor the loop; and
+/// two paths onto one directory count every scenario below it twice, which
+/// surfaces as a duplicate id or a doubled run rather than as the link it came
+/// from. So the canonical path of every directory walked is kept, and a second
+/// arrival at one is named rather than skipped — a symlink into a directory the
+/// walk has not seen is a legitimate way to assemble a tree and keeps working,
+/// which is exactly what makes the repeat worth saying out loud.
 pub fn discover(root: &Path) -> Result<Vec<Scenario>> {
     let mut out = Vec::new();
     if root.join("scenario.toml").is_file() {
         out.push(Scenario::load(root)?);
         return Ok(out);
     }
+    // Every directory this walk has entered, by resolved path, so a link back
+    // into the tree is a refusal instead of a lap. The root counts as walked
+    // before the first entry is read: a link straight back at it is a cycle
+    // like any other.
+    let mut walked: HashSet<PathBuf> = HashSet::new();
+    walked.insert(
+        std::fs::canonicalize(root)
+            .with_context(|| format!("resolve scenario directory {}", root.display()))?,
+    );
     // Each entry is a directory to walk, paired with the scenario directory
     // containing it, if any. A scenario directory is still walked — that is what
     // makes a nested scenario findable rather than invisible.
@@ -404,6 +425,17 @@ pub fn discover(root: &Path) -> Result<Vec<Scenario>> {
             }
             if p.file_name().is_some_and(|name| name == FIXTURES_DIR) {
                 continue;
+            }
+            let real = std::fs::canonicalize(&p)
+                .with_context(|| format!("resolve scenario directory {}", p.display()))?;
+            if !walked.insert(real.clone()) {
+                bail!(
+                    "{} resolves to {}, which this walk has already entered — a link back at an \
+                     ancestor is walked forever, and two paths onto one scenario count it twice, \
+                     so the walk names the link here instead of continuing into either",
+                    p.display(),
+                    real.display()
+                );
             }
             if p.join("scenario.toml").is_file() {
                 if let Some(outer) = &inside {

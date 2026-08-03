@@ -1173,6 +1173,90 @@ fn discover_walks_a_scenario_directory_without_counting_its_fixtures() {
     );
 }
 
+/// The walk decides what to descend into with `is_dir`, which follows
+/// symlinks, so a link pointing back at an ancestor used to be walked as a
+/// fresh directory every lap: the path grows a component at a time until memory
+/// or the filesystem's path limit gives out, and whatever error arrives then
+/// mentions no symlink at all. It has to stop at the second arrival and name
+/// both ends of the link, since the tree is what needs fixing.
+#[cfg(unix)]
+#[test]
+fn discover_refuses_a_symlink_that_points_back_at_an_ancestor() {
+    let root = std::env::temp_dir().join(format!("zseval-test-sc-cycle-{}", std::process::id()));
+    let deep = root.join("group").join("deeper");
+    std::fs::create_dir_all(&deep).unwrap();
+    std::os::unix::fs::symlink(root.join("group"), deep.join("loop")).unwrap();
+    let ancestor = std::fs::canonicalize(root.join("group")).unwrap();
+
+    let err = discover(&root).unwrap_err();
+    std::fs::remove_dir_all(&root).ok();
+    let msg = format!("{err:#}");
+    // The link as the walk arrived at it, and the ancestor it lands on.
+    assert!(msg.contains("deeper/loop"), "{msg}");
+    assert!(msg.contains(&ancestor.display().to_string()), "{msg}");
+}
+
+/// The other reading of the same guard, and the reason a revisit cannot be a
+/// silent skip either: two paths onto one scenario directory would load it
+/// twice, which arrives downstream as a duplicate scenario id or a scenario run
+/// twice, blaming a healthy scenario for the shape of the tree.
+#[cfg(unix)]
+#[test]
+fn discover_refuses_two_paths_that_reach_one_scenario() {
+    let base = std::env::temp_dir().join(format!("zseval-test-sc-diamond-{}", std::process::id()));
+    let root = base.join("suite");
+    let sc = base.join("kept");
+    std::fs::create_dir_all(root.join("group")).unwrap();
+    std::fs::create_dir_all(&sc).unwrap();
+    std::fs::write(
+        sc.join("scenario.toml"),
+        "id = \"kept\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = [\"tool_not_called write\"]\n",
+    )
+    .unwrap();
+    std::os::unix::fs::symlink(&sc, root.join("group").join("first")).unwrap();
+    std::os::unix::fs::symlink(&sc, root.join("group").join("second")).unwrap();
+    let scenario_dir = std::fs::canonicalize(&sc).unwrap();
+
+    let err = discover(&root).unwrap_err();
+    std::fs::remove_dir_all(&base).ok();
+    let msg = format!("{err:#}");
+    // Whichever link the walk reaches second is the one it names; both land on
+    // the one scenario directory, which is the half that must always be there.
+    assert!(msg.contains(&scenario_dir.display().to_string()), "{msg}");
+    assert!(
+        msg.contains("group/first") || msg.contains("group/second"),
+        "{msg}"
+    );
+}
+
+/// And the case the guard must not cost: one symlink into a directory the walk
+/// has not otherwise seen is a legitimate way to assemble a suite out of
+/// scenarios kept elsewhere, so it still discovers the scenario behind it.
+/// Refusing symlinked directories outright would have been the cheaper fix and
+/// would have broken this.
+#[cfg(unix)]
+#[test]
+fn discover_follows_a_symlink_to_a_scenario_outside_the_walked_root() {
+    let base = std::env::temp_dir().join(format!("zseval-test-sc-linkout-{}", std::process::id()));
+    let root = base.join("suite");
+    let elsewhere = base.join("elsewhere").join("kept");
+    std::fs::create_dir_all(root.join("group")).unwrap();
+    std::fs::create_dir_all(&elsewhere).unwrap();
+    std::fs::write(
+        elsewhere.join("scenario.toml"),
+        "id = \"kept\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = [\"tool_not_called write\"]\n",
+    )
+    .unwrap();
+    std::os::unix::fs::symlink(&elsewhere, root.join("group").join("linked")).unwrap();
+
+    let found = discover(&root).unwrap();
+    std::fs::remove_dir_all(&base).ok();
+    assert_eq!(
+        found.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+        ["kept"]
+    );
+}
+
 #[test]
 fn the_committed_suite_is_31_regression_and_13_capability() {
     // The adjudicated in-tree classification (scenario-kind spec table): the
