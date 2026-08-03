@@ -15,7 +15,9 @@
 //!     why a hanging API retry looks silent — the real story is in the
 //!     trace log, so we capture one per turn (`turn-N.zslog`).
 //!   - Isolation via `ZS_DATA_DIR` / `ZS_CONFIG_DIR` env overrides
-//!     (`src/session/storage.rs`), quorum-style throwaway home per run.
+//!     (`src/session/storage.rs`), quorum-style throwaway home per run, plus
+//!     `GIT_CEILING_DIRECTORIES` so a git the agent runs can never walk up out
+//!     of the trial and find the harness's own checkout (see `git_ceiling`).
 //!
 //! Environment seeding is delegated entirely to `crate::seed` (generic file
 //! placements). This file stays subsystem-agnostic — it only knows how to
@@ -464,6 +466,43 @@ struct RunDirs<'a> {
     home: &'a Path,
 }
 
+impl RunDirs<'_> {
+    /// Point one invocation at this trial: cwd, the four isolation env vars,
+    /// and the git ceiling. Shared by both spawn shapes because every line of
+    /// it is about *where* the child can reach, and that must not differ
+    /// between `-p` and `--loop` — a hole in either shape is a hole in the
+    /// harness.
+    fn confine(&self, cmd: &mut Command) {
+        cmd.current_dir(self.work)
+            .env("ZS_DATA_DIR", self.data)
+            .env("ZS_CONFIG_DIR", self.config)
+            .env("TMPDIR", self.tmp)
+            .env("HOME", self.home)
+            .env("GIT_CEILING_DIRECTORIES", git_ceiling(self.run_dir));
+    }
+}
+
+/// The `GIT_CEILING_DIRECTORIES` value confining every git the agent runs:
+/// the trial's own run dir.
+///
+/// git finds a repository by walking up from the working directory until it
+/// hits a `.git`, and it does not chdir up *into* a ceiling entry. Naming the
+/// run dir therefore stops the walk at `work/`'s parent: a repo the scenario
+/// seeded anywhere inside `work/` is still found, while the harness's own
+/// checkout above it — which an agent running `git commit` under `--yolo`
+/// otherwise discovers and commits into, as one has — is unreachable.
+///
+/// Canonicalized because git resolves the entries and compares them against
+/// the resolved working directory: on macOS a run dir under `/tmp` is really
+/// `/private/tmp`, and an unresolved entry would simply never match, leaving
+/// the barrier silently absent. A path that cannot be canonicalized (it should
+/// exist — `ZsCli::run` created it) falls back to the raw one rather than
+/// dropping the variable: a ceiling that fails to match is exactly as
+/// permissive as no ceiling at all, so there is nothing to lose by setting it.
+fn git_ceiling(run_dir: &Path) -> PathBuf {
+    std::fs::canonicalize(run_dir).unwrap_or_else(|_| run_dir.to_path_buf())
+}
+
 impl ZsCli {
     /// `mode = "print"` (default): the per-turn `-p`/`--continue` loop —
     /// unchanged behavior from before `mode`/`loop` existed, just relocated
@@ -516,11 +555,7 @@ impl ZsCli {
                 cmd.arg("--continue");
             }
             cmd.arg(turn.msg());
-            cmd.current_dir(d.work)
-                .env("ZS_DATA_DIR", d.data)
-                .env("ZS_CONFIG_DIR", d.config)
-                .env("TMPDIR", d.tmp)
-                .env("HOME", d.home);
+            d.confine(&mut cmd);
 
             spawn_and_wait(
                 cmd,
@@ -598,11 +633,7 @@ impl ZsCli {
             cmd.arg("--load-prompt").arg(name);
         }
         cmd.arg(turn.msg());
-        cmd.current_dir(d.work)
-            .env("ZS_DATA_DIR", d.data)
-            .env("ZS_CONFIG_DIR", d.config)
-            .env("TMPDIR", d.tmp)
-            .env("HOME", d.home);
+        d.confine(&mut cmd);
 
         spawn_and_wait(
             cmd,
@@ -944,6 +975,135 @@ mod turn_artifacts_tests {
     #[test]
     fn discover_turn_artifacts_on_missing_dir_is_empty() {
         assert!(discover_turn_artifacts(Path::new("/no/such/run-dir")).is_empty());
+    }
+}
+
+/// The git barrier: an agent under `--yolo` runs whatever git it likes, and
+/// git's upward repository discovery is what turned a `git commit` inside a
+/// trial into a commit in the harness's own checkout.
+#[cfg(test)]
+mod git_ceiling_tests {
+    use super::*;
+
+    fn dirs(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("zseval-ceiling-{name}-{}", std::process::id()));
+        std::fs::remove_dir_all(&d).ok();
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    fn git(cwd: &Path, args: &[&str]) -> std::process::Output {
+        Command::new("git")
+            .args(args)
+            .current_dir(cwd)
+            .output()
+            .expect("git must be installed to exercise the discovery barrier")
+    }
+
+    /// Both spawn shapes go through `confine`, so the barrier is checked once
+    /// on the shared helper: cwd is the work dir, and the ceiling is the
+    /// trial's run dir with every symlink resolved (the form git compares
+    /// against).
+    #[test]
+    fn confine_sets_the_ceiling_to_the_canonical_run_dir() {
+        let run_dir = dirs("confine");
+        let work = run_dir.join("work");
+        std::fs::create_dir_all(&work).unwrap();
+        let d = RunDirs {
+            run_dir: &run_dir,
+            data: &run_dir.join("data"),
+            config: &run_dir.join("config"),
+            work: &work,
+            tmp: &run_dir.join("tmp"),
+            home: &run_dir.join("home"),
+        };
+
+        let mut cmd = Command::new("/bin/true");
+        d.confine(&mut cmd);
+
+        let ceiling = cmd
+            .get_envs()
+            .find(|(k, _)| *k == "GIT_CEILING_DIRECTORIES")
+            .and_then(|(_, v)| v)
+            .expect("every invocation carries the ceiling");
+        assert_eq!(Path::new(ceiling), std::fs::canonicalize(&run_dir).unwrap());
+        assert_eq!(cmd.get_current_dir(), Some(work.as_path()));
+        std::fs::remove_dir_all(&run_dir).ok();
+    }
+
+    /// End to end through `ZsCli::run`, with the trial placed *inside* a git
+    /// repository — the shape the harness itself runs in. A repo seeded inside
+    /// the trial stays discoverable; the one above the trial does not.
+    #[test]
+    fn git_inside_a_trial_cannot_discover_the_repo_above_it() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let base = dirs("end-to-end");
+        let outer = base.join("harness-repo");
+        std::fs::create_dir_all(&outer).unwrap();
+        assert!(git(&outer, &["init", "-q"]).status.success());
+
+        // The trial dir sits under that repo, exactly as `results/<tag>/...`
+        // sits under the harness checkout.
+        let run_dir = outer.join("results/tag/sc/trial-0");
+        std::fs::create_dir_all(run_dir.join("work/inner-repo")).unwrap();
+        assert!(git(&run_dir.join("work/inner-repo"), &["init", "-q"])
+            .status
+            .success());
+
+        let bin = base.join("fake-zs");
+        std::fs::write(
+            &bin,
+            "#!/usr/bin/env bash\n\
+             set -uo pipefail\n\
+             if [ \"${1:-}\" = \"--version\" ]; then echo 'zerostack 0.0.0-stub'; exit 0; fi\n\
+             printf '%s' \"${GIT_CEILING_DIRECTORIES:-<unset>}\" > \"$ZS_DATA_DIR/ceiling\"\n\
+             git rev-parse --show-toplevel > \"$ZS_DATA_DIR/above\" 2>&1\n\
+             (cd inner-repo && git rev-parse --show-toplevel) > \"$ZS_DATA_DIR/inside\" 2>&1\n\
+             mkdir -p \"$ZS_DATA_DIR/sessions\"\n\
+             printf '{\"id\":\"s\",\"messages\":[{\"role\":\"assistant\",\"content\":\"done\"}]}' \
+             > \"$ZS_DATA_DIR/sessions/s.json\"\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let sc_dir = base.join("scenario");
+        std::fs::create_dir_all(&sc_dir).unwrap();
+        std::fs::write(
+            sc_dir.join("scenario.toml"),
+            "id = \"ceiling\"\nkind = \"regression\"\ntask = \"go\"\n\
+             expect = [\"final_contains done\"]\n",
+        )
+        .unwrap();
+        let sc = crate::scenario::Scenario::load(&sc_dir).unwrap();
+
+        ZsCli {
+            bin,
+            target: None,
+            prompts: None,
+        }
+        .run(&sc, &run_dir)
+        .unwrap();
+
+        let canonical_run_dir = std::fs::canonicalize(&run_dir).unwrap();
+        let read = |name: &str| std::fs::read_to_string(run_dir.join("data").join(name)).unwrap();
+        assert_eq!(Path::new(&read("ceiling")), canonical_run_dir);
+
+        let above = read("above");
+        assert!(
+            !above.contains(&std::fs::canonicalize(&outer).unwrap().display().to_string()),
+            "git walked out of the trial and found the repo above it: {above}"
+        );
+        assert_eq!(
+            read("inside").trim(),
+            std::fs::canonicalize(run_dir.join("work/inner-repo"))
+                .unwrap()
+                .display()
+                .to_string(),
+            "a repo seeded inside the trial must still be discoverable"
+        );
+
+        std::fs::remove_dir_all(&base).ok();
     }
 }
 
