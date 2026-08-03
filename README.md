@@ -394,10 +394,12 @@ feature (in `default` features as of this writing).
 ## Iterating on prompts
 
 The CLI is the whole interface; exit codes are the contract (0 = pass / no
-regression, 1 = fail / regression, 2 = harness error) and every subcommand
-takes `--json`. `matrix` and `site` are views rather than gates, so neither
-has an exit 1: a low pass rate is something they display, never something
-they judge.
+regression, 1 = fail / regression, 2 = harness error), and every subcommand
+whose output machines consume takes `--json`: `run`, `compare`, `regrade`,
+`matrix`, and `site`. `explain` and `list` are human-readable inspection
+aids and deliberately have no JSON form. `matrix` and `site` are views
+rather than gates, so neither has an exit 1: a low pass rate is something
+they display, never something they judge.
 
 Changing a prompt no longer means editing zerostack's own checkout and
 rebuilding it. `run --prompts <dir>` seeds a directory of your own prompt

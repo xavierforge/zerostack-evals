@@ -1,6 +1,7 @@
 //! zseval — eval harness CLI for zerostack agents.
 //!
-//! Every subcommand supports `--json`; exit codes are the machine contract:
+//! Every machine-consumed subcommand supports `--json` (`explain` and `list`
+//! are human-only); exit codes are the machine contract:
 //!   0 = pass / no regression
 //!   1 = fail / regression
 //!   2 = usage or harness error

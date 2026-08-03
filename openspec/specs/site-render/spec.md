@@ -24,7 +24,7 @@ The ledger SHALL be read from `scenarios/coverage.toml` relative to the reposito
 - **THEN** the command fails naming the path, and writes no partial page
 
 ### Requirement: `site` supports `--json`, which emits the page model
-`site` SHALL support `--json`, emitting the page model to stdout: the header's read-back fields, the coverage rows with their marks, and the matrix model. This preserves the repo-wide invariant that every subcommand takes `--json`, and it carries the same meaning it carries for `matrix`: machines read the model, never the rendered form. `--json` SHALL NOT replace `--out`; both may be given, and `--out` is required either way.
+`site` SHALL support `--json`, emitting the page model to stdout: the header's read-back fields, the coverage rows with their marks, and the matrix model. This preserves the convention that every subcommand whose output machines consume takes `--json` (`explain` and `list`, human-readable inspection aids, are the deliberate exceptions), and it carries the same meaning it carries for `matrix`: machines read the model, never the rendered form. `--json` SHALL NOT replace `--out`; both may be given, and `--out` is required either way.
 
 #### Scenario: The model is available without parsing HTML
 - **WHEN** `site` is invoked with `--json`

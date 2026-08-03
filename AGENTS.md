@@ -1,7 +1,8 @@
 # AGENTS.md — working on / with this harness
 
 This repo evaluates zerostack agent behaviour. The CLI is the whole interface:
-every subcommand takes `--json`, and exit codes are the contract
+every machine-consumed subcommand takes `--json` (`explain` and `list` are
+human-only inspection aids), and exit codes are the contract
 (0 = pass / no regression, 1 = fail / regression, 2 = harness error).
 
 ## Iterating on a prompt
