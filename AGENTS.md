@@ -22,7 +22,8 @@ human-only inspection aids), and exit codes are the contract
      environment before drawing any conclusion from the numbers.
    - lots of indeterminate (but not all) → fix the environment/schema first,
      not the prompt. Indeterminate scenarios are excluded from the pass rates
-     and are never counted as regressions.
+     and are never counted as regressions (the README's "Core concepts" is the
+     authoritative definition of the three verdicts).
 
 Tightened or fixed an assert on a scenario you already have trial artifacts
 for? `zseval regrade <scenario-dir> <trial-dir> --no-judge` re-scores the
@@ -104,7 +105,15 @@ when unknown, never the configured model echoed back) — see `judges/README.md`
   `--all-features` build from a mainline carrying PR #230 (tool records) and
   PR #228 (the prompt record). Older binaries grade tool scenarios
   *indeterminate* and report `prompt_source: "unknown"` with a warning naming
-  the rebuild, rather than silently reporting an agent that used no tools.
+  the rebuild, rather than silently reporting an agent that used no tools
+  (`docs/evidence-and-reports.md`).
+- **Indeterminate is not a soft fail**, and this is the one distinction worth
+  re-reading before drawing a conclusion from a run: it says the evidence or
+  the environment broke (backend error, schema drift, a stale domain snapshot,
+  the run's own inputs changing mid-flight), so the trial is excluded from the
+  rate denominators and never counted as a regression. The README's "Core
+  concepts" is the authoritative definition; treat a run full of them as a
+  broken measurement to fix, not a score to report.
 - `zseval compare` also warns when tool-call evidence drops to zero on the
   candidate (`⚠ tool-call evidence dropped to zero`). A `tool_not_called`-only
   scenario passes vacuously if the evidence channel itself breaks — that's
@@ -115,9 +124,10 @@ when unknown, never the configured model echoed back) — see `judges/README.md`
 - `zseval compare` also warns when a shared scenario's own definition changed
   (`⚠ scenario definition changed`) or when baseline and candidate were
   evaluated against different providers/models (`⚠ comparing different
-  targets`) — see the README's "What a report identifies" section. Neither
-  flips the exit code by itself, but both mean the pass-rate diff above may
-  not be the apples-to-apples comparison it looks like.
+  targets`) — see the README's "What a report identifies" section, and
+  `docs/evidence-and-reports.md` for the full warning taxonomy. Neither flips
+  the exit code by itself, but both mean the pass-rate diff above may not be
+  the apples-to-apples comparison it looks like.
 - The default `--threshold 0.05` assumes finer resolution than a low trial
   count can actually produce: with 3 trials, pass rate only moves in steps of
   1/3 ≈ 0.333, so *any* single trial flipping outcome already reads as a
@@ -130,8 +140,8 @@ when unknown, never the configured model echoed back) — see `judges/README.md`
 ## Subsystems beyond prompts
 
 Memory evals (`scenarios/memory/`) are live, backed by the
-`crates/zseval/src/domains/memory.rs` module — see the README's "Evaluating
-another subsystem" section for how that quarantine works and why a stale
+`crates/zseval/src/domains/memory.rs` module — see `scenarios/README.md`'s
+"Evaluating another subsystem" for how that quarantine works and why a stale
 snapshot of zerostack's internals grades Indeterminate instead of Fail.
 Subagent evals (`scenarios/subagents/`) are also live, backed by
 `crates/zseval/src/domains/subagents.rs` — a leaner variant of the same

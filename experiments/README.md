@@ -4,7 +4,8 @@ Committed, dated snapshots of a `zseval matrix` table: a durable record of "how
 did these targets do on this suite", re-readable long after the `results/`
 directory that produced it is gone. Unlike `results/` (gitignored: raw
 transcripts, one run's working state), a snapshot here is small (markdown plus
-embedded TOML) and belongs in git.
+embedded TOML) and belongs in git; unlike `baselines/`, which is refreshed in
+place as the comparison point moves, this tree is append-only.
 
 ## Never regenerate
 

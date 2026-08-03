@@ -43,8 +43,9 @@
 //! so a broken evidence channel would show up as that positive assert
 //! failing, not as a silent vacuous pass. See `scenarios/subagents/`.
 //!
-//! No `SeedSugar` field: this deviates from the README's "one new
-//! `SeedSugar` field" line, which describes domains that seed something.
+//! No `SeedSugar` field: this deviates from the "one new `SeedSugar`
+//! field" line in `scenarios/README.md`, which describes domains that
+//! seed something.
 //! Subagents seed nothing, so a scenario opts in purely via
 //! `domains = ["subagents"]` at the top level — the same explicit-opt-in
 //! path `memory` uses for its empty-store case, just with nothing (yet)

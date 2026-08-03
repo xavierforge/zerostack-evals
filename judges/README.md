@@ -39,6 +39,14 @@ scenarios needs neither flag. This is a deliberate break from an earlier
 design where omitting `--judge` silently graded with a pinned default: the
 experimenter now owns the experiment, in full, every time.
 
+The decision is one of the four legs the run's preflight gate checks together
+before anything is spent (see the README's "Quick start"). When it is missing,
+the refusal names the judge-graded scenarios that forced the choice and lists
+the `judges/*.toml` files sitting there right now as candidates — offered, not
+picked, because which ruler grades a batch is what its scores mean. `zseval
+list` prints the same count up front, so the choice arrives before the first
+run rather than as the thing that stops it.
+
     export ANTHROPIC_API_KEY=sk-ant-...
     zseval run scenarios/prompts --judge judges/opus.toml --tag opus-judged
 
@@ -198,4 +206,5 @@ Each trial's `trial.json` records the same facts for that trial alone
 (`judge_file`, `judge_hash`, `judge_model` as a single value with the same
 three states), next to the evidence it graded.
 
-See the README's "What a report identifies".
+See the README's "What a report identifies", and
+`docs/evidence-and-reports.md` for the field-by-field detail.

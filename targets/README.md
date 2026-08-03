@@ -13,6 +13,25 @@ it holds no secrets.
     export ANTHROPIC_API_KEY=sk-ant-...
     zseval run scenarios/prompts --target targets/anthropic.toml --tag anthropic
 
+That rule is enforced, not just documented. Before the first trial, the
+preflight gate reads every `--target` given (not only the first — a two-target
+run must not spend its way through target 1 to discover target 2's key is
+missing) and refuses the run when the provider's key variable is unset or
+empty, naming the variable and the `export` that fixes it. A key written into
+the file's own `[api_keys]` table is refused *outright*, whatever the
+environment holds: zerostack's key resolution would fall back to it and the run
+would work, which is exactly the trap, and a target file lives committed beside
+the suite. A provider whose key requirement zseval cannot determine (a gateway,
+a custom endpoint) warns instead of blocking, and zerostack itself reports a
+missing key if there is one.
+
+**A committed target names an exact model id, never a floating `-latest`
+alias.** `anthropic.toml` pins `claude-sonnet-5`; `openrouter.toml` pins
+`deepseek/deepseek-v4-pro`, the model zerostack itself defaults to, so that
+column measures the agent as it ships. An alias can move while the report
+identity it produced stays byte-identical, which is exactly the drift every one
+of these records exists to catch.
+
 `--target` is repeatable: give it more than once to evaluate every target
 against the same suite in one invocation, under one shared `--max-total-usd`,
 and get a scenario x target table on stderr when it finishes:
@@ -27,7 +46,10 @@ without spending anything, via the pure renderer:
       results/matrix-1/openrouter/report.json
 
 `compare` stays pairwise, for the narrower question of whether to migrate from
-one target to another (see `README.md`'s "What a report identifies").
+one target to another. What a report records about the target it ran against,
+and how `compare` and `matrix` mark a comparison whose target moved, are in
+`docs/evidence-and-reports.md` (summarised in the README's "What a report
+identifies").
 
 ## Built-in providers
 
