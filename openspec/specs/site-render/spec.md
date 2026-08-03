@@ -135,9 +135,10 @@ The results section SHALL be built by `matrix`'s model builder over the single r
 - **WHEN** a scenario has no gradable trial in the report
 - **THEN** the results section shows the same hole the other renderers show, not a zero
 
-#### Scenario: Rows are grouped by kind
+#### Scenario: Rows are grouped by kind, nested by subsystem
 - **WHEN** the report holds both regression and capability scenarios
-- **THEN** the results section groups them by kind, as `matrix` does
+- **THEN** the folded per-scenario rows nest one table per subsystem (the scenario id's prefix, the text before its first `-`), labelled with that bare prefix, in order of first appearance in the row order, each table grouping its own rows by kind as `matrix` does
+- **AND** no per-subsystem figure is computed: the nesting is presentation only
 
 ### Requirement: Every runtime value written into the page is escaped
 `site` SHALL escape every runtime value at the point it is written into the page, with no exemption for values judged unlikely to contain markup. `zs_version` is captured verbatim from an external binary's output and is deliberately not format-validated, and paths come from a filesystem; a value carrying markup would otherwise land in the page and, at worst, execute for whoever opens it.
