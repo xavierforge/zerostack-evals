@@ -713,12 +713,12 @@ fn render_evidence(page: &mut Page, evidence: &Evidence) {
 /// rows into a collapsed `<details>`, nested there one table per subsystem;
 /// the fold is native markup, so the page still carries no script.
 ///
-/// The page contributes the section container and nothing else. Cells, holes,
-/// the per-kind grouping, the footer over the common gradable set, the marks
-/// and the footer-excluded disclosure all keep the meanings `matrix`'s own
-/// renderers give them, because this computes none of them: a second,
-/// differently defined pass rate is exactly what going through `matrix::build`
-/// refuses.
+/// The page contributes the section container and the verdict legend, and
+/// computes nothing. Cells, holes, the per-kind grouping, the footer over the
+/// common gradable set, the marks and the footer-excluded disclosure all keep
+/// the meanings `matrix`'s own renderers give them, because this computes none
+/// of them: a second, differently defined pass rate is exactly what going
+/// through `matrix::build` refuses.
 fn render_results(page: &mut Page, results: &Matrix) {
     page.raw(
         r#"<section id="results">
@@ -726,8 +726,30 @@ fn render_results(page: &mut Page, results: &Matrix) {
 "#,
     );
     crate::matrix::render_html(page, results);
+    render_verdict_legend(page);
     page.raw(
         r#"</section>
+"#,
+    );
+}
+
+/// What the three trial verdicts the figures above are counted from mean.
+///
+/// A page is landed on by a reader who has none of the harness's vocabulary,
+/// and a rate stated without it reads as a score out of everything attempted —
+/// which is the one thing it is not, because an ungradable trial is left out
+/// of the denominator rather than counted as a loss. So the legend is a page
+/// fixture rather than a conditional note: it is what the numbers *are*, true
+/// of a run with nothing indeterminate as much as of one with plenty, and a
+/// definition that appears only when the awkward case fires is one most
+/// readers never see.
+///
+/// It sits outside the per-scenario fold with the other standing notes, for
+/// the same reason those do: a meaning a reader has to expand something to
+/// find is one the page has effectively dropped.
+fn render_verdict_legend(page: &mut Page) {
+    page.raw(
+        r#"<p class="evidence">The rates above count trial verdicts. <code>pass</code>: every assert held, and the judge, where one graded, agreed. <code>fail</code>: an assert failed, the judge disagreed, or a budget was exceeded. <code>indeterminate</code>: the trial could not be graded at all (a backend crash, an unreadable session, a judge that returned no verdict), and is excluded from the rates rather than counted as a failure.</p>
 "#,
     );
 }
@@ -1442,5 +1464,51 @@ mod tests {
                 "the page reaches outside itself ({pattern}):\n{page}"
             );
         }
+    }
+
+    /// The results section keys its own three verdicts, and says outright that
+    /// an indeterminate trial leaves the denominator rather than scoring zero
+    /// — the one reading of a rate a page's numbers cannot correct on their
+    /// own.
+    #[test]
+    fn the_results_section_keys_the_three_verdicts() {
+        let page = page_of(&report_running(&["prompts/ask"]), &ledger("that measures."));
+        let results = page
+            .find(r#"id="results""#)
+            .unwrap_or_else(|| panic!("no results section:\n{page}"));
+        let coverage = page
+            .find(r#"id="coverage""#)
+            .unwrap_or_else(|| panic!("no coverage section:\n{page}"));
+        let section = &page[results..coverage];
+
+        for verdict in [
+            "<code>pass</code>",
+            "<code>fail</code>",
+            "<code>indeterminate</code>",
+        ] {
+            assert!(
+                section.contains(verdict),
+                "the results section does not key {verdict}:\n{section}"
+            );
+        }
+        assert!(
+            section.contains("excluded from the rates"),
+            "indeterminate is keyed without saying it leaves the rates:\n{section}"
+        );
+    }
+
+    /// The legend is outside the per-scenario fold, like the other standing
+    /// notes: a definition a reader has to expand a `<details>` to find is one
+    /// the page has dropped.
+    #[test]
+    fn the_verdict_legend_sits_outside_the_per_scenario_fold() {
+        let page = page_of(&report_running(&["prompts/ask"]), &ledger("that measures."));
+        let fold_end = page
+            .find("</details>")
+            .unwrap_or_else(|| panic!("no per-scenario fold:\n{page}"));
+        let legend = page
+            .find("The rates above count trial verdicts")
+            .unwrap_or_else(|| panic!("no verdict legend:\n{page}"));
+        assert!(fold_end < legend, "the legend is inside the fold:\n{page}");
     }
 }

@@ -641,6 +641,22 @@ fn print_run_report_summaries(
             report.summary.indeterminate_trials,
             report.summary.total_cost_usd,
         )?;
+        // What the overall line's indeterminate count means, and where each
+        // one's reason is, said once and only when there is one to say it
+        // about. A count with no reading is the shape a reader is most likely
+        // to take for a zero score rather than for an absent one, and the
+        // reasons are per trial, so the line points at the command that prints
+        // them instead of restating any of them here. Silent at zero: a
+        // standing note about an outcome that did not occur is noise on every
+        // clean run.
+        if report.summary.indeterminate_trials > 0 {
+            writeln!(
+                err,
+                "indeterminate: {} trial(s), ungradable evidence excluded from the rates \
+                 above; per-trial reasons: zseval explain <trial-dir>",
+                report.summary.indeterminate_trials,
+            )?;
+        }
         // The same derivation `run_suite` used to place this report (flat at
         // N=1, nested under the target's stem at N>1): computed once in
         // `runner::run_root`, reused here rather than re-derived.
@@ -1830,6 +1846,55 @@ mod run_summary_tests {
             .find(|l| l.starts_with("capability:"))
             .unwrap_or_else(|| panic!("no capability: line in {text}"));
         assert!(cap_line.contains("n/a"), "{cap_line}");
+    }
+
+    /// A run that graded anything indeterminate says so in its own line: the
+    /// trial count, what the outcome means for the rates, and the command that
+    /// prints each trial's reason.
+    #[test]
+    fn indeterminate_trials_get_a_line_naming_the_count_and_where_the_reasons_are() {
+        let r = report(vec![
+            scenario("reg-1", Kind::Regression, vec![trial(Final::Pass)]),
+            scenario(
+                "reg-2",
+                Kind::Regression,
+                vec![trial(Final::Indeterminate), trial(Final::Indeterminate)],
+            ),
+        ]);
+
+        let mut err = Vec::new();
+        print_run_report_summaries(&[r], &[], false, &cfg("indeterminate"), &mut err).unwrap();
+        let text = String::from_utf8(err).unwrap();
+
+        let line = text
+            .lines()
+            .find(|l| l.starts_with("indeterminate:"))
+            .unwrap_or_else(|| panic!("no indeterminate: line in {text}"));
+        assert!(line.contains("2 trial(s)"), "{line}");
+        assert!(line.contains("excluded from the rates"), "{line}");
+        assert!(line.contains("zseval explain <trial-dir>"), "{line}");
+    }
+
+    /// Nothing indeterminate, no line: a standing note about an outcome that
+    /// did not occur would print on every clean run. The `overall:` line still
+    /// carries its own `indeterminate 0` figures, which is why this asserts on
+    /// a line *starting* with the label rather than on the word appearing.
+    #[test]
+    fn a_run_with_nothing_indeterminate_prints_no_such_line() {
+        let r = report(vec![scenario(
+            "reg-1",
+            Kind::Regression,
+            vec![trial(Final::Pass)],
+        )]);
+
+        let mut err = Vec::new();
+        print_run_report_summaries(&[r], &[], false, &cfg("all-graded"), &mut err).unwrap();
+        let text = String::from_utf8(err).unwrap();
+
+        assert!(
+            !text.lines().any(|l| l.starts_with("indeterminate:")),
+            "{text}"
+        );
     }
 }
 
