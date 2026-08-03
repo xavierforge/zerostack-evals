@@ -78,6 +78,10 @@ th:first-child, td:first-child { text-align: left; }
   border: 1px solid rgba(128, 128, 128, 0.4);
   border-radius: 0.2rem;
 }
+.status.covered { color: #1a7f37; border-color: #1a7f37; }
+.status.uncovered { color: #bc4c00; border-color: #bc4c00; }
+.status.product-blocked { color: #cf222e; border-color: #cf222e; }
+.status.excluded { color: #6e7781; border-color: #6e7781; }
 .ids { margin: 0.15rem 0 0; }
 .evidence { margin: 0.15rem 0 0; opacity: 0.75; }
 .mark { opacity: 0.75; font-style: italic; }
@@ -594,8 +598,11 @@ fn render_coverage(page: &mut Page, coverage: &Coverage) {
         }
         page.raw("</h3>\n<ul class=\"claims\">\n");
         for claim in &area.claims {
-            page.raw(r#"<li><span class="status">"#);
-            page.raw(status_label(&claim.evidence));
+            let label = status_label(&claim.evidence);
+            page.raw(r#"<li><span class="status "#);
+            page.raw(label);
+            page.raw(r#"">"#);
+            page.raw(label);
             page.raw("</span> ");
             page.text(claim.claim);
             render_evidence(page, &claim.evidence);
@@ -639,7 +646,8 @@ fn has_scenario(area: &Area) -> bool {
 
 /// The status, in the ledger's own vocabulary, so a reader of the page and a
 /// reader of `coverage.toml` use one word for one thing. `&'static str`, so
-/// the label enters the buffer as markup does.
+/// the label enters the buffer as markup does. The label doubles as the
+/// status's CSS class, which is why it stays a single hyphenated word.
 fn status_label(evidence: &Evidence) -> &'static str {
     match evidence {
         Evidence::Covered { .. } => "covered",
@@ -1350,7 +1358,7 @@ mod tests {
             "an exercised id was marked as not exercised:\n{page}"
         );
         assert!(
-            !page.contains("uncovered"),
+            !page.contains("status uncovered"),
             "a partially exercised claim was reported as uncovered:\n{page}"
         );
     }
