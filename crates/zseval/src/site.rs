@@ -30,11 +30,11 @@
 //! its markdown (design D8); a template crate would buy a separation of
 //! markup from logic that one page does not need.
 //!
-//! Section order is header, coverage, results (design D11): identity first,
-//! because every number under it is only meaningful once you know what
-//! produced it, and coverage before results, because a reader who meets the
-//! scores first reads coverage as a caveat when the intended reading is the
-//! reverse.
+//! Section order is header, results, coverage (owner ruling 2026-08-03,
+//! superseding design D11's coverage-first order): identity first, because
+//! every number under it is only meaningful once you know what produced it;
+//! then the results the reader came for; then coverage as the denominator
+//! that says how much of the surface those results actually touched.
 
 use std::collections::BTreeSet;
 
@@ -370,8 +370,8 @@ pub fn render(model: &PageModel) -> String {
 "#,
     );
     render_header(&mut page, &model.header);
-    render_coverage(&mut page, &model.coverage);
     render_results(&mut page, &model.results);
+    render_coverage(&mut page, &model.coverage);
     page.raw(
         r#"</body>
 </html>
@@ -946,7 +946,7 @@ mod tests {
     }
 
     #[test]
-    fn the_page_runs_header_then_coverage_then_results() {
+    fn the_page_runs_header_then_results_then_coverage() {
         let page = page_of(&report("zerostack 1.7.2"), &ledger("that measures the OS."));
         assert!(page.starts_with("<!doctype html>"), "no doctype:\n{page}");
         let at = |id: &str| {
@@ -959,8 +959,8 @@ mod tests {
             at(r#"id="results""#),
         );
         assert!(
-            header < coverage && coverage < results,
-            "sections are out of order (design D11):\n{page}"
+            header < results && results < coverage,
+            "sections are out of order:\n{page}"
         );
     }
 

@@ -4188,7 +4188,7 @@ fn a_malformed_coverage_ledger_does_not_break_a_run() {
 /// mock-backend report, checked against the committed ledger and scenario
 /// tree — the ledger's first real reader (proposal.md: "coverage-ledger
 /// shipped a written contract with no caller"). One assertion per section
-/// the page renders: header (section 2), coverage (section 3), results
+/// the page renders: header (section 2), results (section 3), coverage
 /// (section 4).
 #[test]
 fn site_renders_a_mock_run_against_the_real_ledger() {
