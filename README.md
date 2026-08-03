@@ -1,5 +1,10 @@
 # zerostack-evals
 
+**Live baselines: https://xavierforge.dev/zerostack-evals/**
+zerostack 1.7.2 (build `d8bbfe5d`), 43 scenarios x 3 trials, judge sonnet:
+`claude-sonnet-5` at pass@k 0.861 / pass^k 0.744, and zerostack's own default
+model `deepseek-v4-pro` at pass@k 0.837 / pass^k 0.651.
+
 Eval harness for [zerostack](https://github.com/gi-dellav/zerostack) agents.
 Rust, no platform lock-in. A scenario is one flat TOML: a prompt to load, a
 task to give the agent, and the behaviour to check. Deterministic assert DSL as
@@ -14,7 +19,16 @@ mostly checkable with deterministic asserts; its `memory` subsystem
 server (`scenarios/mcp/`): each subsystem's layout knowledge lives in its
 own quarantined `domains::` module (see "Evaluating another subsystem"
 below), and the core (scenario/backend/seed/asserts/verdict) stays
-subsystem-agnostic.
+subsystem-agnostic. Alongside those sit the suites that need no subsystem
+knowledge at all: tool selection (`scenarios/tools/`), project context
+(`scenarios/context/`), session continuity and evidence recording
+(`scenarios/session/`), and `--loop` mode (`scenarios/loop/`).
+
+What the suite does *not* measure is stated as plainly as what it does, in one
+ledger: `scenarios/coverage.toml` carves areas out of zerostack's functional
+surface, so an area no scenario touches is a row in that file rather than an
+absence a reader has to notice on their own. `zseval site` renders the ledger
+beside a run's results.
 
 A run or compare that comes back fully ungradable (every trial indeterminate,
 or nothing shared was comparable) exits **2**, the same "harness error" code
@@ -30,10 +44,17 @@ as a usage mistake: a broken environment never looks like a clean pass.
     scenarios/<suite>/<case>/scenario.toml   fixtures sit in a _fixtures dir
                                              beside a case, or in the suite
                                              dir's _fixtures if shared across it
+    scenarios/coverage.toml   the coverage ledger: every area of zerostack's
+                              surface, covered or not, with the evidence each
+                              status owes
     targets/           zerostack config.toml per provider/model to evaluate
     judges/            judge file per grading model (--judge); the ruler,
                        kept swappable, explicit, and recorded in the report
-    baselines/         committed reports CI compares against
+    baselines/         committed reports: main.json is what CI compares
+                       against, deepseek-v4-pro.json the shipped-default
+                       comparison column (see "Published baselines")
+    docs/              the rendered baseline pages GitHub Pages serves,
+                       plus the repo's ADRs
     results/<tag>/     run outputs, one folder per run (gitignored)
 
 ## Quick start
@@ -50,7 +71,7 @@ as a usage mistake: a broken environment never looks like a clean pass.
 
     # fast local iteration: one scenario, one trial, skip the judge.
     # Omitting --tag auto-names the run folder by suite+provider+model+time,
-    # e.g. results/ask-readonly_anthropic-claude-sonnet-4-6_20260706-093404-512-83921/
+    # e.g. results/ask-readonly_anthropic-claude-sonnet-5_20260706-093404-512-83921/
     cargo run -p zseval -- run scenarios/prompts/ask-readonly \
       --target targets/anthropic.toml --trials 1 --no-judge
 
@@ -95,6 +116,44 @@ about the agent is re-run. Adding `--judge <file>` re-scores with a different
 ruler; the rewritten `trial.json` then names the judge file that produced it,
 and the new judge's request/response go to a `regrade-<timestamp>/`
 subdirectory rather than over the previous judge's (see `judges/README.md`).
+
+## Published baselines
+
+Two reports ship in `baselines/`, both produced on 2026-08-03 against the same
+zerostack 1.7.2 (an `--all-features` build of upstream 7b5581a, binary
+`d8bbfe5d`), the same 43 scenarios x 3 trials, and the same
+`judges/sonnet.toml` ruler:
+
+- `baselines/main.json`: `anthropic/claude-sonnet-5`, pass@k 0.861, pass^k
+  0.744. This is the report the regression gate compares a candidate against.
+- `baselines/deepseek-v4-pro.json`: `openrouter/deepseek/deepseek-v4-pro`,
+  zerostack's own default model, pass@k 0.837, pass^k 0.651. The "as shipped"
+  comparison column, not a gate.
+
+Only the target moved between them, which is what makes them a controlled
+pair:
+
+    zseval matrix baselines/main.json baselines/deepseek-v4-pro.json --markdown
+
+renders the two side by side with no DRIFT and no MULTI-VAR: same ruler, same
+build, same scenario definitions, one variable.
+
+Both are rendered by `zseval site` and committed under `docs/`, which GitHub
+Pages serves, so pushing a regenerated page publishes it:
+
+    zseval site baselines/main.json --out docs/baseline-sonnet5.html
+    zseval site baselines/deepseek-v4-pro.json \
+      --out docs/baseline-deepseek-v4-pro.html
+
+    https://xavierforge.dev/zerostack-evals/                            index
+    https://xavierforge.dev/zerostack-evals/baseline-sonnet5.html
+    https://xavierforge.dev/zerostack-evals/baseline-deepseek-v4-pro.html
+
+`docs/index.html` is the one page `site` does not produce: a hand-written
+landing page linking the two.
+
+Refreshing a baseline, and the rule that the report lands in the same pull
+request as the change that moves its numbers, are in `baselines/README.md`.
 
 ## How it drives zerostack
 
@@ -143,16 +202,41 @@ re-spending. `compare` stays pairwise and keeps its migration-gate role
 (deciding whether to switch from one target to another); reach for `matrix`
 for a side-by-side view of N targets.
 
+**A committed target names an exact model id, never a floating `-latest`
+alias.** `targets/anthropic.toml` pins `claude-sonnet-5`;
+`targets/openrouter.toml` pins `deepseek/deepseek-v4-pro`, the model zerostack
+itself defaults to, so that column measures the agent as it ships. An alias
+can move while the report identity it produced stays byte-identical, which is
+exactly the drift every one of these records exists to catch.
+
 `zseval site <report.json> --out <file.html>` turns one report plus the
 coverage ledger (`scenarios/coverage.toml`) into a single self-contained HTML
-page: the run's identity, the ledger's coverage (every area, every claim, no
-percentage), and the scenario table `matrix` already renders. Like `matrix`
-it makes no API call and writes nothing but the one file `--out` names;
-unlike `matrix`, that file is the point, so `--out` is required. It runs the
-ledger's drift check first and aborts before writing anything if the ledger
+page, in three sections:
+
+1. **Header**: the run's identity, read back field by field (zerostack version
+   and binary hash, model, target, the judge configured and the ruler that
+   actually answered, trials, cost). Identity leads, because no number under
+   it means anything until you know what produced it.
+2. **Results**: the scenario table `matrix` already renders, led by a summary
+   table of the pass@k / pass^k / cost figures, with the per-scenario rows
+   folded into a collapsed `details` element. The fold is native markup, so
+   the page still carries no script. The footer-excluded disclosure, the
+   column marks and the heuristics caveat stay outside the fold: a caveat a
+   reader has to expand something to find is one the page has dropped.
+3. **Coverage**: the ledger's every area and every claim, each claim's status
+   colour-coded (covered green, uncovered orange, product-blocked red,
+   excluded grey), no percentage anywhere, headlined by the count of areas no
+   scenario touches at all. Coverage comes last as the denominator: how much
+   of the surface the results above it actually touched.
+
+Like `matrix` it makes no API call and writes nothing but the one file `--out`
+names; unlike `matrix`, that file is the point, so `--out` is required. It runs
+the ledger's drift check first and aborts before writing anything if the ledger
 and the scenario tree disagree; a stale `audited_against` is shown on the
 page instead, never fatal. `--ledger <path>` overrides the ledger path — a
 test override for pointing at a fixture tree, not a general-purpose option.
+The two committed baselines are published this way (see "Published
+baselines").
 
 ## Writing a scenario
 
@@ -193,7 +277,12 @@ Conventions worth keeping:
 `file_contains`/`file_not_contains`/`path_not_exists` paths are rooted at the
 run's throwaway `ZS_DATA_DIR` by default; prefix with `config:` or `work:` to
 check the isolated config dir or working dir instead, e.g.
-`file_contains config:agent/memory/MEMORY.md tabs`. `file_not_contains` fails
+`file_contains config:agent/memory/MEMORY.md tabs`. All three take at most one
+`*` path segment (`projects/*/OUT.md`), and all three reject a second star at
+load time, naming the op and the path: the matcher expands exactly one, so a
+mistyped two-star path can only ever match nothing, and without the load-time
+check it would surface mid-run as an ordinary "nothing matches" failure that
+reads like a real finding about the agent. `file_not_contains` fails
 if nothing matches its path (a missing file or a zero-hit glob is not
 evidence the file is clean, it's evidence the file was never written); use
 `path_not_exists <path>` when the check really is "nothing should be there at
@@ -306,7 +395,9 @@ feature (in `default` features as of this writing).
 
 The CLI is the whole interface; exit codes are the contract (0 = pass / no
 regression, 1 = fail / regression, 2 = harness error) and every subcommand
-takes `--json`.
+takes `--json`. `matrix` and `site` are views rather than gates, so neither
+has an exit 1: a low pass rate is something they display, never something
+they judge.
 
 Changing a prompt no longer means editing zerostack's own checkout and
 rebuilding it. `run --prompts <dir>` seeds a directory of your own prompt
@@ -381,11 +472,27 @@ spending anything:
     zseval matrix results/matrix-1/anthropic/report.json \
       results/matrix-1/openrouter/report.json baselines/main.json --markdown
 
-`matrix` is a pure renderer: no API calls, nothing written to disk. It marks
-what it cannot vouch for: SPREAD when targets genuinely disagree on a
-scenario, DRIFT when the judge or a scenario definition changed between
-columns, and a column cut short by the budget cap as incomplete, rather than
-presenting a diff across changed conditions as a clean comparison.
+`matrix` is a pure renderer: no API calls, nothing written to disk. Rather
+than present a diff across changed conditions as a clean comparison, it marks
+what it cannot vouch for:
+
+- **SPREAD** on a row whose columns genuinely disagree about a scenario.
+- **DRIFT** on a row whose scenario definition (`content_hash`) differs
+  between columns, and **judge-drift** on a column graded by a different
+  ruler than the others.
+- **MULTI-VAR** on a column where two or more of the three subject variables
+  (target, prompt pack, zerostack build) moved relative to another column: the
+  score difference cannot be attributed to any one of them. The build counts
+  as a subject variable alongside the other two, because every report records
+  `zs_bin_sha256`, so "same version banner, different binary" is an observed
+  fact rather than an assumption.
+- **incomplete** on a column the budget cap cut short.
+
+SPREAD, DRIFT and MULTI-VAR are display heuristics saying "look here", not
+statistical or authoritative claims, and the rendered legend says so. Rulers
+are not subject variables: a moved judge or scenario definition invalidates
+comparability outright and is marked on its own, which is why it never feeds
+the MULTI-VAR count.
 
 ## What a report identifies
 
@@ -464,7 +571,16 @@ is written: every field, judge fields included, must be present or the whole
 report fails to load naming what's missing — there is no read-tolerance
 default that lets an older, incomplete report quietly stand in as "unknown".
 
-`zseval compare` uses the model and hash fields:
+`zseval compare` uses the model and hash fields. Every fact that weakens or
+invalidates its answer is a **warning**, uniformly: the exit code stays a pure
+function of the comparison rows (0 clean, 1 regressions, 2 nothing
+comparable), with no per-warning escalation flag. That policy is the repo's
+first ADR (`docs/adr/0001-compare-always-warns-matrix-owns-multivar.md`) and
+an invariant test enforces it, so adding a warning is never an exit-code
+decision. Warnings render in two blocks.
+
+*Incomparability*, above the scenario table, because each one inverts how the
+whole table should be read:
 
 - **Different targets**: comparing a baseline evaluated against one
   provider/model to a candidate evaluated against another prints a warning
@@ -472,12 +588,35 @@ default that lets an older, incomplete report quietly stand in as "unknown".
   switch targets) so a regression check never silently becomes an
   apples-to-oranges comparison. For a side-by-side view of more than two
   targets, use `zseval matrix` instead.
+- **Different prompt packs**: the diff is a prompt A/B, not a regression
+  check. Every pack difference is marked, deliberately: treating "same build,
+  different pack" as a clean single-variable experiment stays a non-goal until
+  it has been reviewed against real baseline data.
+- **Different zerostack builds**: differing `zs_bin_sha256` warns, naming both
+  sides as version string plus short hash. Identical version strings with
+  different hashes still warn: the hash is the identity, the banner is only a
+  label. This is the 2026-07-26 stale-binary incident (a binary printing
+  `zerostack 1.7.1` while its checkout had moved on) caught mechanically
+  instead of by luck.
+
+*Caveats*, below the table, where the comparison is valid but weaker than it
+looks:
+
 - **Changed scenario definition**: if a shared scenario's `scenario.toml`
   differs between baseline and candidate, `compare` warns instead of quietly
   diffing two different tests under the same id (see AGENTS.md's guardrail
   on not moving the ruler while measuring). Plain inequality on
   `content_hash`: every current run records one, so there is no longer an
   "unknown, skip the check" case to carve out.
+- **A budget-truncated side**: the cap stopped that side early, so its
+  denominator is smaller than it looks. The missing scenarios already show up
+  in the added/removed lists; this warning supplies the cause.
+- **Tool-call evidence dropped to zero**: a `tool_not_called`-only scenario
+  passes vacuously when the evidence channel itself breaks, so the pass rate
+  above the warning may be meaningless.
+- **Threshold finer than the trial count can resolve**: at 3 trials the pass
+  rate only moves in steps of 1/3, so a nominal `--threshold 0.05` behaves
+  like zero tolerance. Raise `--trials` or the threshold rather than ignore it.
 
 ## Troubleshooting
 
