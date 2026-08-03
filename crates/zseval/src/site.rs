@@ -69,6 +69,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
 th, td { padding: 0.25rem 0.6rem; text-align: right; border-bottom: 1px solid rgba(128, 128, 128, 0.3); }
 th:first-child, td:first-child { text-align: left; }
+details { margin: 1.5rem 0; }
+summary { cursor: pointer; }
 .headline { margin: 0 0 1.5rem; font-weight: 600; }
 .claims > li { margin: 0.6rem 0; }
 .status {
@@ -708,10 +710,13 @@ fn render_evidence(page: &mut Page, evidence: &Evidence) {
     }
 }
 
-/// This run's scenario table: `matrix`'s own model, built over the one report
-/// the page describes, rendered by the HTML renderer that lives beside
-/// `matrix`'s other two (design D4, spec: "The results section reuses the
-/// matrix model and its meanings").
+/// This run's results: `matrix`'s own model, built over the one report the
+/// page describes, rendered by the HTML renderer that lives beside `matrix`'s
+/// other two (design D4, spec: "The results section reuses the matrix model
+/// and its meanings"). That renderer leads with the summary figures and folds
+/// the per-scenario rows into a collapsed `<details>` (owner ruling
+/// 2026-08-03); the fold is native markup, so the page still carries no script
+/// (design D7).
 ///
 /// The page contributes the section container and nothing else. Cells, holes,
 /// the per-kind grouping, the footer over the common gradable set, the marks

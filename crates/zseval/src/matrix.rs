@@ -870,12 +870,25 @@ pub fn render_markdown(m: &Matrix) -> String {
     out
 }
 
-/// HTML table, for `site`'s results section (design D4). Same model, same
-/// meanings as its two siblings: cells and holes from [`format_cell`], the two
-/// kind sections from [`KINDS`], the three footer groups from
-/// [`footer_figure`] and [`kind_footer_figure`], the row marks from
-/// [`row_marks`], and the same footer-excluded disclosure. Nothing here
-/// recomputes a figure, and there is no second, differently-defined pass rate.
+/// HTML, for `site`'s results section (design D4). Same model, same meanings
+/// as its two siblings: cells and holes from [`format_cell`], the two kind
+/// sections from [`KINDS`], the three footer groups from [`footer_figure`] and
+/// [`kind_footer_figure`], the row marks from [`row_marks`], and the same
+/// footer-excluded disclosure. Nothing here recomputes a figure, and there is
+/// no second, differently-defined pass rate.
+///
+/// The layout, unlike its siblings', is two tables rather than one (owner
+/// ruling 2026-08-03): the footer figures lead as a summary table of their
+/// own, and the per-scenario rows follow folded into a collapsed `<details>`.
+/// A terminal or a markdown record is read top to bottom, but a page is
+/// landed on, and what a reader lands on should be the eight figures rather
+/// than a hundred rows they have to scroll past to reach them. The fold is a
+/// native `<details>` and nothing else — the page carries no script
+/// (design D7), so a disclosure widget the browser implements is the only
+/// kind available. What the fold hides is only rows: the footer-excluded
+/// disclosure, the column marks and the heuristics caveat stay outside it,
+/// because a denominator caveat or a mark's meaning that a reader has to
+/// expand something to find is one the page has effectively dropped.
 ///
 /// It writes into the caller's [`Page`] rather than returning a `String`
 /// because raw markup enters that buffer only as a `&'static str` literal
@@ -889,12 +902,74 @@ pub fn render_markdown(m: &Matrix) -> String {
 /// spelled out in [`render_html_column_marks`] — dropping the legend must not
 /// drop the meaning of a mark the header still shows.
 pub(crate) fn render_html(page: &mut Page, m: &Matrix) {
+    html_summary_table(page, m);
+
+    if !m.footer_excluded.is_empty() {
+        page.raw(r#"<p class="evidence">Excluded from footer (not gradable in every column): "#);
+        page.text(&m.footer_excluded.join(", "));
+        page.raw("</p>\n");
+    }
+
+    html_scenario_details(page, m);
+
+    render_html_column_marks(page, m);
+    // The caveat only where there is a mark to caveat: on a one-column page
+    // no mark can fire, and a standing note about absent marks explains
+    // nothing. The wording is the renderers' one wording, not a second one.
+    if any_row_marks(m) || m.columns.iter().any(has_column_mark) {
+        page.raw(r#"<p class="mark">"#);
+        page.raw(LEGEND_CAVEAT);
+        page.raw("</p>\n");
+    }
+}
+
+/// The summary table: the same footer figures the other two renderers put in
+/// their last rows, in the same order, one row per metric and one column per
+/// matrix column. No notes column — a footer row never carried a mark, and the
+/// column it used to leave empty existed only to keep it aligned under the
+/// scenario rows it no longer shares a table with.
+fn html_summary_table(page: &mut Page, m: &Matrix) {
+    page.raw("<table>\n<thead>\n<tr><th>metric</th>");
+    for col in &m.columns {
+        page.raw("<th>");
+        page.text(&column_header(col));
+        page.raw("</th>");
+    }
+    page.raw("</tr>\n</thead>\n<tbody>\n");
+
+    for (label, kind) in KINDS {
+        let figures = kind_footer_figures(m, kind, |f| f.pass_at_k);
+        html_footer_row(page, &format!("{label} pass@k"), &figures);
+        let figures = kind_footer_figures(m, kind, |f| f.pass_hat_k);
+        html_footer_row(page, &format!("{label} pass^k"), &figures);
+    }
+    let figures = footer_figures(m, |f| f.pass_at_k);
+    html_footer_row(page, "pass@k", &figures);
+    let figures = footer_figures(m, |f| f.pass_hat_k);
+    html_footer_row(page, "pass^k", &figures);
+    let figures = footer_figures(m, |f| f.total_cost_usd);
+    html_footer_row(page, "cost usd", &figures);
+    page.raw("</tbody>\n</table>\n");
+}
+
+/// The per-scenario rows, folded into a collapsed `<details>`: the same rows,
+/// the same per-kind grouping and the same marks as before, one disclosure
+/// element deeper. The summary names its own row count so a reader knows what
+/// the fold holds without opening it.
+fn html_scenario_details(page: &mut Page, m: &Matrix) {
     let any_marks = any_row_marks(m);
     // The scenario column, one per target column, and the notes column when
     // some row actually carries a mark.
     let span = m.columns.len() + 1 + usize::from(any_marks);
 
-    page.raw("<table>\n<thead>\n<tr><th>scenario</th>");
+    page.raw("<details>\n<summary>Per-scenario results (");
+    page.text(&m.rows.len().to_string());
+    page.raw(if m.rows.len() == 1 {
+        " scenario)"
+    } else {
+        " scenarios)"
+    });
+    page.raw("</summary>\n<table>\n<thead>\n<tr><th>scenario</th>");
     for col in &m.columns {
         page.raw("<th>");
         page.text(&column_header(col));
@@ -932,36 +1007,7 @@ pub(crate) fn render_html(page: &mut Page, m: &Matrix) {
             page.raw("</tr>\n");
         }
     }
-    page.raw("</tbody>\n<tfoot>\n");
-
-    for (label, kind) in KINDS {
-        let figures = kind_footer_figures(m, kind, |f| f.pass_at_k);
-        html_footer_row(page, &format!("{label} pass@k"), &figures, any_marks);
-        let figures = kind_footer_figures(m, kind, |f| f.pass_hat_k);
-        html_footer_row(page, &format!("{label} pass^k"), &figures, any_marks);
-    }
-    let figures = footer_figures(m, |f| f.pass_at_k);
-    html_footer_row(page, "pass@k", &figures, any_marks);
-    let figures = footer_figures(m, |f| f.pass_hat_k);
-    html_footer_row(page, "pass^k", &figures, any_marks);
-    let figures = footer_figures(m, |f| f.total_cost_usd);
-    html_footer_row(page, "cost usd", &figures, any_marks);
-    page.raw("</tfoot>\n</table>\n");
-
-    if !m.footer_excluded.is_empty() {
-        page.raw(r#"<p class="evidence">Excluded from footer (not gradable in every column): "#);
-        page.text(&m.footer_excluded.join(", "));
-        page.raw("</p>\n");
-    }
-    render_html_column_marks(page, m);
-    // The caveat only where there is a mark to caveat: on a one-column page
-    // no mark can fire, and a standing note about absent marks explains
-    // nothing. The wording is the renderers' one wording, not a second one.
-    if any_marks || m.columns.iter().any(has_column_mark) {
-        page.raw(r#"<p class="mark">"#);
-        page.raw(LEGEND_CAVEAT);
-        page.raw("</p>\n");
-    }
+    page.raw("</tbody>\n</table>\n</details>\n");
 }
 
 /// One overall footer metric across the columns, as text.
@@ -981,9 +1027,8 @@ fn kind_footer_figures(m: &Matrix, kind: Kind, metric: fn(&ColumnFooter) -> f64)
         .collect()
 }
 
-/// One footer row: the metric's label, one cell per column, and an empty
-/// notes cell when the table carries that column.
-fn html_footer_row(page: &mut Page, label: &str, figures: &[String], any_marks: bool) {
+/// One summary row: the metric's label and one cell per column.
+fn html_footer_row(page: &mut Page, label: &str, figures: &[String]) {
     page.raw("<tr><td>");
     page.text(label);
     page.raw("</td>");
@@ -991,9 +1036,6 @@ fn html_footer_row(page: &mut Page, label: &str, figures: &[String], any_marks: 
         page.raw("<td>");
         page.text(figure);
         page.raw("</td>");
-    }
-    if any_marks {
-        page.raw("<td></td>");
     }
     page.raw("</tr>\n");
 }
@@ -2395,6 +2437,80 @@ mod tests {
         assert!(at(">capability<") < at("<td>cap-a</td>"), "{html}");
     }
 
+    // 4.1 / owner ruling 2026-08-03 — the page's reader lands on the summary
+    // figures, not on the rows: the summary table comes first, the
+    // per-scenario rows are folded into a `<details>` that is closed until
+    // asked, and the marks the fold must not hide (identity and
+    // comparability) stay outside it. The fold is native markup, so the page
+    // stays script-free (design D7).
+    #[test]
+    fn html_leads_with_the_summary_table_and_folds_the_scenario_rows() {
+        let mut a = report(
+            "targets/sonnet.toml",
+            "run-a",
+            vec![
+                ScenarioResult::from_trials(
+                    "reg-a".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "cap-a".into(),
+                    Kind::Capability,
+                    vec![trial(Final::Pass)],
+                ),
+            ],
+        );
+        a.budget_truncated = true;
+        let m = build(&[&a]);
+        assert!(m.columns[0].incomplete, "the fixture carries a column mark");
+
+        let html = html(&m);
+        let at = |needle: &str| {
+            html.find(needle)
+                .unwrap_or_else(|| panic!("no {needle}:\n{html}"))
+        };
+
+        // Every summary figure precedes the fold.
+        for label in [
+            "regression pass@k",
+            "regression pass^k",
+            "capability pass@k",
+            "capability pass^k",
+            "pass@k",
+            "pass^k",
+            "cost usd",
+        ] {
+            assert!(
+                at(&format!("<td>{label}</td>")) < at("<details>"),
+                "{label} is not in the leading summary table:\n{html}"
+            );
+        }
+
+        // The rows are inside the fold, and the fold is closed by default.
+        assert!(
+            html.contains("<summary>Per-scenario results (2 scenarios)</summary>"),
+            "the fold does not say what it holds:\n{html}"
+        );
+        assert!(
+            !html.contains("<details open"),
+            "the fold is open, so nothing was folded:\n{html}"
+        );
+        for row in ["<td>reg-a</td>", "<td>cap-a</td>"] {
+            assert!(
+                at("<details>") < at(row) && at(row) < at("</details>"),
+                "{row} is not inside the fold:\n{html}"
+            );
+        }
+
+        // The column's mark is keyed outside the fold: a meaning a reader has
+        // to expand something to find is one the page has dropped.
+        assert!(
+            at("sonnet*: incomplete") > at("</details>"),
+            "a mark's meaning is hidden inside the fold:\n{html}"
+        );
+    }
+
     // 4.1 — for one model, the HTML renderer agrees with the markdown one
     // cell for cell and figure for figure: both read the same model and
     // neither recomputes anything (matrix-render spec, "Every renderer reads
@@ -2563,6 +2679,10 @@ mod tests {
             html.contains("only-a"),
             "the excluded id is not named:\n{html}"
         );
+        assert!(
+            html.find("Excluded from footer").unwrap() < html.find("<details>").unwrap(),
+            "the narrowed denominator is disclosed only to a reader who opens the fold:\n{html}"
+        );
         assert_eq!(
             html_row_cells(&html, "only-a"),
             vec!["1.000".to_string(), "-".to_string()],
@@ -2613,11 +2733,12 @@ mod tests {
             ],
             "the row's mark is not in a cell of its own:\n{html}"
         );
-        // The footer rows keep the notes column, so no figure slides under it.
+        // The summary table has no notes column to align under: one label and
+        // one figure per column, and the row mark stays with the row it marks.
         assert_eq!(
             html_row_cells(&html, "pass@k"),
-            vec!["1.000".to_string(), "0.000".to_string(), String::new()],
-            "a footer row lost the notes column:\n{html}"
+            vec!["1.000".to_string(), "0.000".to_string()],
+            "a summary row picked up a cell that is not a column's figure:\n{html}"
         );
         assert!(
             html.contains("opus: judge-drift") && html.contains("sonnet: judge-drift"),
