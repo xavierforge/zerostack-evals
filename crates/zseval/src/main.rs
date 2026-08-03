@@ -309,18 +309,32 @@ impl zseval::judge::Judge for NoJudgeConfigured {
     }
 }
 
-/// The mandatory-choice gate: a suite with at least one rubric scenario must
-/// have an explicit judge decision. `Unspecified` is fine when nothing needs
-/// grading (`has_rubric` false) — there is nothing to decide — but is a loud,
-/// exit-2 usage error the moment a rubric exists, naming both flags so the fix
-/// is obvious. Runs right after discovery/loading and before any trial,
-/// backend setup, or preflight probe.
-fn require_judge_decision(has_rubric: bool, choice: &JudgeChoice) -> anyhow::Result<()> {
-    if has_rubric && matches!(choice, JudgeChoice::Unspecified) {
-        anyhow::bail!(
-            "this suite has at least one judge-graded scenario: pass --judge <file> to name a \
-             ruler, or --no-judge to grade the deterministic asserts only (see judges/README.md)"
-        );
+/// The scenarios whose grading a judge decision is actually about, in
+/// discovery order — the ones carrying a rubric. Empty means nothing needs
+/// grading and neither judge flag is required.
+fn judge_graded_ids(scenarios: &[Scenario]) -> Vec<&str> {
+    scenarios
+        .iter()
+        .filter(|s| s.judge.is_some())
+        .map(|s| s.id.as_str())
+        .collect()
+}
+
+/// The mandatory-choice gate for a single scenario (`regrade`). `Unspecified`
+/// is fine when nothing needs grading — there is nothing to decide — but is a
+/// loud, exit-2 usage error the moment a rubric exists, naming both flags and
+/// the judge files sitting on disk right now so the fix needs no second
+/// command. Runs right after loading and before the trial dir is touched.
+///
+/// `run` does not call this: the same message goes into its aggregated gate
+/// instead, so a caller missing a judge decision *and* a key hears about both
+/// at once (`zseval::preflight`).
+fn require_judge_decision(judge_graded: &[&str], choice: &JudgeChoice) -> anyhow::Result<()> {
+    if !judge_graded.is_empty() && matches!(choice, JudgeChoice::Unspecified) {
+        anyhow::bail!(zseval::preflight::judge_decision_needed(
+            judge_graded,
+            Path::new(zseval::preflight::JUDGES_DIR)
+        ));
     }
     Ok(())
 }
@@ -355,6 +369,35 @@ fn judge_for(
     }
 }
 
+/// Which backend a run drives, resolved from `--backend` once. Everything that
+/// needs to know — the flag-combination checks, the preflight gate that skips
+/// the binary and key legs for mock, and the run itself — reads this one value
+/// rather than re-parsing the flag string and re-deciding what "mock" means.
+enum BackendKind {
+    /// `--backend mock=<path>`: canned artifacts replayed from a session file
+    /// or captured trial dir. Drives no binary and calls no provider, so it
+    /// needs neither ZS_BIN nor a key.
+    Mock(PathBuf),
+    /// `--backend zs`, and the default: a real zerostack build.
+    Zs,
+}
+
+impl BackendKind {
+    fn resolve(flag: Option<&str>) -> anyhow::Result<BackendKind> {
+        match flag {
+            Some(b) if b.starts_with("mock=") => Ok(BackendKind::Mock(PathBuf::from(
+                b.trim_start_matches("mock="),
+            ))),
+            Some("zs") | None => Ok(BackendKind::Zs),
+            Some(other) => anyhow::bail!("unknown backend '{other}'"),
+        }
+    }
+
+    fn is_mock(&self) -> bool {
+        matches!(self, BackendKind::Mock(_))
+    }
+}
+
 fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     let f = parse_flags(
         rest,
@@ -381,10 +424,10 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     if scenarios.is_empty() {
         anyhow::bail!("no scenario.toml found under {path}");
     }
-    let has_rubric = scenarios.iter().any(|s| s.judge.is_some());
-    require_judge_decision(has_rubric, &choice)?;
-    let (judge_path, no_judge, judge) = judge_for(choice, has_rubric)?;
+    let judge_graded = judge_graded_ids(&scenarios);
+    let has_rubric = !judge_graded.is_empty();
 
+    let backend_kind = BackendKind::resolve(f.get("backend"))?;
     let targets: Vec<PathBuf> = f.get_all("target").into_iter().map(PathBuf::from).collect();
     let multi = targets.len() > 1;
 
@@ -393,7 +436,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     // the --json/N>1 guards below so the caller sees the specific "mock
     // rejects --target" reason, not a generic multi-target complaint about a
     // combination mock could never honour anyway.
-    if matches!(f.get("backend"), Some(b) if b.starts_with("mock=")) && !targets.is_empty() {
+    if backend_kind.is_mock() && !targets.is_empty() {
         anyhow::bail!(
             "--target is rejected for --backend mock: mock replays canned artifacts \
              and never reads a target config.toml"
@@ -416,7 +459,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     // invocation or seeds a run directory, so a pack could not reach it —
     // accepting the flag would produce a report advertising a pack nothing
     // could have loaded. Same reasoning as the `--target` rejection above.
-    if matches!(f.get("backend"), Some(b) if b.starts_with("mock=")) && f.get("prompts").is_some() {
+    if backend_kind.is_mock() && f.get("prompts").is_some() {
         anyhow::bail!(
             "--prompts is rejected for --backend mock: mock replays canned artifacts and never \
              constructs a zerostack invocation, so it cannot load a pack"
@@ -449,6 +492,37 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         let target_refs: Vec<&Path> = targets.iter().map(PathBuf::as_path).collect();
         zseval::target::check_stem_collision(&target_refs)?;
     }
+
+    // Which zerostack a `zs` run will drive, resolved once: the gate below
+    // needs it to probe the build, and the run itself needs the same path.
+    let zs_bin: Option<PathBuf> = f
+        .get("zs-bin")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("ZS_BIN").map(PathBuf::from));
+
+    // The gate. Everything above this line is about the command being
+    // well-formed; everything below it costs something. The three free legs of
+    // a run — a binary to drive, a key per target, a judge decision — are all
+    // checked here and reported together, because a first-day setup is usually
+    // missing more than one and finding them one failed run at a time is the
+    // experience this exists to delete. mock drives no binary and calls no
+    // provider, so both of those legs are skipped rather than waived.
+    let mut pre = zseval::preflight::Preflight::new();
+    if !backend_kind.is_mock() {
+        zseval::preflight::check_binary(&mut pre, zs_bin.as_deref());
+        zseval::preflight::check_target_keys(&mut pre, &targets, |n| std::env::var(n).ok());
+    }
+    if has_rubric && matches!(choice, JudgeChoice::Unspecified) {
+        pre.problem(zseval::preflight::judge_decision_needed(
+            &judge_graded,
+            Path::new(zseval::preflight::JUDGES_DIR),
+        ));
+    }
+    pre.finish(&mut std::io::stderr())?;
+
+    // Past the free checks: this is the first thing that can spend money (the
+    // judge's live dry-run probe, and only when a ruler was actually named).
+    let (judge_path, no_judge, judge) = judge_for(choice, has_rubric)?;
 
     zseval::backend::set_verbose(f.has("verbose"));
 
@@ -492,12 +566,10 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         integrity_roots,
     };
 
-    let reports: Vec<Report> = match f.get("backend") {
-        Some(b) if b.starts_with("mock=") => {
+    let reports: Vec<Report> = match backend_kind {
+        BackendKind::Mock(fixture) => {
             // `--target` under mock is already rejected above.
-            let backend: Box<dyn AgentBackend> = Box::new(Mock {
-                fixture: PathBuf::from(b.trim_start_matches("mock=")),
-            });
+            let backend: Box<dyn AgentBackend> = Box::new(Mock { fixture });
             let opts = RunOptions {
                 target: None,
                 trials_override: cfg.trials_override,
@@ -517,20 +589,20 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
                 &opts,
             )?]
         }
-        Some("zs") | None => {
+        BackendKind::Zs => {
+            // Both of these were checked by the gate above, which refuses the
+            // run when either is missing; resolving them again here is what
+            // keeps this arm total, rather than reaching for an unwrap on a
+            // fact the type system can't carry down from the gate.
             if targets.is_empty() {
                 anyhow::bail!(
                     "--target is required for --backend zs: pass a zerostack config.toml \
                      naming what to evaluate against"
                 );
             }
-            let bin = f
-                .get("zs-bin")
-                .map(PathBuf::from)
-                .or_else(|| std::env::var_os("ZS_BIN").map(PathBuf::from))
-                .ok_or_else(|| {
-                    anyhow::anyhow!("need --zs-bin or ZS_BIN env (or --backend mock=<file>)")
-                })?;
+            let bin = zs_bin.ok_or_else(|| {
+                anyhow::anyhow!("need --zs-bin or ZS_BIN env (or --backend mock=<file>)")
+            })?;
             run_over_targets(
                 &scenarios,
                 &targets,
@@ -545,7 +617,6 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
                 &cfg,
             )?
         }
-        Some(other) => anyhow::bail!("unknown backend '{other}'"),
     };
 
     if f.has("json") {
@@ -884,7 +955,7 @@ fn cmd_regrade(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     let sc = zseval::scenario::Scenario::load(Path::new(sc_dir))?;
     let trial_dir = Path::new(trial_dir);
     let has_rubric = sc.judge.is_some();
-    require_judge_decision(has_rubric, &choice)?;
+    require_judge_decision(&judge_graded_ids(std::slice::from_ref(&sc)), &choice)?;
     let (judge_path, no_judge, judge) = judge_for(choice, has_rubric)?;
     // The trial index is cosmetic (it only labels the returned TrialResult),
     // so a directory not named "trial-N" just grades as trial 0.
@@ -947,6 +1018,17 @@ fn cmd_list(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         );
     }
     eprintln!("{} scenario(s)", scenarios.len());
+    // The judge decision a run of this suite will be refused without, put in
+    // front of the caller at the command they reach for first — before any
+    // run, rather than as the thing that stops their first one. Silent when
+    // nothing here is judge-graded: there is no choice to make.
+    let judge_graded = judge_graded_ids(&scenarios);
+    if !judge_graded.is_empty() {
+        eprintln!(
+            "{} judge-graded — running this suite needs --judge <file> or --no-judge",
+            judge_graded.len()
+        );
+    }
     Ok(ExitCode::SUCCESS)
 }
 

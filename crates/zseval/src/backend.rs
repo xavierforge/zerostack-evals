@@ -291,7 +291,9 @@ pub trait AgentBackend: Sync {
     /// non-zero exit, empty output — is an error naming the binary, which
     /// aborts the run before any API spend: this feature exists to make
     /// identity-less reports impossible, and a null fallback would reintroduce
-    /// them.
+    /// them. A banner that also announces its build's features has them read
+    /// off it (`parse_features`); one that doesn't reports `None`, which is
+    /// "unknown", not "none enabled".
     ///
     /// `Mock` returns the fixture's identity (`"mock"`, the fixture path, and a
     /// content fingerprint of the fixture). It never aborts on an unreadable
@@ -330,6 +332,36 @@ pub struct ZsCli {
     /// pack is shared across every target in a multi-target run
     /// (`run_over_targets`' `make_backend` closure), not reloaded per target.
     pub prompts: Option<Arc<PromptPack>>,
+}
+
+/// The marker a `--version` banner uses to announce its build's feature set.
+/// Matched case-insensitively and anywhere on a line, so both a dedicated
+/// `features: a, b` line and a suffixed `zerostack 1.7.2 (features: a b)` are
+/// read the same way.
+const FEATURES_MARKER: &str = "features:";
+
+/// The enabled feature set a `--version` banner reports, or `None` when the
+/// banner says nothing about features — which today's binary is the case for.
+/// The distinction matters: `None` is *no information*, and the preflight gate
+/// warns that the build cannot be verified rather than claiming a feature is
+/// missing. A marker followed by nothing usable is treated the same way, since
+/// an empty list read as fact would condemn every build.
+///
+/// Names are lowercased and split on commas, semicolons or whitespace, with
+/// bracketing punctuation trimmed: the banner is a human string, so this reads
+/// it leniently instead of turning its exact shape into a contract.
+fn parse_features(stdout: &str) -> Option<Vec<String>> {
+    let listed = stdout.lines().find_map(|line| {
+        let at = line.to_ascii_lowercase().find(FEATURES_MARKER)?;
+        Some(&line[at + FEATURES_MARKER.len()..])
+    })?;
+    let names: Vec<String> = listed
+        .split(|c: char| c == ',' || c == ';' || c.is_whitespace())
+        .map(|s| s.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_'))
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_ascii_lowercase())
+        .collect();
+    (!names.is_empty()).then_some(names)
 }
 
 impl AgentBackend for ZsCli {
@@ -390,7 +422,7 @@ impl AgentBackend for ZsCli {
             zs_bin_path: crate::verdict::record_path(&self.bin),
             zs_bin_sha256: crate::util::sha256_hex(&bytes),
             git_sha: None,
-            features: None,
+            features: parse_features(&stdout),
         })
     }
 
@@ -1135,8 +1167,9 @@ mod identity_tests {
 
     /// The first line of `--version` stdout is recorded verbatim — no format
     /// validation (a non-standard string is kept as-is), extra lines tolerated
-    /// and ignored. The binary is also hashed (64 hex chars), and
-    /// git_sha/features are `None` (not captured from today's binary).
+    /// and ignored. The binary is also hashed (64 hex chars); `git_sha` is
+    /// `None` (nothing embeds one) and so are `features` for a banner that
+    /// announces none, which is today's binary.
     #[test]
     fn version_first_line_is_captured_verbatim() {
         let bin = stub(
@@ -1148,6 +1181,54 @@ mod identity_tests {
         assert_eq!(id.zs_bin_sha256.len(), 64, "{}", id.zs_bin_sha256);
         assert!(id.git_sha.is_none());
         assert!(id.features.is_none());
+        std::fs::remove_dir_all(bin.parent().unwrap()).ok();
+    }
+
+    /// A banner that announces its features has them captured, off any line
+    /// and in any of the shapes `parse_features` tolerates — the first line
+    /// stays the verbatim version either way.
+    #[test]
+    fn a_banner_that_announces_features_has_them_captured() {
+        let bin = stub(
+            "features-line",
+            "#!/bin/sh\necho 'zerostack 1.7.2'\necho 'features: memory, mcp, subagents, loop'\n",
+        );
+        let id = zs(bin.clone()).identity().unwrap();
+        assert_eq!(id.zs_version, "zerostack 1.7.2");
+        assert_eq!(
+            id.features.as_deref(),
+            Some(
+                ["memory", "mcp", "subagents", "loop"]
+                    .map(String::from)
+                    .as_slice()
+            )
+        );
+        std::fs::remove_dir_all(bin.parent().unwrap()).ok();
+
+        let bin = stub(
+            "features-suffix",
+            "#!/bin/sh\necho 'zerostack 1.7.2 (Features: MCP loop)'\n",
+        );
+        let id = zs(bin.clone()).identity().unwrap();
+        assert_eq!(id.zs_version, "zerostack 1.7.2 (Features: MCP loop)");
+        assert_eq!(
+            id.features.as_deref(),
+            Some(["mcp", "loop"].map(String::from).as_slice())
+        );
+        std::fs::remove_dir_all(bin.parent().unwrap()).ok();
+    }
+
+    /// A marker with nothing usable after it is no information, not an empty
+    /// feature set: reported as `None` so the gate warns rather than
+    /// condemning the build.
+    #[test]
+    fn an_empty_feature_list_is_reported_as_no_information() {
+        let bin = stub(
+            "features-empty",
+            "#!/bin/sh\necho 'zerostack 1.7.2'\necho 'features:'\n",
+        );
+        let id = zs(bin.clone()).identity().unwrap();
+        assert!(id.features.is_none(), "{:?}", id.features);
         std::fs::remove_dir_all(bin.parent().unwrap()).ok();
     }
 

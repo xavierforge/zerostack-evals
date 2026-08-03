@@ -342,8 +342,11 @@ pub struct Report {
     /// when upstream starts embedding one, this stops being unconditionally
     /// `null` and the capture in `AgentBackend::identity` fills it.
     pub git_sha: Option<String>,
-    /// The build's enabled feature set, `null` today for the same reason as
-    /// `git_sha`: the binary exposes none to capture.
+    /// The build's enabled feature set as its own `--version` banner announced
+    /// it, `null` when the banner announced nothing — which is the 1.7.x
+    /// binary. `null` therefore means "unknown", never "none enabled": the
+    /// preflight gate reads it the same way, warning that a build cannot be
+    /// verified rather than condemning it.
     pub features: Option<Vec<String>>,
     pub scenarios: Vec<ScenarioResult>,
     pub summary: Summary,
@@ -356,8 +359,10 @@ pub struct Report {
 /// onto `Report` by `Report::build`; the capture logic lives on
 /// `AgentBackend::identity` (it is the backend that knows what ran).
 ///
-/// `git_sha`/`features` are `Option`, `None` today — the current binary embeds
-/// neither. They are recorded as observed facts, not a runtime feature probe.
+/// `git_sha`/`features` are `Option` and both `None` against the current
+/// binary, which embeds no sha and announces no features. They are recorded as
+/// observed facts: `features` is whatever the binary's own `--version` banner
+/// said, and `None` is the absence of a claim rather than an empty build.
 ///
 /// `Default` is the all-empty identity, used only by test fixtures that build a
 /// `ReportMeta` without a live backend; a real run always fills every field or

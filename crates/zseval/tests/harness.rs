@@ -3991,6 +3991,9 @@ fn a_pack_no_scenario_calls_warns_it_was_never_loaded() {
             results.to_str().unwrap(),
         ])
         .env_remove("ZS_BIN")
+        // Satisfies the preflight key check for the target's provider; the
+        // stub never dials a provider, so the value is never sent anywhere.
+        .env("ANTHROPIC_API_KEY", "test-key-the-stub-never-sends")
         .output()
         .unwrap();
 
@@ -4052,6 +4055,9 @@ fn a_partially_used_pack_emits_no_never_loaded_warning() {
             results.to_str().unwrap(),
         ])
         .env_remove("ZS_BIN")
+        // Satisfies the preflight key check for the target's provider; the
+        // stub never dials a provider, so the value is never sent anywhere.
+        .env("ANTHROPIC_API_KEY", "test-key-the-stub-never-sends")
         .output()
         .unwrap();
 

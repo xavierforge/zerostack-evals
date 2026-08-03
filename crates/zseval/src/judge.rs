@@ -122,6 +122,25 @@ impl JudgeProvider {
             JudgeProvider::Gemini => "GEMINI_API_KEY",
         }
     }
+
+    /// Parse a provider name as a config file spells it — the same four names
+    /// `serde` accepts on a judge card, so the two routes cannot drift apart.
+    /// `None` for anything outside the closed set; what that means is the
+    /// caller's call, because it differs: on a judge card an unknown provider
+    /// is a loud error (serde raises it before this is ever reached), while a
+    /// `--target` may legitimately name a provider this enum does not cover
+    /// (zerostack's keyless `ollama`, or a custom gateway). Exists so the
+    /// key-env routing table above stays the single one in the crate rather
+    /// than being mirrored by the target-side preflight.
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name.to_ascii_lowercase().as_str() {
+            "anthropic" => Some(JudgeProvider::Anthropic),
+            "openai" => Some(JudgeProvider::OpenAI),
+            "openrouter" => Some(JudgeProvider::OpenRouter),
+            "gemini" => Some(JudgeProvider::Gemini),
+            _ => None,
+        }
+    }
 }
 
 /// What a judge file says: which model grades and at what price. Provider
@@ -963,6 +982,20 @@ mod judge_provider_tests {
         assert_eq!(JudgeProvider::OpenAI.key_env(), "OPENAI_API_KEY");
         assert_eq!(JudgeProvider::OpenRouter.key_env(), "OPENROUTER_API_KEY");
         assert_eq!(JudgeProvider::Gemini.key_env(), "GEMINI_API_KEY");
+    }
+
+    /// `from_name` and serde must accept exactly the same four names: they are
+    /// two doors onto one closed set, and a name only one of them knows would
+    /// be a second, divergent routing table.
+    #[test]
+    fn from_name_accepts_exactly_what_serde_accepts() {
+        for s in ["anthropic", "openai", "openrouter", "gemini"] {
+            let w: Wrapper = toml::from_str(&format!("provider = \"{s}\"")).unwrap();
+            assert_eq!(JudgeProvider::from_name(s), Some(w.provider), "{s}");
+        }
+        for s in ["someother", "ollama", "google", "custom", ""] {
+            assert_eq!(JudgeProvider::from_name(s), None, "{s}");
+        }
     }
 }
 

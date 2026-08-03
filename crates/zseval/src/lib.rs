@@ -13,6 +13,7 @@ pub mod domains;
 pub mod integrity;
 pub mod judge;
 pub mod matrix;
+pub mod preflight;
 pub mod prompts;
 pub mod runner;
 pub mod scenario;
