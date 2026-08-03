@@ -2,4 +2,4 @@
 # Requires: export ANTHROPIC_API_KEY=sk-ant-...
 # The key is intentionally NOT in this file; zseval passes the env through.
 provider = "anthropic"
-model = "claude-sonnet-4-6"
+model = "claude-sonnet-5"

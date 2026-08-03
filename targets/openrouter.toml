@@ -3,4 +3,8 @@
 # Replace `model` with the exact model id your OpenRouter account uses
 # (OpenRouter ids are namespaced, e.g. "anthropic/claude-sonnet-4.6").
 provider = "openrouter"
-model = "anthropic/claude-sonnet-4.6"
+# zerostack's own historic default model (src/cli.rs "keep the historic
+# deepseek default"), so this column measures the agent as zerostack ships it.
+# A pinned id, never a floating "-latest" alias: an alias can move under an
+# unchanged report identity, which is the drift this harness exists to catch.
+model = "deepseek/deepseek-v4-pro"
