@@ -148,6 +148,12 @@ pub fn tail_of(path: &std::path::Path, lines: usize) -> String {
     }
 }
 
+/// Round to 4 decimal places — the wire precision of every rate and dollar
+/// figure a report or matrix carries.
+pub fn round4(x: f64) -> f64 {
+    (x * 10_000.0).round() / 10_000.0
+}
+
 #[cfg(test)]
 mod compact_timestamp_tests {
     use super::*;

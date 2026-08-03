@@ -77,14 +77,14 @@ A run SHALL report, on its own output, how many scenarios actually loaded a prom
 - **WHEN** a pack is loaded by some scenarios and not others
 - **THEN** no run-level never-loaded warning fires, and each scenario's own recorded source distinguishes which were measured against the pack
 
-### Requirement: Reports predating these fields load as unknown, not as stock
-Every field added here SHALL deserialize with a default so a report written before this change still loads, following the precedent of `judge_file`, `target`, and `content_hash`. The default for `prompt_source` SHALL be `unknown`, never `stock`: an older report's prompts were not observed, which is not the same fact as a run that observably used the built-in prompts. `REPORT_SCHEMA_VERSION` SHALL NOT be bumped and no code SHALL branch on it.
+### Requirement: Unknown is a recorded state, not a read-side default
+`prompt_source` SHALL keep `unknown` as a distinct recorded value, never conflated with `stock`: a run that could not observe which prompt a scenario loaded records `unknown`, which is not the same fact as observably using the built-ins. The read-side escape hatches this requirement originally mandated (every field added here deserializing with a default so a pre-field report still loads) are retired by `report-strict-read`: a report lacking any of these fields is a load error naming the field. `REPORT_SCHEMA_VERSION` SHALL NOT be bumped and no code SHALL branch on it.
 
-#### Scenario: An older report still loads
+#### Scenario: A pre-field report is a load error
 - **WHEN** a report written before these fields is deserialized
-- **THEN** it loads with an empty pack identity rather than failing to parse
+- **THEN** loading fails naming the missing field (see `report-strict-read`), rather than loading with defaults
 
-#### Scenario: Absent is not the same as stock
-- **WHEN** an older report is loaded
-- **THEN** its scenarios' prompt source is `unknown`, distinguishable from a new run that recorded `stock`
+#### Scenario: Unobserved is not the same as stock
+- **WHEN** a run cannot observe which prompt a scenario loaded (e.g. a zerostack build predating the session `prompt` record)
+- **THEN** that scenario records `prompt_source: "unknown"`, distinguishable from a run that observably used the built-ins and recorded `stock`
 </content>

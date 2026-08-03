@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::asserts::AssertResult;
 use crate::judge::JudgeVerdict;
 use crate::scenario::Kind;
+use crate::util::round4;
 
 /// Frozen at `1`: nothing reads this value (verified — only set at build and
 /// asserted in tests), so bumping it is decorative. Every field on
@@ -131,11 +132,12 @@ pub struct ScenarioResult {
     pub indeterminate: usize,
     /// Sum of `tool_call_count` across all trials — see `TrialResult`'s doc.
     pub total_tool_calls: usize,
-    /// `Scenario::content_hash` at run time — lets `compare` warn when a
-    /// scenario's own definition changed between baseline and candidate.
-    /// `""` when unknown (a hand-built `ScenarioResult` in a test), which
-    /// `compare` treats as "unknown, skip the check" rather than a
-    /// false-positive warning on every scenario.
+    /// `Scenario::content_hash` at run time — lets `compare` warn and
+    /// `matrix` mark DRIFT when a scenario's own definition changed between
+    /// runs. `""` when unknown (a hand-built `ScenarioResult` in a test; the
+    /// run path always records a real hash). `compare` reports any recorded
+    /// mismatch; `matrix`'s `drift_for_row` skips unknowns — observing no
+    /// hash is not observing a change.
     pub content_hash: String,
     /// The prompt name this scenario actually loaded — `""` when unresolved.
     /// Scenario-level rather than trial-level: constant across a scenario's
@@ -186,9 +188,7 @@ impl ScenarioResult {
     /// A scenario is gradable if at least one trial produced a verdict; a
     /// fully-indeterminate scenario is excluded from pass rates and diffs.
     pub fn is_gradable(&self) -> bool {
-        self.trials
-            .iter()
-            .any(|t| t.outcome != Final::Indeterminate)
+        self.n_graded_trials() > 0
     }
 
     /// How many trials actually produced a verdict — the pass-rate
@@ -577,10 +577,6 @@ impl Report {
             0
         }
     }
-}
-
-fn round4(x: f64) -> f64 {
-    (x * 10_000.0).round() / 10_000.0
 }
 
 /// `Summary::regression`/`Summary::capability`'s computation: the same

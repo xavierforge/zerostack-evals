@@ -88,26 +88,41 @@ fn tee(
     })
 }
 
-/// Spawn `cmd`, tee its stdout/stderr to `stdout_log`/`stderr_log` (and the
-/// console under `--verbose`), and wait — enforcing `timeout` measured from
-/// `overall_started`, with the same kill-and-diagnose-on-expiry and
-/// non-zero-exit handling either way. Shared by the per-turn `-p`/
-/// `--continue` path and the single-invocation `--loop` path so their
-/// timeout/heartbeat/diagnostic behavior can't drift apart. `repro_flag` is
-/// only cosmetic — it's substituted into the timeout error's "reproduce
-/// manually" hint (`-p` vs `--loop`).
-#[allow(clippy::too_many_arguments)]
-fn spawn_and_wait(
-    mut cmd: Command,
-    bin: &Path,
-    repro_flag: &str,
-    overall_started: Instant,
+/// Everything one `zerostack` invocation needs beyond its `Command`: the
+/// binary being driven (named in the spawn and timeout errors), the flag that
+/// reproduces this invocation shape by hand, the trial-wide `timeout` measured
+/// from `started`, and the turn's index plus the three logs its output is
+/// tee'd to. Bundled because `run_print` and `run_loop` each hold the whole
+/// group already — the only two callers, and the two shapes whose
+/// timeout/heartbeat/diagnostic behavior must not drift apart.
+struct TurnRun<'a> {
+    bin: &'a Path,
+    /// Cosmetic only: substituted into the timeout error's "reproduce
+    /// manually" hint (`-p` vs `--loop`).
+    repro_flag: &'a str,
+    /// When the whole trial started — the timeout is measured from here, not
+    /// from this invocation's spawn.
+    started: Instant,
     timeout: Duration,
     turn_label: usize,
-    stdout_log: &Path,
-    stderr_log: &Path,
-    zs_log: &Path,
-) -> Result<()> {
+    logs: &'a TurnArtifacts,
+}
+
+/// Spawn `cmd`, tee its stdout/stderr to `run.logs` (and the console under
+/// `--verbose`), and wait — enforcing `run.timeout`, with the same
+/// kill-and-diagnose-on-expiry and non-zero-exit handling either way. Shared
+/// by the per-turn `-p`/`--continue` path and the single-invocation `--loop`
+/// path.
+fn spawn_and_wait(mut cmd: Command, run: &TurnRun) -> Result<()> {
+    let TurnRun {
+        bin,
+        repro_flag,
+        started,
+        timeout,
+        turn_label,
+        logs,
+    } = *run;
+    let (stdout_log, stderr_log, zs_log) = (&logs.stdout, &logs.stderr, &logs.zslog);
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -116,13 +131,13 @@ fn spawn_and_wait(
         .with_context(|| format!("spawn {}", bin.display()))?;
     let t_out = tee(
         child.stdout.take().expect("piped"),
-        stdout_log.to_path_buf(),
+        stdout_log.clone(),
         "out",
         turn_label,
     );
     let t_err = tee(
         child.stderr.take().expect("piped"),
-        stderr_log.to_path_buf(),
+        stderr_log.clone(),
         "err",
         turn_label,
     );
@@ -134,7 +149,7 @@ fn spawn_and_wait(
         match child.try_wait()? {
             Some(status) => break status,
             None => {
-                if overall_started.elapsed() > timeout {
+                if started.elapsed() > timeout {
                     let _ = child.kill();
                     let _ = child.wait();
                     let _ = (t_out.join(), t_err.join());
@@ -156,11 +171,11 @@ fn spawn_and_wait(
                         bin.display(),
                     );
                 }
-                if overall_started.elapsed() > next_heartbeat && !verbose() {
+                if started.elapsed() > next_heartbeat && !verbose() {
                     eprintln!(
                         "     ... turn {turn_label} still running ({}s elapsed; --verbose \
                          streams live output; trace: {})",
-                        overall_started.elapsed().as_secs(),
+                        started.elapsed().as_secs(),
                         zs_log.display(),
                     );
                     next_heartbeat += Duration::from_secs(15);
@@ -477,11 +492,13 @@ impl ZsCli {
             }
             let turn_started = Instant::now();
 
-            let stdout_log = d.run_dir.join(format!("turn-{i}.stdout"));
-            let stderr_log = d.run_dir.join(format!("turn-{i}.stderr"));
-            // zerostack's own trace-level log: this is where API retries,
-            // tool dispatch, and provider errors actually show up.
-            let zs_log = d.run_dir.join(format!("turn-{i}.zslog"));
+            let logs = TurnArtifacts {
+                stdout: d.run_dir.join(format!("turn-{i}.stdout")),
+                stderr: d.run_dir.join(format!("turn-{i}.stderr")),
+                // zerostack's own trace-level log: this is where API retries,
+                // tool dispatch, and provider errors actually show up.
+                zslog: d.run_dir.join(format!("turn-{i}.zslog")),
+            };
 
             let mut cmd = Command::new(&self.bin);
             cmd.arg("-p")
@@ -489,7 +506,7 @@ impl ZsCli {
                 .arg("--no-color")
                 .arg("--pure-stdout")
                 .arg("--log-file")
-                .arg(&zs_log);
+                .arg(&logs.zslog);
             if let Some(name) = &sc.prompt {
                 cmd.arg("--load-prompt").arg(name);
             }
@@ -507,14 +524,14 @@ impl ZsCli {
 
             spawn_and_wait(
                 cmd,
-                &self.bin,
-                "-p",
-                started,
-                timeout,
-                i,
-                &stdout_log,
-                &stderr_log,
-                &zs_log,
+                &TurnRun {
+                    bin: &self.bin,
+                    repro_flag: "-p",
+                    started,
+                    timeout,
+                    turn_label: i,
+                    logs: &logs,
+                },
             )?;
             if verbose() {
                 eprintln!(
@@ -522,11 +539,7 @@ impl ZsCli {
                     turn_started.elapsed().as_secs_f64()
                 );
             }
-            turn_logs.push(TurnArtifacts {
-                stdout: stdout_log,
-                stderr: stderr_log,
-                zslog: zs_log,
-            });
+            turn_logs.push(logs);
         }
 
         let session_files = discover_session_files(d.data);
@@ -564,16 +577,18 @@ impl ZsCli {
         let timeout = Duration::from_secs(sc.timeout_secs);
         let turn = &sc.task.turns()[0];
 
-        let stdout_log = d.run_dir.join("turn-0.stdout");
-        let stderr_log = d.run_dir.join("turn-0.stderr");
-        let zs_log = d.run_dir.join("turn-0.zslog");
+        let logs = TurnArtifacts {
+            stdout: d.run_dir.join("turn-0.stdout"),
+            stderr: d.run_dir.join("turn-0.stderr"),
+            zslog: d.run_dir.join("turn-0.zslog"),
+        };
 
         let mut cmd = Command::new(&self.bin);
         cmd.arg("--loop")
             .arg("--yolo")
             .arg("--no-color")
             .arg("--log-file")
-            .arg(&zs_log)
+            .arg(&logs.zslog)
             .arg("--loop-max")
             .arg(loop_cfg.max_iterations.to_string());
         if let Some(run_cmd) = &loop_cfg.run {
@@ -591,23 +606,19 @@ impl ZsCli {
 
         spawn_and_wait(
             cmd,
-            &self.bin,
-            "--loop",
-            started,
-            timeout,
-            0,
-            &stdout_log,
-            &stderr_log,
-            &zs_log,
+            &TurnRun {
+                bin: &self.bin,
+                repro_flag: "--loop",
+                started,
+                timeout,
+                turn_label: 0,
+                logs: &logs,
+            },
         )?;
 
         Ok(RunArtifacts {
             session_files: Vec::new(),
-            turns: vec![TurnArtifacts {
-                stdout: stdout_log,
-                stderr: stderr_log,
-                zslog: zs_log,
-            }],
+            turns: vec![logs],
             data_dir: d.data.to_path_buf(),
             config_dir: d.config.to_path_buf(),
             work_dir: d.work.to_path_buf(),

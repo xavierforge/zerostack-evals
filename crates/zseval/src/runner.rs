@@ -946,6 +946,10 @@ pub fn regrade(
     Ok(tr)
 }
 
+/// The grading decision: deterministic asserts AND the judge fold into one
+/// `Final` here — every Pass/Fail/Indeterminate a report carries is decided
+/// in this function.
+///
 /// The grading half of a trial: transcript assembly, domain drift check,
 /// deterministic asserts, budgets, judge. Shared by a fresh `run_trial` (agent
 /// just ran) and `regrade` (agent artifacts already exist on disk) — the only

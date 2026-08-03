@@ -19,17 +19,16 @@ struct Peek {
     default_prompt: Option<String>,
 }
 
+fn parse(path: &Path) -> Option<Peek> {
+    toml::from_str(&std::fs::read_to_string(path).ok()?).ok()
+}
+
 /// Read `provider`/`model` out of a target config.toml. A missing file or
 /// unparseable TOML yields `(None, None)` — an unreadable target is graded
 /// downstream (the run itself will fail or go indeterminate); this helper
 /// just describes what it could read.
 pub fn peek(path: &Path) -> (Option<String>, Option<String>) {
-    let Ok(text) = std::fs::read_to_string(path) else {
-        return (None, None);
-    };
-    let Ok(p) = toml::from_str::<Peek>(&text) else {
-        return (None, None);
-    };
+    let p = parse(path).unwrap_or_default();
     (p.provider, p.model)
 }
 
@@ -39,8 +38,7 @@ pub fn peek(path: &Path) -> (Option<String>, Option<String>) {
 /// falling back to zerostack's own `code` default when it is `None` (see
 /// `runner::derive_prompt`).
 pub fn default_prompt(path: &Path) -> Option<String> {
-    let text = std::fs::read_to_string(path).ok()?;
-    toml::from_str::<Peek>(&text).ok()?.default_prompt
+    parse(path)?.default_prompt
 }
 
 /// Human-identifiable label for what a run evaluates against:

@@ -20,7 +20,7 @@
 //!   prompt_recorded <name> <built_in|user_file>  # session's raw readback (design D6);
 //!                                                 # not this crate's four-way prompt_source, and
 //!                                                 # fails rather than passing when nothing was recorded
-//!   file_contains <path> <needle...>       # outcome check; fails if nothing matches
+//!   file_contains <path> <needle...>       # supports one *; fails if nothing matches
 //!   file_not_contains <path> <needle...>   # supports one *; fails if nothing matches
 //!   path_not_exists <path>                 # supports one *; dirs count as existing
 //!
@@ -133,6 +133,21 @@ fn split1(rest: &str) -> Result<(String, String)> {
     }
 }
 
+/// The shared path argument of the `file_*`/`path_not_exists` family, checked
+/// against the one rule the matcher actually implements: `glob_hits` expands
+/// exactly one `*` path segment (module doc, "Paths allow a single `*` path
+/// segment"), so a second star is matched literally and can only ever produce
+/// zero hits. Rejecting it here makes a mistyped path a load error naming the
+/// op and the path, the `scenario-strict-load` posture, instead of a
+/// grade-time "nothing matches" that reads as a real finding about the run.
+fn single_star_path(op: &str, path: String) -> Result<String> {
+    let stars = path.matches('*').count();
+    if stars > 1 {
+        bail!("{op}: at most one '*' path segment allowed, got {stars} in '{path}'");
+    }
+    Ok(path)
+}
+
 impl Assert {
     pub fn parse(line: &str) -> Result<Assert> {
         let line = line.trim();
@@ -195,21 +210,20 @@ impl Assert {
             }
             "file_contains" => {
                 let (path, needle) = split1(rest)?;
-                Assert::FileContains { path, needle }
+                Assert::FileContains {
+                    path: single_star_path("file_contains", path)?,
+                    needle,
+                }
             }
             "file_not_contains" => {
                 let (path, needle) = split1(rest)?;
-                Assert::FileNotContains { path, needle }
+                Assert::FileNotContains {
+                    path: single_star_path("file_not_contains", path)?,
+                    needle,
+                }
             }
             "path_not_exists" => {
-                let path = rest.to_string();
-                let stars = path.matches('*').count();
-                if stars > 1 {
-                    bail!(
-                        "path_not_exists: at most one '*' path segment allowed, got {stars} in '{path}'"
-                    );
-                }
-                Assert::PathNotExists(path)
+                Assert::PathNotExists(single_star_path("path_not_exists", rest.to_string())?)
             }
             other => bail!("unknown assert op '{other}'"),
         })
@@ -357,14 +371,10 @@ impl Assert {
             }
         };
         AssertResult {
-            spec: self.spec(),
+            spec: format!("{self:?}"),
             pass,
             detail,
         }
-    }
-
-    fn spec(&self) -> String {
-        format!("{self:?}")
     }
 }
 
@@ -383,8 +393,8 @@ fn resolve_root<'a>(pattern: &'a str, roots: &RunRoots<'a>) -> (&'a Path, &'a st
 /// List every filesystem entry — file or directory — that `pattern` matches
 /// under its resolved root, as full paths. Pattern may contain at most one
 /// `*` path segment (e.g. `agent/memory/projects/*/notes/foo.md`); the
-/// two-or-more-stars case is rejected earlier, at parse time, for
-/// `path_not_exists` (see `Assert::parse`).
+/// two-or-more-stars case is rejected earlier, at parse time, for every op in
+/// the family (see `single_star_path`).
 ///
 /// Never errors on "nothing matched": a missing single path, a missing glob
 /// directory, and an existing-but-empty glob directory all fold into an
@@ -582,6 +592,35 @@ mod tests {
         let err = Assert::parse("path_not_exists projects/*/notes/*").unwrap_err();
         let msg = format!("{err:#}");
         assert!(msg.contains('*'), "{msg}");
+    }
+
+    /// The whole `file_*`/`path_not_exists` family shares one path rule, so
+    /// the content asserts reject a second star at load too, naming the op
+    /// and the path — `glob_hits` would otherwise expand only the first star
+    /// and report the mistyped path as an ordinary "nothing matches" failure
+    /// mid-run.
+    #[test]
+    fn file_contains_rejects_two_star_segments_at_parse_time() {
+        let err = Assert::parse("file_contains projects/*/notes/*.md needle").unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("file_contains"), "{msg}");
+        assert!(msg.contains("projects/*/notes/*.md"), "{msg}");
+    }
+
+    #[test]
+    fn file_not_contains_rejects_two_star_segments_at_parse_time() {
+        let err = Assert::parse("file_not_contains projects/*/notes/*.md needle").unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("file_not_contains"), "{msg}");
+        assert!(msg.contains("projects/*/notes/*.md"), "{msg}");
+    }
+
+    /// The rule is "at most one", not "none": the single-star form every
+    /// glob assert relies on still loads.
+    #[test]
+    fn file_contains_accepts_one_star_segment() {
+        assert!(Assert::parse("file_contains projects/*/NOTES.md needle").is_ok());
+        assert!(Assert::parse("file_not_contains projects/*/NOTES.md needle").is_ok());
     }
 
     // spec `session-evidence`, "A scenario can assert the recorded prompt"

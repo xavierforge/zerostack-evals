@@ -75,15 +75,23 @@ A row SHALL be marked SPREAD when `max(row) - min(row)` over its gradable cells 
 - **THEN** the row is not marked SPREAD
 
 ### Requirement: DRIFT marks columns measured by a changed ruler
-The matrix has no baseline, so DRIFT SHALL mark, never adjudicate. WHEN a scenario's `content_hash` differs across the cells of a row, that row SHALL be marked DRIFT and the differing columns listed. WHEN columns were graded by different rulers (`judge_hash` differs, or a column's judge is unknown), the affected column(s) SHALL be marked DRIFT. DRIFT SHALL be phrased as "may not be comparable, look", not a verdict, and SHALL NOT pick any column as the correct one.
+The matrix has no baseline, so DRIFT SHALL mark, never adjudicate. WHEN a scenario's `content_hash` differs across the cells of a row, that row SHALL be marked DRIFT and the differing columns listed. WHEN columns were graded by different rulers (`judge_hash` differs, or a column's judge is unknown while another column's is known), the affected column(s) SHALL be marked DRIFT. WHEN no column carries a known judge (e.g. every column ran `--no-judge`), there is no known ruler that could have moved, and no column SHALL be marked for its judge. DRIFT SHALL be phrased as "may not be comparable, look", not a verdict, and SHALL NOT pick any column as the correct one.
 
 #### Scenario: A scenario redefined between columns is a per-row DRIFT
 - **WHEN** one scenario's `content_hash` is not the same in all columns
 - **THEN** that row is marked DRIFT and the differing columns are listed
 
+#### Scenario: An unrecorded content hash is not a mismatch
+- **WHEN** a column's copy of a scenario carries an empty `content_hash` (a hand-built report; the run path always records one)
+- **THEN** that column does not participate in the row's hash comparison: observing no hash is not observing a change
+
 #### Scenario: A column judged by a different ruler is a per-column DRIFT
 - **WHEN** a column's `judge_hash` differs from the others, or its judge is unknown
 - **THEN** that column is marked DRIFT
+
+#### Scenario: All-unknown judges drift nothing
+- **WHEN** no column in the matrix records a known judge identity
+- **THEN** no column is marked DRIFT for its judge: with no known ruler anywhere, there is no evidence any ruler moved
 
 ### Requirement: Column identity and the legend
 A column SHALL be labelled in the header by its target stem. The full provider/model, the target path, the judge tri-state (unknown / nothing-graded / the listed rulers), and the prompt pack identity (its path with a short content hash, or a plain marker when the column used no pack) SHALL appear in the legend rather than the header. A report that carries no target identity SHALL NOT be a column: `matrix` SHALL exit 2 naming it.

@@ -83,7 +83,7 @@ WHEN a run completes, its human-readable table and summary SHALL be written to s
 - **THEN** the table appears on stderr and the redirected file is not polluted by it
 
 ### Requirement: The run exit code is the most severe across columns
-WHEN N targets run, the process exit code SHALL be the most severe of the per-target codes: 2 if any column is fully ungradable, else 1 if any trial graded Fail, else 0.
+WHEN N targets run, the process exit code SHALL be the most severe of the per-target codes: 2 if any column is fully ungradable, else 1 if any trial graded Fail, else 0. A column holding no scenarios at all (reachable only when the budget cap shuts a target out before its first scenario) is a recorded fact (`budget_truncated`, marked in the table), not a harness error: it contributes 0, deliberately diverging from `matrix`, which exits 2 when handed a zero-scenario report (the 2026-07-21 target-matrix design ruling: the two realise "fully ungradable" differently on purpose).
 
 #### Scenario: A failing column makes the run fail
 - **WHEN** one column has a trial graded Fail and another column is clean
@@ -92,3 +92,7 @@ WHEN N targets run, the process exit code SHALL be the most severe of the per-ta
 #### Scenario: A fully-ungradable column is a harness error
 - **WHEN** any column has no gradable scenario at all
 - **THEN** the run exits 2
+
+#### Scenario: A budget-emptied column does not redden the run
+- **WHEN** the budget cap stops a target before its first scenario, so its column holds zero scenarios
+- **THEN** the column is marked budget-truncated and contributes exit 0, while `matrix`, handed that same zero-scenario report, exits 2

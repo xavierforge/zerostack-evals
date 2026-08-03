@@ -27,6 +27,7 @@ use serde::Serialize;
 
 use crate::scenario::Kind;
 use crate::site::Page;
+use crate::util::round4;
 use crate::verdict::{Report, ScenarioResult};
 
 /// One scenario's outcome in one column. Never a bare `f64` — see the module
@@ -122,16 +123,17 @@ pub struct Column {
     /// display heuristics, not statistical or authoritative claims (design.md,
     /// "DRIFT marks, never adjudicates").
     pub judge_drift: bool,
-    /// This column's target AND pack identity both differ from some other
-    /// column's in this table — no cell difference between the two can be
-    /// attributed to either variable alone (`controlled-variables` spec;
-    /// design.md, "One independent variable, derived rather than asserted").
-    /// Distinct from `judge_drift`/row DRIFT, which flag a moved ruler
-    /// (`judge_hash`/`content_hash`); this flags two *subject* variables
-    /// (target, pack) moving together. A display heuristic like SPREAD/DRIFT
-    /// — it says "look here", never which column is correct. Columns sharing
-    /// a target and differing only by pack are the flagship clean experiment
-    /// and are never marked by this.
+    /// Two or more of this column's three subject variables — target, pack
+    /// identity, zerostack build — differ from some other column's in this
+    /// table, so no cell difference between the two can be attributed to any
+    /// one of them (`controlled-variables` spec; design.md, "One independent
+    /// variable, derived rather than asserted"). Distinct from
+    /// `judge_drift`/row DRIFT, which flag a moved ruler
+    /// (`judge_hash`/`content_hash`); this flags *subject* variables moving
+    /// together. A display heuristic like SPREAD/DRIFT — it says "look here",
+    /// never which column is correct. Columns varying exactly one of the
+    /// three (the flagship case: same target and build, different pack) are
+    /// the clean experiment and are never marked by this.
     pub multi_variable: bool,
 }
 
@@ -405,11 +407,11 @@ fn spread_for_row(reports: &[&Report], id: &str) -> bool {
 }
 
 /// Per-row DRIFT: `content_hash` mismatch across the columns that graded
-/// this scenario, grouped by hash. An empty `content_hash` (a baseline
-/// predating the field) is "unknown, skip" — same precedent as
-/// `ScenarioResult::content_hash`'s own doc — never treated as a mismatch on
-/// its own. No group is named "correct" (design.md, "DRIFT marks, never
-/// adjudicates").
+/// this scenario, grouped by hash. An empty `content_hash` (a hand-built
+/// report; the run path always records one) is "unknown, skip": observing no
+/// hash is not observing a change — the same reasoning as
+/// `judge_drift_flags`' no-known-ruler rule. No group is named "correct"
+/// (design.md, "DRIFT marks, never adjudicates").
 fn drift_for_row(reports: &[&Report], labels: &[String], id: &str) -> Vec<DriftGroup> {
     let entries: Vec<(String, String, String)> = reports
         .iter()
@@ -468,28 +470,43 @@ fn judge_drift_flags(reports: &[&Report]) -> Vec<bool> {
         .collect()
 }
 
-/// Per-column `multi_variable` mark: this column's target AND pack identity
-/// both differ from some *other* column's — see `Column::multi_variable`. Pack
-/// identity is the fingerprint hash alone, never the pack path (which
-/// `PromptPack::fingerprint` deliberately excludes), so a byte-identical pack
-/// supplied from two different paths does not count as a second moved variable.
-/// Unlike `judge_drift_flags`, there is no unknown-vs-known special case: every
-/// column's target is always known, and an empty pack (`""` hash, i.e. no pack)
-/// is itself a valid, comparable identity rather than an absence to skip.
+/// Per-column `multi_variable` mark: two or more of this column's three
+/// subject variables — target, pack identity, zerostack build — differ from
+/// some *other* column's — see `Column::multi_variable`. Pack identity is the
+/// fingerprint hash alone, never the pack path (which `PromptPack::fingerprint`
+/// deliberately excludes), so a byte-identical pack supplied from two different
+/// paths does not count as a moved variable; build identity is likewise
+/// `zs_bin_sha256` and never the `zs_version` label, since two binaries can
+/// print the same version string (`controlled-variables` spec, "the hash is the
+/// identity, the version string is the label"). Unlike `judge_drift_flags`,
+/// there is no unknown-vs-known special case: every column's target is always
+/// known, every report carries a build identity (capture-or-die at run start,
+/// or the mock backend's fixture fingerprint), and an empty pack (`""` hash,
+/// i.e. no pack) is itself a valid, comparable identity rather than an absence
+/// to skip.
 fn multi_variable_flags(reports: &[&Report]) -> Vec<bool> {
     reports
         .iter()
         .enumerate()
         .map(|(i, r)| {
-            reports.iter().enumerate().any(|(j, other)| {
-                j != i && r.target != other.target && r.prompts_hash != other.prompts_hash
-            })
+            reports
+                .iter()
+                .enumerate()
+                .any(|(j, other)| j != i && moved_subject_variables(r, other) >= 2)
         })
         .collect()
 }
 
-fn round4(x: f64) -> f64 {
-    (x * 10_000.0).round() / 10_000.0
+/// How many of the three subject variables (target, pack identity, zerostack
+/// build) differ between two columns — the count `multi_variable_flags`
+/// thresholds at two. Rulers (`judge_hash`, `content_hash`) are deliberately
+/// absent: a moved ruler invalidates comparability outright and is marked by
+/// its own unconditional rule (`controlled-variables` spec, "Rulers are not
+/// subject variables and are not counted here").
+fn moved_subject_variables(a: &Report, b: &Report) -> usize {
+    usize::from(a.target != b.target)
+        + usize::from(a.prompts_hash != b.prompts_hash)
+        + usize::from(a.zs_bin_sha256 != b.zs_bin_sha256)
 }
 
 fn format_cell(c: Cell) -> String {
@@ -1130,6 +1147,31 @@ mod tests {
                 zs: ZsIdentity {
                     zs_version: version.into(),
                     zs_bin_sha256: hash.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            vec![],
+        )
+    }
+
+    // Mirrors `report_with_pack`/`report_with_zs` for the MULTI-VAR tests,
+    // which need two subject variables settable at once: the pack identity
+    // (hash, the pack path plays no part) and the build identity
+    // (`zs_bin_sha256`, the version string plays no part).
+    fn report_with_pack_and_zs(target: &str, tag: &str, pack_hash: &str, zs_hash: &str) -> Report {
+        Report::build(
+            ReportMeta {
+                tag: tag.into(),
+                model: format!("anthropic/{tag}"),
+                backend: "zs".into(),
+                trials: 1,
+                target: target.into(),
+                prompts_pack: "packs/shared".into(),
+                prompts_hash: pack_hash.into(),
+                zs: ZsIdentity {
+                    zs_version: "zerostack 1.7.2".into(),
+                    zs_bin_sha256: zs_hash.into(),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -1928,6 +1970,72 @@ mod tests {
             "run-b",
             "packs/my-pack",
             "aaaaaaaaaaaaaaaa",
+        );
+        let m = build(&[&a, &b]);
+        assert!(!m.columns[0].multi_variable);
+        assert!(!m.columns[1].multi_variable);
+    }
+
+    // controlled-variables spec, "A comparison varies exactly one independent
+    // variable": the build is a subject variable like target and pack, so two
+    // columns on the same pack whose target and binary both moved are marked —
+    // a cell difference belongs to neither variable alone.
+    #[test]
+    fn different_build_and_target_shared_pack_is_marked() {
+        let a = report_with_pack_and_zs(
+            "targets/opus.toml",
+            "run-a",
+            "aaaaaaaaaaaaaaaa",
+            "1111111111111111",
+        );
+        let b = report_with_pack_and_zs(
+            "targets/sonnet.toml",
+            "run-b",
+            "aaaaaaaaaaaaaaaa",
+            "2222222222222222",
+        );
+        let m = build(&[&a, &b]);
+        assert!(m.columns[0].multi_variable);
+        assert!(m.columns[1].multi_variable);
+    }
+
+    // The third pairing of the same rule: same target, but both the pack and
+    // the binary moved.
+    #[test]
+    fn different_build_and_pack_shared_target_is_marked() {
+        let a = report_with_pack_and_zs(
+            "targets/opus.toml",
+            "run-a",
+            "aaaaaaaaaaaaaaaa",
+            "1111111111111111",
+        );
+        let b = report_with_pack_and_zs(
+            "targets/opus.toml",
+            "run-b",
+            "bbbbbbbbbbbbbbbb",
+            "2222222222222222",
+        );
+        let m = build(&[&a, &b]);
+        assert!(m.columns[0].multi_variable);
+        assert!(m.columns[1].multi_variable);
+    }
+
+    // A build difference on its own is one moved subject variable — the
+    // upgrade-comparison experiment — and stays unmarked. (`compare`'s
+    // build-mismatch warning is a separate, unconditional mechanism.)
+    #[test]
+    fn different_build_alone_is_not_marked() {
+        let a = report_with_pack_and_zs(
+            "targets/opus.toml",
+            "run-a",
+            "aaaaaaaaaaaaaaaa",
+            "1111111111111111",
+        );
+        let b = report_with_pack_and_zs(
+            "targets/opus.toml",
+            "run-b",
+            "aaaaaaaaaaaaaaaa",
+            "2222222222222222",
         );
         let m = build(&[&a, &b]);
         assert!(!m.columns[0].multi_variable);
