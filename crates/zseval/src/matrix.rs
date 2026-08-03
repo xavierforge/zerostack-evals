@@ -877,9 +877,10 @@ pub fn render_markdown(m: &Matrix) -> String {
 /// footer-excluded disclosure. Nothing here recomputes a figure, and there is
 /// no second, differently-defined pass rate.
 ///
-/// The layout, unlike its siblings', is two tables rather than one (owner
-/// ruling 2026-08-03): the footer figures lead as a summary table of their
-/// own, and the per-scenario rows follow folded into a collapsed `<details>`.
+/// The layout, unlike its siblings', is more than one table (owner ruling
+/// 2026-08-03): the footer figures lead as a summary table of their own, and
+/// the per-scenario rows follow folded into a collapsed `<details>`, nested
+/// there one table per subsystem ([`html_scenario_details`]).
 /// A terminal or a markdown record is read top to bottom, but a page is
 /// landed on, and what a reader lands on should be the eight figures rather
 /// than a hundred rows they have to scroll past to reach them. The fold is a
@@ -956,6 +957,24 @@ fn html_summary_table(page: &mut Page, m: &Matrix) {
 /// the same per-kind grouping and the same marks as before, one disclosure
 /// element deeper. The summary names its own row count so a reader knows what
 /// the fold holds without opening it.
+///
+/// Inside the fold the rows nest one table per subsystem (owner ruling
+/// 2026-08-03), because a hundred rows in one table is a list a reader has to
+/// scan rather than a shape they can take in: nested, each subsystem's rows are
+/// a block small enough to read at a glance. The subsystem is
+/// [`subsystem_of`]'s reading of the scenario id and nothing else, and each
+/// table is labelled with that bare prefix — this is the report's own
+/// vocabulary, deliberately not the coverage ledger's area titles, whose areas
+/// cut across suites, so mapping one onto the other would claim a
+/// correspondence that does not exist.
+///
+/// The nesting is presentation and only presentation: no per-subsystem pass
+/// rate or total is computed here or anywhere else, because a second,
+/// differently-scoped figure on the page is exactly what `site-render` refuses.
+/// Each nested table repeats the column header row, so a table scrolled into
+/// view says what its columns are, and keeps the kind marker rows within it —
+/// a reader who never mistakes a capability row for a regression row is the
+/// point of the grouping, and nesting must not cost it.
 fn html_scenario_details(page: &mut Page, m: &Matrix) {
     let any_marks = any_row_marks(m);
     // The scenario column, one per target column, and the notes column when
@@ -969,45 +988,89 @@ fn html_scenario_details(page: &mut Page, m: &Matrix) {
     } else {
         " scenarios)"
     });
-    page.raw("</summary>\n<table>\n<thead>\n<tr><th>scenario</th>");
-    for col in &m.columns {
-        page.raw("<th>");
-        page.text(&column_header(col));
-        page.raw("</th>");
-    }
-    if any_marks {
-        page.raw("<th>notes</th>");
-    }
-    page.raw("</tr>\n</thead>\n<tbody>\n");
+    page.raw("</summary>\n");
 
-    for (label, kind) in KINDS {
-        let rows = rows_of_kind(m, kind);
-        if rows.is_empty() {
-            continue;
+    for subsystem in subsystems(m) {
+        // A `<caption>` rather than a heading: the label belongs to the table
+        // it names, and a heading here would have to pick a level under the
+        // section's `<h2>` that the page's outline has no other use for.
+        page.raw("<table>\n<caption>");
+        page.text(subsystem);
+        page.raw("</caption>\n<thead>\n<tr><th>scenario</th>");
+        for col in &m.columns {
+            page.raw("<th>");
+            page.text(&column_header(col));
+            page.raw("</th>");
         }
-        page.raw("<tr><th colspan=\"");
-        page.text(&span.to_string());
-        page.raw("\">");
-        page.text(label);
-        page.raw("</th></tr>\n");
-        for row in rows {
-            page.raw("<tr><td>");
-            page.text(&row.id);
-            page.raw("</td>");
-            for cell in &row.cells {
-                page.raw("<td>");
-                page.text(&format_cell(*cell));
-                page.raw("</td>");
+        if any_marks {
+            page.raw("<th>notes</th>");
+        }
+        page.raw("</tr>\n</thead>\n<tbody>\n");
+
+        for (label, kind) in KINDS {
+            let rows: Vec<&Row> = rows_of_kind(m, kind)
+                .into_iter()
+                .filter(|r| subsystem_of(&r.id) == subsystem)
+                .collect();
+            if rows.is_empty() {
+                continue;
             }
-            if any_marks {
-                page.raw("<td>");
-                page.text(row_marks(row).trim());
+            // The marker row stays even where this subsystem holds one kind
+            // only: an unlabelled block of rows is one whose kind a reader has
+            // to guess, and reading a capability row as a regression is the
+            // misreading the grouping exists to prevent.
+            page.raw("<tr><th colspan=\"");
+            page.text(&span.to_string());
+            page.raw("\">");
+            page.text(label);
+            page.raw("</th></tr>\n");
+            for row in rows {
+                page.raw("<tr><td>");
+                page.text(&row.id);
                 page.raw("</td>");
+                for cell in &row.cells {
+                    page.raw("<td>");
+                    page.text(&format_cell(*cell));
+                    page.raw("</td>");
+                }
+                if any_marks {
+                    page.raw("<td>");
+                    page.text(row_marks(row).trim());
+                    page.raw("</td>");
+                }
+                page.raw("</tr>\n");
             }
-            page.raw("</tr>\n");
+        }
+        page.raw("</tbody>\n</table>\n");
+    }
+    page.raw("</details>\n");
+}
+
+/// A scenario's subsystem: the id's prefix, the text before its first `-`
+/// (`prompt`, `memory`, `tools`, ...), and the whole id where it holds no `-`.
+/// The suite names its scenarios that way, so the prefix is a fact the id
+/// already carries rather than a classification this module invents.
+fn subsystem_of(id: &str) -> &str {
+    id.split('-').next().unwrap_or(id)
+}
+
+/// The subsystems present, in order of first appearance in the row order the
+/// tables render in — kind-grouped, as [`KINDS`] has it, so the order follows
+/// the regression rows and then whatever capability adds. Deduplicated by
+/// scanning rather than sorted: the renderers never resort rows, and a
+/// subsystem order the row order does not produce would be a second ordering
+/// to keep true.
+fn subsystems(m: &Matrix) -> Vec<&str> {
+    let mut seen: Vec<&str> = Vec::new();
+    for (_, kind) in KINDS {
+        for row in rows_of_kind(m, kind) {
+            let subsystem = subsystem_of(&row.id);
+            if !seen.contains(&subsystem) {
+                seen.push(subsystem);
+            }
         }
     }
-    page.raw("</tbody>\n</table>\n</details>\n");
+    seen
 }
 
 /// One overall footer metric across the columns, as text.
@@ -2509,6 +2572,108 @@ mod tests {
             at("sonnet*: incomplete") > at("</details>"),
             "a mark's meaning is hidden inside the fold:\n{html}"
         );
+    }
+
+    // site-render / owner ruling 2026-08-03 — inside the fold the rows nest
+    // one table per subsystem (the scenario id's prefix), each labelled with
+    // that bare prefix and each keeping the kind grouping within it. The fold
+    // itself stays one `<details>` holding all of them, and nesting computes
+    // nothing: no per-subsystem figure appears anywhere in it.
+    #[test]
+    fn html_nests_the_folded_rows_by_subsystem() {
+        let a = report(
+            "targets/opus.toml",
+            "run-a",
+            vec![
+                ScenarioResult::from_trials(
+                    "prompt-a".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+                ScenarioResult::from_trials(
+                    "prompt-b".into(),
+                    Kind::Capability,
+                    vec![trial(Final::Fail)],
+                ),
+                ScenarioResult::from_trials(
+                    "memory-a".into(),
+                    Kind::Regression,
+                    vec![trial(Final::Pass)],
+                ),
+            ],
+        );
+        let m = build(&[&a]);
+        let html = html(&m);
+        let at = |needle: &str| {
+            html.find(needle)
+                .unwrap_or_else(|| panic!("no {needle}:\n{html}"))
+        };
+
+        // One fold, still closed, holding every nested table.
+        assert_eq!(html.matches("<details>").count(), 1, "{html}");
+        assert_eq!(html.matches("</details>").count(), 1, "{html}");
+        assert!(!html.contains("<details open"), "{html}");
+        assert!(
+            html.contains("<summary>Per-scenario results (3 scenarios)</summary>"),
+            "the fold's total count changed:\n{html}"
+        );
+        let fold = &html[at("<details>")..at("</details>")];
+
+        // Two subsystems, two tables, labelled with the bare prefix, in order
+        // of first appearance in the kind-grouped row order.
+        assert_eq!(fold.matches("<table>").count(), 2, "{fold}");
+        assert_eq!(fold.matches("<caption>").count(), 2, "{fold}");
+        let caption_memory = fold
+            .find("<caption>memory</caption>")
+            .unwrap_or_else(|| panic!("no memory table:\n{fold}"));
+        let caption_prompt = fold
+            .find("<caption>prompt</caption>")
+            .unwrap_or_else(|| panic!("no prompt table:\n{fold}"));
+        assert!(caption_memory < caption_prompt, "{fold}");
+
+        // Each table holds its own subsystem's rows and repeats the column
+        // header row, so a table scrolled into view describes itself.
+        let memory = &fold[caption_memory..caption_prompt];
+        let prompt = &fold[caption_prompt..];
+        assert!(memory.contains("<td>memory-a</td>"), "{memory}");
+        assert!(!memory.contains("<td>prompt-"), "{memory}");
+        assert!(!prompt.contains("<td>memory-a</td>"), "{prompt}");
+        for table in [memory, prompt] {
+            assert!(table.contains("<th>scenario</th>"), "{table}");
+            assert!(table.contains("<th>opus</th>"), "{table}");
+        }
+
+        // The kind grouping survives the nesting: within the subsystem holding
+        // both kinds, each marker row still precedes its own rows.
+        let in_prompt = |needle: &str| {
+            prompt
+                .find(needle)
+                .unwrap_or_else(|| panic!("no {needle}:\n{prompt}"))
+        };
+        assert!(
+            in_prompt(">regression<") < in_prompt("<td>prompt-a</td>"),
+            "{prompt}"
+        );
+        assert!(
+            in_prompt("<td>prompt-a</td>") < in_prompt(">capability<"),
+            "{prompt}"
+        );
+        assert!(
+            in_prompt(">capability<") < in_prompt("<td>prompt-b</td>"),
+            "{prompt}"
+        );
+        // And the single-kind subsystem is labelled too, so no row is left for
+        // a reader to guess the kind of.
+        assert!(memory.contains(">regression<"), "{memory}");
+        assert!(!memory.contains(">capability<"), "{memory}");
+
+        // Presentation only: the fold carries no figure of its own.
+        for figure in ["pass@k", "pass^k", "cost usd"] {
+            assert!(
+                !fold.contains(figure),
+                "the fold computes a per-subsystem {figure}:\n{fold}"
+            );
+        }
     }
 
     // 4.1 — for one model, the HTML renderer agrees with the markdown one
