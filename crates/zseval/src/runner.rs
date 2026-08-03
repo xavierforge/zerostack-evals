@@ -60,6 +60,18 @@ pub struct RunOptions {
     /// so N targets sharing one `--tag` don't collide on `sc.id`. Requires
     /// `target` to be `Some`: the stem has nothing to derive from otherwise.
     pub multi_target: bool,
+    /// The files and trees this run is *defined* by, watched for change while
+    /// it runs (`crate::integrity`): the scenario tree, every target config,
+    /// the judge file. A trial that escapes its work dir and edits one of
+    /// these has silently rewritten the experiment, so the run stops, the
+    /// scenario whose trials could have done it grades Indeterminate, and
+    /// `run_suite` returns an error *after* writing the report of what ran.
+    ///
+    /// Empty (the default in the harness's own tests and every non-`run`
+    /// caller) means no checking: a `regrade` drives no agent, so there is
+    /// nothing that could write, and hashing a scenario tree per scenario for
+    /// nothing is pure cost.
+    pub integrity_roots: Vec<PathBuf>,
 }
 
 /// Everything the grading half of a trial needs to know about the ruler: the
@@ -587,6 +599,12 @@ pub fn run_suite(
         .as_deref()
         .and_then(crate::target::default_prompt);
 
+    // The run's own inputs as they were before the first trial could touch
+    // anything. Empty roots snapshot to an empty map, which is how "no
+    // checking" costs nothing rather than needing a branch of its own.
+    let integrity_baseline = crate::integrity::Snapshot::of(&opts.integrity_roots)?;
+    let mut integrity_drift: Vec<crate::integrity::Drift> = Vec::new();
+
     let mut budget_truncated = false;
     // Which scenarios were skipped because the pack shadowed the built-in
     // their pin watches: they observed nothing, so the end-of-run pack check
@@ -629,11 +647,38 @@ pub fn run_suite(
         let trials = opts.trials_override.unwrap_or(sc.trials).max(1);
         let graded =
             run_trials_for_scenario(sc, backend, judge, &judge_file, opts, trials, &run_root)?;
-        let (trial_results, readbacks): (Vec<TrialResult>, Vec<PromptReadback>) =
+        let (mut trial_results, readbacks): (Vec<TrialResult>, Vec<PromptReadback>) =
             graded.into_iter().map(|g| (g.result, g.prompt)).unzip();
         for tr in &trial_results {
             spent += tr.cost_usd;
         }
+
+        // Re-check the run's own inputs now this scenario's trials are done.
+        // The previous scenario's check was clean, so the window a drift is
+        // attributable to is exactly this scenario: its trials are the only
+        // thing that ran since. Checked here, before the results are folded
+        // into a `ScenarioResult`, so the withdrawal reaches the trials
+        // themselves rather than only the rates derived from them.
+        integrity_drift =
+            integrity_baseline.diff(&crate::integrity::Snapshot::of(&opts.integrity_roots)?);
+        if !integrity_drift.is_empty() {
+            report_input_drift(sc, &integrity_drift);
+            let reason = format!(
+                "input-integrity drift while this scenario ran: {}",
+                crate::integrity::summarize(&integrity_drift, 10)
+            );
+            for tr in &mut trial_results {
+                withdraw_verdict(tr, &reason);
+                // The persisted copy is what `explain` and every later reader
+                // sees, so a withdrawal that lived only in memory would leave
+                // `trial.json` still claiming the verdict this run just took
+                // back.
+                let path = trial_dir(&run_root, &sc.id, tr.trial).join("trial.json");
+                std::fs::write(&path, serde_json::to_vec_pretty(tr)?)
+                    .with_context(|| format!("rewrite {}", path.display()))?;
+            }
+        }
+
         // Record the scenario's kind verbatim on the result, so `matrix` and
         // the site renderer can group by kind from report JSON alone, without
         // re-reading the scenario files.
@@ -653,6 +698,15 @@ pub fn run_suite(
         sr.prompt_name = prompt.name;
         sr.prompt_source = prompt.source;
         results.push(sr);
+
+        // Launch no further scenario: the inputs the next one would be graded
+        // against are the ones just shown to be moving. Scenario-granular for
+        // the same reason the cost cap is — a scenario runs its full trial
+        // count or not at all — and the report below is still assembled and
+        // written for everything that did run.
+        if !integrity_drift.is_empty() {
+            break;
+        }
     }
 
     if let Some(warning) = pack.and_then(|p| unloaded_pack_warning(p, &results, &shadowed_skips)) {
@@ -727,7 +781,67 @@ pub fn run_suite(
     let report_path = run_root.join("report.json");
     std::fs::write(&report_path, serde_json::to_vec_pretty(&report)?)
         .with_context(|| format!("write {}", report_path.display()))?;
+
+    // Only after the report is on disk: a run whose inputs moved still owes
+    // the evidence of what it did run. Failing here is what makes the process
+    // exit non-zero — the trials of the drift window are Indeterminate, but
+    // earlier scenarios may all have passed, and a run that quietly returned
+    // that as a clean report would be the failure this check exists to
+    // prevent. It is a harness error, not a graded failure: nothing was
+    // learned about the agent, the experiment was edited underneath it.
+    if !integrity_drift.is_empty() {
+        anyhow::bail!(
+            "input-integrity drift: this run's own inputs changed while it ran ({}). The \
+             affected scenario's trials are recorded indeterminate and no further scenario \
+             was launched; restore the listed paths (`git status` in the harness checkout) \
+             before trusting anything measured here. Report for what ran: {}",
+            crate::integrity::summarize(&integrity_drift, 10),
+            report_path.display()
+        );
+    }
     Ok(report)
+}
+
+/// Put a drift on the console in full: every path, with what happened to it.
+/// Uncapped (unlike the reason recorded on each trial) because this prints
+/// once, and half a list is not enough to go and check what an escaped agent
+/// touched.
+fn report_input_drift(sc: &Scenario, drift: &[crate::integrity::Drift]) {
+    eprintln!(
+        "input-integrity drift after scenario {}: files this run is defined by changed while \
+         it ran, so its trials were graded against inputs nobody declared:",
+        sc.id
+    );
+    for d in drift {
+        eprintln!("  {d}");
+    }
+    eprintln!(
+        "every trial of {} is marked indeterminate and the run stops here",
+        sc.id
+    );
+}
+
+/// Take back a trial's verdict after the fact: the evidence it graded is no
+/// longer trustworthy, so the outcome becomes Indeterminate and `reason` joins
+/// whatever the grading already recorded.
+///
+/// Unlike `indeterminate` — which builds a trial that never produced evidence
+/// at all — everything else is kept: the asserts really did evaluate the way
+/// they are recorded, the spend really did happen and must still count against
+/// the budget, and a reader diagnosing the drift needs both to see what the
+/// trial looked like before its inputs moved.
+fn withdraw_verdict(tr: &mut TrialResult, reason: &str) {
+    tr.outcome = Final::Indeterminate;
+    tr.reasons.push(reason.to_string());
+}
+
+/// Where one trial's artifacts live: `<run_root>/<scenario id>/trial-N`,
+/// holding its logs, its isolated roots, and the `trial.json` `explain` reads.
+/// Derived in one place so the run that writes a trial and the input-drift
+/// check that rewrites its `trial.json` can never disagree about which
+/// directory that is.
+fn trial_dir(run_root: &Path, scenario_id: &str, trial: usize) -> PathBuf {
+    run_root.join(scenario_id).join(format!("trial-{trial}"))
 }
 
 /// One trial's graded result and the prompt its session recorded. The
@@ -758,7 +872,7 @@ fn run_trials_for_scenario(
     run_root: &Path,
 ) -> Result<Vec<GradedTrial>> {
     let run_one = |trial: usize| -> Result<GradedTrial> {
-        let run_dir = run_root.join(&sc.id).join(format!("trial-{trial}"));
+        let run_dir = trial_dir(run_root, &sc.id, trial);
         std::fs::create_dir_all(&run_dir)?;
         let grading = Grading {
             judge,
@@ -1822,6 +1936,7 @@ mod shadowed_pin_tests {
             jobs: 1,
             judge_file: None,
             multi_target: false,
+            integrity_roots: Vec::new(),
         };
         let report = run_suite(scenarios, &backend, &UnusedJudge, &opts).unwrap();
         let runs = backend.runs.load(Ordering::SeqCst);
@@ -2066,5 +2181,251 @@ mod shadowed_pin_tests {
         assert_eq!(runs, 1, "the mirror case still spends its trials");
         assert!(report.scenarios[0].is_gradable());
         assert_eq!(report.scenarios[0].trials[0].outcome, Final::Fail);
+    }
+}
+
+/// What a run does when the files it is *defined* by change while it runs —
+/// the sandbox-escape case that motivated the check: a trial reaching outside
+/// its work dir and editing the scenario tree it is being graded against.
+/// Driven through `run_suite` rather than a helper, because every claim here
+/// is about the whole loop: which scenarios get launched, what the trials that
+/// already ran are rewritten to, and that the report still lands on disk.
+#[cfg(test)]
+mod input_drift_tests {
+    use super::*;
+    use crate::asserts::Assert;
+    use crate::backend::RunArtifacts;
+    use crate::judge::{Judge, JudgeOutcome};
+    use crate::scenario::{Kind, Task};
+    use crate::verdict::{Final, Report, ZsIdentity};
+    use std::sync::Mutex;
+
+    /// A backend that escapes: while driving one named scenario it writes into
+    /// a watched input root, then produces the same passing session every
+    /// scenario gets. It records every scenario it was asked to drive, which
+    /// is how "no further scenario was launched" is checked.
+    struct EscapingBackend {
+        input_file: PathBuf,
+        escapes_on: String,
+        ran: Mutex<Vec<String>>,
+    }
+
+    impl AgentBackend for EscapingBackend {
+        fn name(&self) -> &str {
+            "escaping"
+        }
+
+        fn identity(&self) -> Result<ZsIdentity> {
+            Ok(ZsIdentity {
+                zs_version: "stub 0.0.0".into(),
+                zs_bin_path: String::new(),
+                zs_bin_sha256: String::new(),
+                git_sha: None,
+                features: None,
+            })
+        }
+
+        fn run(&self, sc: &Scenario, run_dir: &Path) -> Result<RunArtifacts> {
+            self.ran.lock().unwrap().push(sc.id.clone());
+            if sc.id == self.escapes_on {
+                std::fs::write(&self.input_file, format!("edited while {} ran\n", sc.id))?;
+            }
+            let data = run_dir.join("data");
+            std::fs::create_dir_all(data.join("sessions"))?;
+            let session = data.join("sessions").join("session.json");
+            std::fs::write(
+                &session,
+                r#"{"id":"s","messages":[{"role":"assistant","content":"Paris."}]}"#,
+            )?;
+            Ok(RunArtifacts {
+                session_files: vec![session],
+                turns: Vec::new(),
+                data_dir: data,
+                config_dir: run_dir.join("config"),
+                work_dir: run_dir.join("work"),
+                wall_secs: 0.0,
+            })
+        }
+    }
+
+    /// No scenario here declares a rubric, so the ruler is never reached.
+    struct UnusedJudge;
+
+    impl Judge for UnusedJudge {
+        fn available(&self) -> bool {
+            false
+        }
+        fn unavailable_hint(&self) -> String {
+            "no judge in this test".into()
+        }
+        fn judge(&self, _rubric: &str, _evidence: &str, _dir: &Path) -> Result<JudgeOutcome> {
+            unreachable!("no scenario in these tests declares a rubric")
+        }
+    }
+
+    /// A scenario the stub session passes: one deterministic assert, no judge.
+    fn scenario(id: &str) -> Scenario {
+        let expect = "final_contains Paris";
+        Scenario {
+            id: id.into(),
+            kind: Kind::Regression,
+            prompt: None,
+            trials: 1,
+            mode: Mode::Print,
+            loop_cfg: None,
+            task: Task::Single("what is the capital of France?".into()),
+            expect: vec![expect.into()],
+            judge: None,
+            timeout_secs: 300,
+            max_cost_usd: None,
+            max_total_tokens: None,
+            files: vec![],
+            seed: Default::default(),
+            domains: vec![],
+            dir: PathBuf::new(),
+            asserts: vec![Assert::parse(expect).unwrap()],
+            content_hash: String::new(),
+        }
+    }
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("zseval-drift-{name}-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// The whole halt, end to end: a suite of three scenarios where the second
+    /// one's trials edit a shared fixture in the watched tree.
+    #[test]
+    fn a_scenario_whose_trials_edit_a_watched_input_ends_the_run_indeterminate() {
+        let inputs = scratch("inputs");
+        let fixture = inputs.join("_fixtures/shared.txt");
+        std::fs::create_dir_all(fixture.parent().unwrap()).unwrap();
+        std::fs::write(&fixture, "original\n").unwrap();
+        let results_root = scratch("results");
+
+        let backend = EscapingBackend {
+            input_file: fixture.clone(),
+            escapes_on: "drifts".into(),
+            ran: Mutex::new(Vec::new()),
+        };
+        let opts = RunOptions {
+            target: None,
+            // Two trials, so the withdrawal has to reach every trial of the
+            // window rather than only the one that did the writing.
+            trials_override: Some(2),
+            tag: "drift".into(),
+            no_judge: true,
+            results_root: results_root.clone(),
+            max_total_usd: None,
+            jobs: 1,
+            judge_file: None,
+            multi_target: false,
+            integrity_roots: vec![inputs.clone()],
+        };
+
+        let scenarios = [scenario("clean"), scenario("drifts"), scenario("never-run")];
+        let err = run_suite(&scenarios, &backend, &UnusedJudge, &opts)
+            .expect_err("a run whose inputs moved must not return a clean report");
+        let err = format!("{err:#}");
+        assert!(
+            err.contains("input-integrity drift") && err.contains("shared.txt"),
+            "the error has to name what moved: {err}"
+        );
+
+        assert_eq!(
+            *backend.ran.lock().unwrap(),
+            vec!["clean", "clean", "drifts", "drifts"],
+            "the scenario after the drift must never be launched"
+        );
+
+        // The report of what ran is still on disk — the run is aborted, not
+        // erased.
+        let report_path = results_root.join("drift/report.json");
+        let report: Report = serde_json::from_slice(&std::fs::read(&report_path).unwrap()).unwrap();
+        assert_eq!(
+            report
+                .scenarios
+                .iter()
+                .map(|s| s.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["clean", "drifts"],
+        );
+        assert!(
+            report.scenarios[0]
+                .trials
+                .iter()
+                .all(|t| t.outcome == Final::Pass),
+            "the scenario before the drift window graded normally: {:?}",
+            report.scenarios[0].trials
+        );
+        for tr in &report.scenarios[1].trials {
+            assert_eq!(tr.outcome, Final::Indeterminate, "{tr:?}");
+            assert!(
+                tr.reasons
+                    .iter()
+                    .any(|r| r.contains("input-integrity drift") && r.contains("shared.txt")),
+                "the withdrawn verdict has to say why, naming the path: {:?}",
+                tr.reasons
+            );
+        }
+
+        // …and the persisted per-trial copy `explain` reads agrees with it,
+        // rather than still claiming the verdict this run took back.
+        for trial in 0..2 {
+            let path = results_root.join(format!("drift/drifts/trial-{trial}/trial.json"));
+            let tr: TrialResult = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+            assert_eq!(tr.outcome, Final::Indeterminate, "{}", path.display());
+            assert!(
+                tr.reasons
+                    .iter()
+                    .any(|r| r.contains("input-integrity drift")),
+                "{:?}",
+                tr.reasons
+            );
+        }
+
+        std::fs::remove_dir_all(&inputs).ok();
+        std::fs::remove_dir_all(&results_root).ok();
+    }
+
+    /// The check is per scenario, and a suite that never touches its inputs
+    /// runs to the end: the barrier must not fire on the harness's own
+    /// writes into the results tree, which is not an input.
+    #[test]
+    fn a_suite_that_leaves_its_inputs_alone_runs_to_the_end() {
+        let inputs = scratch("clean-inputs");
+        std::fs::write(inputs.join("scenario.toml"), "id = \"x\"\n").unwrap();
+        let results_root = scratch("clean-results");
+
+        let backend = EscapingBackend {
+            input_file: inputs.join("never-written.txt"),
+            escapes_on: "nothing-matches-this".into(),
+            ran: Mutex::new(Vec::new()),
+        };
+        let opts = RunOptions {
+            target: None,
+            trials_override: Some(1),
+            tag: "clean".into(),
+            no_judge: true,
+            results_root: results_root.clone(),
+            max_total_usd: None,
+            jobs: 1,
+            judge_file: None,
+            multi_target: false,
+            integrity_roots: vec![inputs.clone()],
+        };
+
+        let scenarios = [scenario("one"), scenario("two")];
+        let report = run_suite(&scenarios, &backend, &UnusedJudge, &opts).unwrap();
+        assert_eq!(*backend.ran.lock().unwrap(), vec!["one", "two"]);
+        assert!(report
+            .scenarios
+            .iter()
+            .all(|s| s.trials.iter().all(|t| t.outcome == Final::Pass)));
+
+        std::fs::remove_dir_all(&inputs).ok();
+        std::fs::remove_dir_all(&results_root).ok();
     }
 }

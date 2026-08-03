@@ -1318,6 +1318,7 @@ fn loop_scenario_loads_and_grades_from_iteration_records_via_mock() {
         jobs: 1,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
@@ -1444,6 +1445,7 @@ fn end_to_end_mock_run_produces_pass_and_report() {
         jobs: 1,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
 
@@ -1494,6 +1496,7 @@ fn single_target_run_stays_flat_under_the_tag() {
         jobs: 1,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
 
@@ -1550,6 +1553,7 @@ fn multi_target_run_nests_results_under_the_target_stem() {
             jobs: 1,
             judge_file: None,
             multi_target: true,
+            integrity_roots: Vec::new(),
         };
         run_suite(
             &[make_sc()],
@@ -1607,6 +1611,7 @@ fn jobs_greater_than_one_grades_every_trial_and_keeps_them_in_order() {
         jobs: 3,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
 
@@ -1668,6 +1673,7 @@ fn success_path_run_dir_is_recorded_relative_to_the_working_directory() {
         jobs: 1,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
@@ -1716,6 +1722,7 @@ fn regrade_locates_a_run_dir_from_a_relative_run_dir() {
         jobs: 1,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     let report = run_suite(
         std::slice::from_ref(&sc),
@@ -1796,6 +1803,7 @@ fn jobs_warm_up_runs_trial_zero_solo_before_the_parallel_fan_out() {
         jobs: 3,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.scenarios[0].trials.len(), 4);
@@ -1901,6 +1909,7 @@ judge = "Did the agent answer the question?"
             jobs: 1,
             judge_file: None,
             multi_target: false,
+            integrity_roots: Vec::new(),
         };
         let report = run_suite(&[sc], &backend, judge, &opts).unwrap();
         std::fs::remove_dir_all(&results_root).ok();
@@ -2014,6 +2023,7 @@ fn indeterminate_trial_recovers_cost_already_spent_before_the_failure() {
         jobs: 1,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
@@ -2065,6 +2075,7 @@ fn a_run_stopped_by_the_budget_cap_records_budget_truncated() {
         jobs: 1,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     let report = run_suite(&ids, &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
 
@@ -2127,6 +2138,7 @@ fn indeterminate_trial_run_dir_is_also_recorded_relative_to_the_working_director
         jobs: 1,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     let tr = &report.scenarios[0].trials[0];
@@ -2172,6 +2184,7 @@ fn the_report_records_the_judge_file_it_was_configured_with() {
         jobs: 1,
         judge_file: judge,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
 
     let opts = base(Some(PathBuf::from("judges/opus.toml")), false);
@@ -2256,6 +2269,7 @@ fn the_report_records_the_model_that_actually_graded() {
         // Configured to ask for opus...
         judge_file: Some(PathBuf::from("judges/opus.toml")),
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     // ...but this is what actually served the request.
     let judge = TestJudge::Served("claude-sonnet-4-6-20260101".into());
@@ -2306,6 +2320,7 @@ fn a_judge_that_grades_without_naming_its_model_leaves_the_ruler_unknown() {
         jobs: 1,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     // Answers Yes, but its response names no model.
     let judge = TestJudge::Verdict(zseval::judge::JudgeVerdict::Yes);
@@ -2352,6 +2367,7 @@ fn a_judge_that_never_graded_records_no_model_but_keeps_the_file() {
         jobs: 1,
         judge_file: Some(PathBuf::from("judges/opus.toml")),
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.judge_file, "judges/opus.toml");
@@ -2393,6 +2409,7 @@ fn no_judge_leaves_both_judge_fields_empty() {
         jobs: 1,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.judge_file, "");
@@ -2437,6 +2454,7 @@ fn regrading_with_a_second_judge_records_it_and_keeps_the_first_ones_evidence() 
         jobs: 1,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     let report = run_suite(
         std::slice::from_ref(&sc),
@@ -2536,6 +2554,7 @@ fn a_no_judge_regrade_leaves_no_regrade_artifacts_dir() {
         jobs: 1,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     run_suite(
         std::slice::from_ref(&sc),
@@ -2602,6 +2621,7 @@ fn regrade_regrades_existing_artifacts_without_driving_the_agent() {
         jobs: 1,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     };
     let report = run_suite(&[sc], &backend, &LlmJudge::new(test_judge_cfg()), &opts).unwrap();
     assert_eq!(report.scenarios[0].trials[0].outcome, Final::Pass);
@@ -3656,6 +3676,7 @@ fn pack_run_opts(tag: &str, results_root: PathBuf) -> RunOptions {
         jobs: 1,
         judge_file: None,
         multi_target: false,
+        integrity_roots: Vec::new(),
     }
 }
 

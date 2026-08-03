@@ -452,6 +452,20 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
 
     zseval::backend::set_verbose(f.has("verbose"));
 
+    // The files this run is defined by, watched for change while it runs
+    // (`RunOptions::integrity_roots`). The scenario *tree* as the caller named
+    // it, not the individual scenario dirs `discover` found: a seed fixture
+    // resolves by walking up out of its own scenario, so a suite-level shared
+    // `_fixtures/` is an input of scenarios that do not contain it. Plus the
+    // configs naming what is evaluated, the file ruling on it, and the prompt
+    // pack under evaluation — every ingredient of the experiment that lives
+    // outside a trial's own dirs.
+    let integrity_roots: Vec<PathBuf> = std::iter::once(PathBuf::from(path))
+        .chain(targets.iter().cloned())
+        .chain(judge_path.iter().cloned())
+        .chain(f.get("prompts").map(PathBuf::from))
+        .collect();
+
     let cfg = MultiTargetConfig {
         tag: f
             .get("tag")
@@ -475,6 +489,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
             Some(t) => Some(t.parse()?),
             None => None,
         },
+        integrity_roots,
     };
 
     let reports: Vec<Report> = match f.get("backend") {
@@ -493,6 +508,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
                 jobs: cfg.jobs,
                 judge_file: cfg.judge_file.clone(),
                 multi_target: false,
+                integrity_roots: cfg.integrity_roots.clone(),
             };
             vec![run_suite(
                 &scenarios,
@@ -649,6 +665,12 @@ struct MultiTargetConfig {
     jobs: usize,
     judge_file: Option<PathBuf>,
     trials_override: Option<usize>,
+    /// The run's own inputs, watched for change while it runs — see
+    /// `RunOptions::integrity_roots`. Fixed across every target: what is being
+    /// evaluated varies by column, what defines the experiment does not, and a
+    /// drift in any of it invalidates the columns already measured just as
+    /// much as the one that caused it.
+    integrity_roots: Vec<PathBuf>,
 }
 
 /// Evaluate `scenarios` against every target in `targets`, sequentially, each
@@ -691,6 +713,7 @@ fn run_over_targets(
             jobs: cfg.jobs,
             judge_file: cfg.judge_file.clone(),
             multi_target,
+            integrity_roots: cfg.integrity_roots.clone(),
         };
         let report = run_suite(scenarios, backend.as_ref(), judge, &opts)?;
         spent_so_far += report.summary.total_cost_usd;
@@ -1431,6 +1454,7 @@ mod multi_target_tests {
             jobs: 1,
             judge_file: None,
             trials_override: Some(1),
+            integrity_roots: Vec::new(),
         }
     }
 
@@ -1728,6 +1752,7 @@ mod run_summary_tests {
             jobs: 1,
             judge_file: None,
             trials_override: None,
+            integrity_roots: Vec::new(),
         }
     }
 

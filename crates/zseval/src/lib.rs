@@ -10,6 +10,7 @@ pub mod backend;
 pub mod compare;
 pub mod coverage;
 pub mod domains;
+pub mod integrity;
 pub mod judge;
 pub mod matrix;
 pub mod prompts;
