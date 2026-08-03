@@ -26,6 +26,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
 th, td { padding: 0.25rem 0.6rem; text-align: right; border-bottom: 1px solid rgba(128, 128, 128, 0.3); }
 th:first-child, td:first-child { text-align: left; }
+details { margin: 1.5rem 0; }
+summary { cursor: pointer; }
 .headline { margin: 0 0 1.5rem; font-weight: 600; }
 .claims > li { margin: 0.6rem 0; }
 .status {
@@ -68,6 +70,22 @@ th:first-child, td:first-child { text-align: left; }
 </section>
 <section id="results">
 <h2>Results</h2>
+<table>
+<thead>
+<tr><th>metric</th><th>openrouter</th></tr>
+</thead>
+<tbody>
+<tr><td>regression pass@k</td><td>0.933</td></tr>
+<tr><td>regression pass^k</td><td>0.833</td></tr>
+<tr><td>capability pass@k</td><td>0.615</td></tr>
+<tr><td>capability pass^k</td><td>0.231</td></tr>
+<tr><td>pass@k</td><td>0.837</td></tr>
+<tr><td>pass^k</td><td>0.651</td></tr>
+<tr><td>cost usd</td><td>1.698</td></tr>
+</tbody>
+</table>
+<details>
+<summary>Per-scenario results (43 scenarios)</summary>
 <table>
 <thead>
 <tr><th>scenario</th><th>openrouter</th></tr>
@@ -119,16 +137,8 @@ th:first-child, td:first-child { text-align: left; }
 <tr><td>subagents-integrates-results</td><td>1.000</td></tr>
 <tr><td>subagents-skips-for-trivial</td><td>1.000</td></tr>
 </tbody>
-<tfoot>
-<tr><td>regression pass@k</td><td>0.933</td></tr>
-<tr><td>regression pass^k</td><td>0.833</td></tr>
-<tr><td>capability pass@k</td><td>0.615</td></tr>
-<tr><td>capability pass^k</td><td>0.231</td></tr>
-<tr><td>pass@k</td><td>0.837</td></tr>
-<tr><td>pass^k</td><td>0.651</td></tr>
-<tr><td>cost usd</td><td>1.698</td></tr>
-</tfoot>
 </table>
+</details>
 </section>
 <section id="coverage">
 <h2>Coverage</h2>
