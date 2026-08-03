@@ -10,11 +10,18 @@ Create/refresh one from a trusted state:
 Update baselines/main.json in the SAME pull request as the change that
 moves the numbers, so reviewers see code diff and score diff together.
 
-There is no `baselines/main.json` right now. The one committed on 2026-07-21
-(41 scenarios x 3 trials, pass@k 0.878, pass^k 0.732, $4.37) measured
-zerostack before this project's fixes, and report-family JSON now loads
-strictly (the read-strictness change removed the last `#[serde(default)]`
-read-tolerance hatches), so that file would no longer parse anyway. It was
-removed rather than kept around unreadable; the 07-21 numbers live in git
-history only (`git log -p -- baselines/main.json`). Day 2 regenerates a fresh
-baseline against zerostack v1.7.2 using the command above.
+`main.json` (2026-08-03): zerostack 1.7.2 at upstream 7b5581a (all-features
+build d8bbfe5d, carries the #228/#230 evidence channels), 43 scenarios x 3
+trials, target anthropic/claude-sonnet-5, judge sonnet. pass@k 0.861,
+pass^k 0.744. This is the report CI's regression gate compares against.
+
+`deepseek-v4-pro.json` (same day, same build, same judge, same suite):
+openrouter/deepseek/deepseek-v4-pro, zerostack's own default model — the
+"as shipped" comparison column, not a gate. pass@k 0.837, pass^k 0.651.
+`zseval matrix baselines/main.json baselines/deepseek-v4-pro.json` renders
+the two side by side with zero DRIFT/MULTI-VAR: same ruler, same build,
+only the target moved.
+
+The 2026-07-21 predecessor (41 x 3, pass@k 0.878) measured pre-fix zerostack
+and predates strict report reading; its numbers live in git history only
+(`git log -p -- baselines/main.json`).

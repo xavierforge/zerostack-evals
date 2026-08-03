@@ -1,0 +1,4854 @@
+{
+  "schema_version": 1,
+  "tag": "main-deepseek",
+  "model": "openrouter/deepseek/deepseek-v4-pro",
+  "backend": "zs-cli",
+  "timestamp": "2026-08-03T02:26:39Z",
+  "trials": 3,
+  "judge_file": "judges/sonnet.toml",
+  "judge_hash": "4cd972111ef8c9b8",
+  "judge_model": [
+    "claude-sonnet-4-6"
+  ],
+  "target": "targets/openrouter.toml",
+  "budget_truncated": false,
+  "prompts_pack": "",
+  "prompts_hash": "",
+  "prompts_names": [],
+  "zs_version": "zerostack 1.7.2",
+  "zs_bin_path": "zerostack",
+  "zs_bin_sha256": "d8bbfe5dc1a9ecf67e3539396d134000ce0cc1d04abec89f08eefba648513777",
+  "git_sha": null,
+  "features": null,
+  "scenarios": [
+    {
+      "id": "context-follows-agents-md",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"SPDX-License-Identifier: MIT\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'SPDX-License-Identifier: MIT': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"def slugify\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'def slugify': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16378,
+          "output_tokens": 180,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00728103,
+          "wall_secs": 8.949339166,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/context-follows-agents-md/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"SPDX-License-Identifier: MIT\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'SPDX-License-Identifier: MIT': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"def slugify\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'def slugify': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16391,
+          "output_tokens": 204,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007307565,
+          "wall_secs": 8.922228417,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/context-follows-agents-md/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"SPDX-License-Identifier: MIT\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'SPDX-License-Identifier: MIT': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"def slugify\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'def slugify': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16391,
+          "output_tokens": 203,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007306695,
+          "wall_secs": 8.471138459,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/context-follows-agents-md/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "c9d7fb861ccc3c0d",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "context-no-overapply",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_not_contains work:NOTES.md SPDX (file_not_contains 'work:NOTES.md': no files matched 'work:NOTES.md')",
+            "assert failed: file_contains work:NOTES.md Project notes (file_contains 'work:NOTES.md': no files matched 'work:NOTES.md')"
+          ],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:NOTES.md\", needle: \"SPDX\" }",
+              "pass": false,
+              "detail": "file_not_contains 'work:NOTES.md': no files matched 'work:NOTES.md'"
+            },
+            {
+              "spec": "FileContains { path: \"work:NOTES.md\", needle: \"Project notes\" }",
+              "pass": false,
+              "detail": "file_contains 'work:NOTES.md': no files matched 'work:NOTES.md'"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 25079,
+          "output_tokens": 308,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.011177324999999998,
+          "wall_secs": 12.429497375,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/context-no-overapply/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:NOTES.md\", needle: \"SPDX\" }",
+              "pass": true,
+              "detail": "no 'work:NOTES.md' contains 'SPDX'"
+            },
+            {
+              "spec": "FileContains { path: \"work:NOTES.md\", needle: \"Project notes\" }",
+              "pass": true,
+              "detail": "some 'work:NOTES.md' contains 'Project notes': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16323,
+          "output_tokens": 156,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007236225,
+          "wall_secs": 8.304302208,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/context-no-overapply/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:NOTES.md\", needle: \"SPDX\" }",
+              "pass": true,
+              "detail": "no 'work:NOTES.md' contains 'SPDX'"
+            },
+            {
+              "spec": "FileContains { path: \"work:NOTES.md\", needle: \"Project notes\" }",
+              "pass": true,
+              "detail": "some 'work:NOTES.md' contains 'Project notes': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16328,
+          "output_tokens": 156,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0072384,
+          "wall_secs": 8.291784125,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/context-no-overapply/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 4,
+      "content_hash": "20dc03fc7c801d9b",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "loop-fixes-failing-test",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:calc.py\", needle: \"return a - b\" }",
+              "pass": true,
+              "detail": "no 'work:calc.py' contains 'return a - b'"
+            },
+            {
+              "spec": "TranscriptContains(\"ALL TESTS PASS\")",
+              "pass": true,
+              "detail": "transcript contains 'ALL TESTS PASS': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 65.960733875,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/loop-fixes-failing-test/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:calc.py\", needle: \"return a - b\" }",
+              "pass": true,
+              "detail": "no 'work:calc.py' contains 'return a - b'"
+            },
+            {
+              "spec": "TranscriptContains(\"ALL TESTS PASS\")",
+              "pass": true,
+              "detail": "transcript contains 'ALL TESTS PASS': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 48.994229917,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/loop-fixes-failing-test/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:calc.py\", needle: \"return a - b\" }",
+              "pass": true,
+              "detail": "no 'work:calc.py' contains 'return a - b'"
+            },
+            {
+              "spec": "TranscriptContains(\"ALL TESTS PASS\")",
+              "pass": true,
+              "detail": "transcript contains 'ALL TESTS PASS': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 60.004910917,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/loop-fixes-failing-test/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "cb45bafa28279513",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "mcp-ignores-irrelevant-tool",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"144\")",
+              "pass": true,
+              "detail": "final contains '144': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 7597,
+          "output_tokens": 26,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0033273150000000004,
+          "wall_secs": 16.839262834,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/mcp-ignores-irrelevant-tool/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"144\")",
+              "pass": true,
+              "detail": "final contains '144': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 7597,
+          "output_tokens": 26,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0033273150000000004,
+          "wall_secs": 55.467814583,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/mcp-ignores-irrelevant-tool/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"144\")",
+              "pass": true,
+              "detail": "final contains '144': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 7597,
+          "output_tokens": 19,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.003321225,
+          "wall_secs": 40.730747667,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/mcp-ignores-irrelevant-tool/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "520759ee31e831ca",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "mcp-uses-provided-tool",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called: true"
+            },
+            {
+              "spec": "FinalContains(\"flickers\")",
+              "pass": true,
+              "detail": "final contains 'flickers': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 15298,
+          "output_tokens": 104,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00674511,
+          "wall_secs": 6.84550625,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/mcp-uses-provided-tool/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called: true"
+            },
+            {
+              "spec": "FinalContains(\"flickers\")",
+              "pass": true,
+              "detail": "final contains 'flickers': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 15298,
+          "output_tokens": 115,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00675468,
+          "wall_secs": 6.225042042,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/mcp-uses-provided-tool/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called: true"
+            },
+            {
+              "spec": "FinalContains(\"flickers\")",
+              "pass": true,
+              "detail": "final contains 'flickers': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 15298,
+          "output_tokens": 116,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00675555,
+          "wall_secs": 5.813468541,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/mcp-uses-provided-tool/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "9a3c14650597008e",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "memory-no-write-smalltalk",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"teapot\")",
+              "pass": true,
+              "detail": "final contains 'teapot': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 7994,
+          "output_tokens": 114,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00357657,
+          "wall_secs": 5.833459375,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/memory-no-write-smalltalk/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"teapot\")",
+              "pass": true,
+              "detail": "final contains 'teapot': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 7994,
+          "output_tokens": 101,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00356526,
+          "wall_secs": 6.81452225,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/memory-no-write-smalltalk/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"teapot\")",
+              "pass": true,
+              "detail": "final contains 'teapot': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 7994,
+          "output_tokens": 104,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00356787,
+          "wall_secs": 7.446643625,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/memory-no-write-smalltalk/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "142ac1a18edb8ab4",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "memory-search-snippet-sufficient",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called memory_search (tool 'memory_search' called: false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_search\")",
+              "pass": false,
+              "detail": "tool 'memory_search' called: false"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_read\")",
+              "pass": true,
+              "detail": "tool 'memory_read' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"fly.io\")",
+              "pass": true,
+              "detail": "final contains 'fly.io': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16405,
+          "output_tokens": 139,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007257105,
+          "wall_secs": 8.693571167,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/memory-search-snippet-sufficient/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_search\")",
+              "pass": true,
+              "detail": "tool 'memory_search' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_read\")",
+              "pass": true,
+              "detail": "tool 'memory_read' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"fly.io\")",
+              "pass": true,
+              "detail": "final contains 'fly.io': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16363,
+          "output_tokens": 107,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007210995,
+          "wall_secs": 9.95227325,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/memory-search-snippet-sufficient/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_search\")",
+              "pass": true,
+              "detail": "tool 'memory_search' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_read\")",
+              "pass": true,
+              "detail": "tool 'memory_read' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"fly.io\")",
+              "pass": true,
+              "detail": "final contains 'fly.io': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16364,
+          "output_tokens": 110,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00721404,
+          "wall_secs": 9.763032667000001,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/memory-search-snippet-sufficient/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 4,
+      "content_hash": "f86dec71338fb567",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "memory-search-then-read-when-needed",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_arg_contains memory_read deploy ('memory_read' summary contains 'deploy': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_search\")",
+              "pass": true,
+              "detail": "tool 'memory_search' called: true"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"memory_read\", earlier: \"memory_search\" }",
+              "pass": true,
+              "detail": "'memory_read' after 'memory_search': true"
+            },
+            {
+              "spec": "ToolArgContains { tool: \"memory_read\", needle: \"deploy\" }",
+              "pass": false,
+              "detail": "'memory_read' summary contains 'deploy': false"
+            },
+            {
+              "spec": "FinalContains(\"seconds\")",
+              "pass": true,
+              "detail": "final contains 'seconds': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 25002,
+          "output_tokens": 391,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.011216040000000002,
+          "wall_secs": 21.115132083,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/memory-search-then-read-when-needed/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_arg_contains memory_read deploy ('memory_read' summary contains 'deploy': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_search\")",
+              "pass": true,
+              "detail": "tool 'memory_search' called: true"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"memory_read\", earlier: \"memory_search\" }",
+              "pass": true,
+              "detail": "'memory_read' after 'memory_search': true"
+            },
+            {
+              "spec": "ToolArgContains { tool: \"memory_read\", needle: \"deploy\" }",
+              "pass": false,
+              "detail": "'memory_read' summary contains 'deploy': false"
+            },
+            {
+              "spec": "FinalContains(\"seconds\")",
+              "pass": true,
+              "detail": "final contains 'seconds': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 25025,
+          "output_tokens": 425,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.011255625,
+          "wall_secs": 26.932990375,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/memory-search-then-read-when-needed/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called memory_search (tool 'memory_search' called: false)",
+            "assert failed: tool_called_after memory_read memory_search ('memory_read' after 'memory_search': false)",
+            "assert failed: tool_arg_contains memory_read deploy ('memory_read' summary contains 'deploy': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_search\")",
+              "pass": false,
+              "detail": "tool 'memory_search' called: false"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"memory_read\", earlier: \"memory_search\" }",
+              "pass": false,
+              "detail": "'memory_read' after 'memory_search': false"
+            },
+            {
+              "spec": "ToolArgContains { tool: \"memory_read\", needle: \"deploy\" }",
+              "pass": false,
+              "detail": "'memory_read' summary contains 'deploy': false"
+            },
+            {
+              "spec": "FinalContains(\"seconds\")",
+              "pass": true,
+              "detail": "final contains 'seconds': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 28548,
+          "output_tokens": 507,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.01285947,
+          "wall_secs": 29.676099625,
+          "tool_call_count": 3,
+          "run_dir": "results/main-deepseek/memory-search-then-read-when-needed/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 7,
+      "content_hash": "fa50701207c1e7be",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "memory-update-not-duplicate",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called memory_write (tool 'memory_write' called: false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": false,
+              "detail": "tool 'memory_write' called: false"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/projects/*/notes/rate-limit.md\", needle: \"900\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/projects/*/notes/rate-limit.md' contains '900': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 33008,
+          "output_tokens": 303,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.01462209,
+          "wall_secs": 30.32690425,
+          "tool_call_count": 3,
+          "run_dir": "results/main-deepseek/memory-update-not-duplicate/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called memory_write (tool 'memory_write' called: false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": false,
+              "detail": "tool 'memory_write' called: false"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/projects/*/notes/rate-limit.md\", needle: \"900\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/projects/*/notes/rate-limit.md' contains '900': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 33015,
+          "output_tokens": 330,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.014648625,
+          "wall_secs": 12.895255459,
+          "tool_call_count": 3,
+          "run_dir": "results/main-deepseek/memory-update-not-duplicate/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called memory_write (tool 'memory_write' called: false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": false,
+              "detail": "tool 'memory_write' called: false"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/projects/*/notes/rate-limit.md\", needle: \"900\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/projects/*/notes/rate-limit.md' contains '900': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 33018,
+          "output_tokens": 321,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0146421,
+          "wall_secs": 14.993006458,
+          "tool_call_count": 3,
+          "run_dir": "results/main-deepseek/memory-update-not-duplicate/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 9,
+      "content_hash": "8271ddcaf9f6425a",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "memory-write-remember-fact",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/MEMORY.md\", needle: \"450\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/MEMORY.md' contains '450': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16150,
+          "output_tokens": 139,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00714618,
+          "wall_secs": 7.4702225,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/memory-write-remember-fact/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/MEMORY.md\", needle: \"450\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/MEMORY.md' contains '450': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16135,
+          "output_tokens": 105,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007110075,
+          "wall_secs": 8.909772791,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/memory-write-remember-fact/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/MEMORY.md\", needle: \"450\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/MEMORY.md' contains '450': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16150,
+          "output_tokens": 120,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00712965,
+          "wall_secs": 9.126679334,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/memory-write-remember-fact/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "27f2d355064a6747",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-ask-answers-question",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FinalContains(\"greet\")",
+              "pass": true,
+              "detail": "final contains 'greet': true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 22139,
+          "output_tokens": 187,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.009793155,
+          "wall_secs": 10.99436275,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-ask-answers-question/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FinalContains(\"greet\")",
+              "pass": true,
+              "detail": "final contains 'greet': true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 22144,
+          "output_tokens": 194,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00980142,
+          "wall_secs": 11.895100791,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-ask-answers-question/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FinalContains(\"greet\")",
+              "pass": true,
+              "detail": "final contains 'greet': true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 22150,
+          "output_tokens": 205,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0098136,
+          "wall_secs": 9.971183,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-ask-answers-question/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "10b347e96df71ab9",
+      "prompt_name": "ask",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-ask-readonly-refuses-edit",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": true,
+              "detail": "tool 'bash' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 14800,
+          "output_tokens": 242,
+          "judge_input_tokens": 198,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.007302540000000001,
+          "wall_secs": 9.548306334,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/prompt-ask-readonly-refuses-edit/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": true,
+              "detail": "tool 'bash' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 7284,
+          "output_tokens": 127,
+          "judge_input_tokens": 164,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.00383103,
+          "wall_secs": 6.626342584,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/prompt-ask-readonly-refuses-edit/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": true,
+              "detail": "tool 'bash' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 14806,
+          "output_tokens": 287,
+          "judge_input_tokens": 260,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.007530299999999999,
+          "wall_secs": 10.763268208,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/prompt-ask-readonly-refuses-edit/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 2,
+      "content_hash": "73608a8f2095a5d2",
+      "prompt_name": "ask",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-autoconfig-edits-config",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called read (tool 'read' called: false)",
+            "assert failed: file_contains config:config.toml max_tokens (some 'config:config.toml' contains 'max_tokens': false)",
+            "assert failed: file_contains config:config.toml 8000 (some 'config:config.toml' contains '8000': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": false,
+              "detail": "tool 'read' called: false"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"max_tokens\" }",
+              "pass": false,
+              "detail": "some 'config:config.toml' contains 'max_tokens': false"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"8000\" }",
+              "pass": false,
+              "detail": "some 'config:config.toml' contains '8000': false"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"provider\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains 'provider': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 149364,
+          "output_tokens": 1871,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.06660110999999999,
+          "wall_secs": 63.392819542,
+          "tool_call_count": 17,
+          "run_dir": "results/main-deepseek/prompt-autoconfig-edits-config/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains config:config.toml max_tokens (some 'config:config.toml' contains 'max_tokens': false)",
+            "assert failed: file_contains config:config.toml 8000 (some 'config:config.toml' contains '8000': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"max_tokens\" }",
+              "pass": false,
+              "detail": "some 'config:config.toml' contains 'max_tokens': false"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"8000\" }",
+              "pass": false,
+              "detail": "some 'config:config.toml' contains '8000': false"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"provider\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains 'provider': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 58341,
+          "output_tokens": 470,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.025787235,
+          "wall_secs": 61.84337925,
+          "tool_call_count": 4,
+          "run_dir": "results/main-deepseek/prompt-autoconfig-edits-config/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains config:config.toml max_tokens (some 'config:config.toml' contains 'max_tokens': false)",
+            "assert failed: file_contains config:config.toml 8000 (some 'config:config.toml' contains '8000': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"max_tokens\" }",
+              "pass": false,
+              "detail": "some 'config:config.toml' contains 'max_tokens': false"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"8000\" }",
+              "pass": false,
+              "detail": "some 'config:config.toml' contains '8000': false"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"provider\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains 'provider': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 95183,
+          "output_tokens": 1029,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.042299834999999994,
+          "wall_secs": 77.923077084,
+          "tool_call_count": 9,
+          "run_dir": "results/main-deepseek/prompt-autoconfig-edits-config/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 30,
+      "content_hash": "b95755dd987a42ae",
+      "prompt_name": "autoconfig",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-brainstorm-explores-ideas",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalNotContains(\"```python\")",
+              "pass": true,
+              "detail": "final contains '```python': false"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 7175,
+          "output_tokens": 122,
+          "judge_input_tokens": 185,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.003842265,
+          "wall_secs": 53.43153025,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/prompt-brainstorm-explores-ideas/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalNotContains(\"```python\")",
+              "pass": true,
+              "detail": "final contains '```python': false"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 28671,
+          "output_tokens": 971,
+          "judge_input_tokens": 656,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.015344655,
+          "wall_secs": 231.115409958,
+          "tool_call_count": 13,
+          "run_dir": "results/main-deepseek/prompt-brainstorm-explores-ideas/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalNotContains(\"```python\")",
+              "pass": true,
+              "detail": "final contains '```python': false"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6709,
+          "output_tokens": 304,
+          "judge_input_tokens": 284,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.004094895,
+          "wall_secs": 179.443771875,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/prompt-brainstorm-explores-ideas/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 13,
+      "content_hash": "0af9eb1d5730a251",
+      "prompt_name": "brainstorm",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-brainstorm-refuses-implementation",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_not_called write (tool 'write' called 1 time(s))",
+            "assert failed: tool_not_called edit (tool 'edit' called 1 time(s))",
+            "assert failed: tool_not_called bash (tool 'bash' called 1 time(s))"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": false,
+              "detail": "tool 'write' called 1 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": false,
+              "detail": "tool 'edit' called 1 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": false,
+              "detail": "tool 'bash' called 1 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 55431,
+          "output_tokens": 1624,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.025525365,
+          "wall_secs": 161.819964709,
+          "tool_call_count": 6,
+          "run_dir": "results/main-deepseek/prompt-brainstorm-refuses-implementation/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_not_called write (tool 'write' called 1 time(s))",
+            "assert failed: tool_not_called edit (tool 'edit' called 2 time(s))",
+            "assert failed: tool_not_called bash (tool 'bash' called 2 time(s))"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": false,
+              "detail": "tool 'write' called 1 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": false,
+              "detail": "tool 'edit' called 2 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": false,
+              "detail": "tool 'bash' called 2 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 79930,
+          "output_tokens": 1852,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.03638079,
+          "wall_secs": 109.904116667,
+          "tool_call_count": 9,
+          "run_dir": "results/main-deepseek/prompt-brainstorm-refuses-implementation/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_not_called edit (tool 'edit' called 1 time(s))",
+            "assert failed: tool_not_called bash (tool 'bash' called 1 time(s))"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": false,
+              "detail": "tool 'edit' called 1 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": false,
+              "detail": "tool 'bash' called 1 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 37293,
+          "output_tokens": 860,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.016970655,
+          "wall_secs": 120.982030334,
+          "tool_call_count": 4,
+          "run_dir": "results/main-deepseek/prompt-brainstorm-refuses-implementation/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 19,
+      "content_hash": "a3d85091f354cc44",
+      "prompt_name": "brainstorm",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-code-concise-answer",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalMaxLines(4)",
+              "pass": true,
+              "detail": "final non-empty lines 1 <= 4"
+            },
+            {
+              "spec": "FinalNotContains(\"Here is\")",
+              "pass": true,
+              "detail": "final contains 'Here is': false"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 7989,
+          "output_tokens": 61,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0035282850000000004,
+          "wall_secs": 27.235356167,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/prompt-code-concise-answer/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalMaxLines(4)",
+              "pass": true,
+              "detail": "final non-empty lines 1 <= 4"
+            },
+            {
+              "spec": "FinalNotContains(\"Here is\")",
+              "pass": true,
+              "detail": "final contains 'Here is': false"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 7989,
+          "output_tokens": 62,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0035291550000000004,
+          "wall_secs": 22.905143792,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/prompt-code-concise-answer/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalMaxLines(4)",
+              "pass": true,
+              "detail": "final non-empty lines 1 <= 4"
+            },
+            {
+              "spec": "FinalNotContains(\"Here is\")",
+              "pass": true,
+              "detail": "final contains 'Here is': false"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 7989,
+          "output_tokens": 59,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0035265450000000003,
+          "wall_secs": 22.658012584,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/prompt-code-concise-answer/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "98aac2204de37984",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-debug-no-overinvestigation",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            },
+            {
+              "spec": "ToolCount { tool: \"read\", op: Le, n: 2 }",
+              "pass": true,
+              "detail": "count('read')=1, want <= 2"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 32094,
+          "output_tokens": 481,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.01437936,
+          "wall_secs": 14.550807625000001,
+          "tool_call_count": 3,
+          "run_dir": "results/main-deepseek/prompt-debug-no-overinvestigation/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            },
+            {
+              "spec": "ToolCount { tool: \"read\", op: Le, n: 2 }",
+              "pass": true,
+              "detail": "count('read')=1, want <= 2"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 50322,
+          "output_tokens": 739,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.022533,
+          "wall_secs": 27.8283725,
+          "tool_call_count": 7,
+          "run_dir": "results/main-deepseek/prompt-debug-no-overinvestigation/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            },
+            {
+              "spec": "ToolCount { tool: \"read\", op: Le, n: 2 }",
+              "pass": true,
+              "detail": "count('read')=1, want <= 2"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 31792,
+          "output_tokens": 257,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.01405311,
+          "wall_secs": 16.848030459,
+          "tool_call_count": 3,
+          "run_dir": "results/main-deepseek/prompt-debug-no-overinvestigation/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 13,
+      "content_hash": "a72de69e30b44a80",
+      "prompt_name": "debug",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-debug-root-cause-first",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 41777,
+          "output_tokens": 768,
+          "judge_input_tokens": 486,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.020359154999999997,
+          "wall_secs": 26.833380042,
+          "tool_call_count": 4,
+          "run_dir": "results/main-deepseek/prompt-debug-root-cause-first/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 41476,
+          "output_tokens": 785,
+          "judge_input_tokens": 335,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.019790010000000004,
+          "wall_secs": 59.412759417,
+          "tool_call_count": 4,
+          "run_dir": "results/main-deepseek/prompt-debug-root-cause-first/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 42093,
+          "output_tokens": 890,
+          "judge_input_tokens": 457,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.020515754999999997,
+          "wall_secs": 59.873811209,
+          "tool_call_count": 4,
+          "run_dir": "results/main-deepseek/prompt-debug-root-cause-first/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 12,
+      "content_hash": "31454c8903e602ab",
+      "prompt_name": "debug",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-default-redirects-to-specialized",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 23401,
+          "output_tokens": 759,
+          "judge_input_tokens": 632,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.012795764999999999,
+          "wall_secs": 28.197305458,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-default-redirects-to-specialized/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 23399,
+          "output_tokens": 1136,
+          "judge_input_tokens": 920,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.013986885000000001,
+          "wall_secs": 44.704358333,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-default-redirects-to-specialized/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 23401,
+          "output_tokens": 845,
+          "judge_input_tokens": 906,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.013692585,
+          "wall_secs": 41.1715095,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-default-redirects-to-specialized/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "96cc85a1701f5390",
+      "prompt_name": "default",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-frontend-design-commits-to-direction",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hero.html\", needle: \"<html\" }",
+              "pass": true,
+              "detail": "some 'work:hero.html' contains '<html': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Inter\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Inter'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Roboto\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Roboto'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Arial\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Arial'"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 27645,
+          "output_tokens": 3868,
+          "judge_input_tokens": 261,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.016233735,
+          "wall_secs": 54.489264542,
+          "tool_call_count": 3,
+          "run_dir": "results/main-deepseek/prompt-frontend-design-commits-to-direction/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hero.html\", needle: \"<html\" }",
+              "pass": true,
+              "detail": "some 'work:hero.html' contains '<html': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Inter\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Inter'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Roboto\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Roboto'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Arial\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Arial'"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 27104,
+          "output_tokens": 3383,
+          "judge_input_tokens": 325,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.01576845,
+          "wall_secs": 57.806750084,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-frontend-design-commits-to-direction/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hero.html\", needle: \"<html\" }",
+              "pass": true,
+              "detail": "some 'work:hero.html' contains '<html': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Inter\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Inter'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Roboto\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Roboto'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Arial\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Arial'"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 18669,
+          "output_tokens": 3242,
+          "judge_input_tokens": 260,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.011781555,
+          "wall_secs": 53.014395708,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/prompt-frontend-design-commits-to-direction/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "7089593124dfbb87",
+      "prompt_name": "frontend-design",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-orchestrator-small-task-direct",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"hello\" }",
+              "pass": true,
+              "detail": "some 'work:hello.py' contains 'hello': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hello.py\", needle: \"helo\" }",
+              "pass": true,
+              "detail": "no 'work:hello.py' contains 'helo'"
+            },
+            {
+              "spec": "NoToolCallContains(\"zerostack\")",
+              "pass": true,
+              "detail": "no tool call contains 'zerostack'"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 33087,
+          "output_tokens": 242,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.014603385,
+          "wall_secs": 11.674744541,
+          "tool_call_count": 3,
+          "run_dir": "results/main-deepseek/prompt-orchestrator-small-task-direct/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"hello\" }",
+              "pass": true,
+              "detail": "some 'work:hello.py' contains 'hello': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hello.py\", needle: \"helo\" }",
+              "pass": true,
+              "detail": "no 'work:hello.py' contains 'helo'"
+            },
+            {
+              "spec": "NoToolCallContains(\"zerostack\")",
+              "pass": true,
+              "detail": "no tool call contains 'zerostack'"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 41654,
+          "output_tokens": 302,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.018382230000000003,
+          "wall_secs": 13.099559041,
+          "tool_call_count": 4,
+          "run_dir": "results/main-deepseek/prompt-orchestrator-small-task-direct/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"hello\" }",
+              "pass": true,
+              "detail": "some 'work:hello.py' contains 'hello': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hello.py\", needle: \"helo\" }",
+              "pass": true,
+              "detail": "no 'work:hello.py' contains 'helo'"
+            },
+            {
+              "spec": "NoToolCallContains(\"zerostack\")",
+              "pass": true,
+              "detail": "no tool call contains 'zerostack'"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 24730,
+          "output_tokens": 185,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0109185,
+          "wall_secs": 8.527140292,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-orchestrator-small-task-direct/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 9,
+      "content_hash": "762d84fbf8c1f576",
+      "prompt_name": "orchestrator",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-plan-approval-gate",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains work:hello.py def add (some 'work:hello.py' contains 'def add': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"def add\" }",
+              "pass": false,
+              "detail": "some 'work:hello.py' contains 'def add': false"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 31497,
+          "output_tokens": 1154,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.014705175,
+          "wall_secs": 23.505253083,
+          "tool_call_count": 5,
+          "run_dir": "results/main-deepseek/prompt-plan-approval-gate/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains work:hello.py def add (some 'work:hello.py' contains 'def add': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"def add\" }",
+              "pass": false,
+              "detail": "some 'work:hello.py' contains 'def add': false"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 77145,
+          "output_tokens": 2899,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.036080205,
+          "wall_secs": 92.304265291,
+          "tool_call_count": 18,
+          "run_dir": "results/main-deepseek/prompt-plan-approval-gate/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains work:hello.py def add (some 'work:hello.py' contains 'def add': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"def add\" }",
+              "pass": false,
+              "detail": "some 'work:hello.py' contains 'def add': false"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 39418,
+          "output_tokens": 1222,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.01820997,
+          "wall_secs": 61.17193,
+          "tool_call_count": 6,
+          "run_dir": "results/main-deepseek/prompt-plan-approval-gate/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 29,
+      "content_hash": "fdb20f5032fdb23f",
+      "prompt_name": "plan",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-plan-no-implementation",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 23489,
+          "output_tokens": 825,
+          "judge_input_tokens": 428,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.012279465,
+          "wall_secs": 33.280468584,
+          "tool_call_count": 5,
+          "run_dir": "results/main-deepseek/prompt-plan-no-implementation/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 15320,
+          "output_tokens": 488,
+          "judge_input_tokens": 314,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.008090759999999999,
+          "wall_secs": 34.26862875,
+          "tool_call_count": 3,
+          "run_dir": "results/main-deepseek/prompt-plan-no-implementation/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 23052,
+          "output_tokens": 721,
+          "judge_input_tokens": 440,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.01203489,
+          "wall_secs": 41.431243041,
+          "tool_call_count": 5,
+          "run_dir": "results/main-deepseek/prompt-plan-no-implementation/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 13,
+      "content_hash": "08e6cf4bbe61a764",
+      "prompt_name": "plan",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-refactor-preserves-tests",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert add(2, 2) == 4\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert add(2, 2) == 4': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert multiply(3, 4) == 12\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert multiply(3, 4) == 12': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 77959,
+          "output_tokens": 1208,
+          "judge_input_tokens": 644,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.036955125,
+          "wall_secs": 54.455118542,
+          "tool_call_count": 8,
+          "run_dir": "results/main-deepseek/prompt-refactor-preserves-tests/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert add(2, 2) == 4\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert add(2, 2) == 4': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert multiply(3, 4) == 12\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert multiply(3, 4) == 12': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 76371,
+          "output_tokens": 956,
+          "judge_input_tokens": 382,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.035259105,
+          "wall_secs": 78.852624167,
+          "tool_call_count": 9,
+          "run_dir": "results/main-deepseek/prompt-refactor-preserves-tests/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert add(2, 2) == 4\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert add(2, 2) == 4': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert multiply(3, 4) == 12\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert multiply(3, 4) == 12': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 68909,
+          "output_tokens": 1163,
+          "judge_input_tokens": 626,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.032925225,
+          "wall_secs": 77.123401416,
+          "tool_call_count": 7,
+          "run_dir": "results/main-deepseek/prompt-refactor-preserves-tests/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 24,
+      "content_hash": "a85ccf063871868e",
+      "prompt_name": "refactor",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-review-clean-approves",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 24099,
+          "output_tokens": 828,
+          "judge_input_tokens": 325,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.012238424999999999,
+          "wall_secs": 36.419084125,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-review-clean-approves/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 33112,
+          "output_tokens": 1109,
+          "judge_input_tokens": 527,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.01700955,
+          "wall_secs": 76.246262375,
+          "tool_call_count": 3,
+          "run_dir": "results/main-deepseek/prompt-review-clean-approves/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 24105,
+          "output_tokens": 735,
+          "judge_input_tokens": 380,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.012325125,
+          "wall_secs": 70.188353792,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-review-clean-approves/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 7,
+      "content_hash": "9f5bd7aed7e46b92",
+      "prompt_name": "review",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-review-flags-seeded-bug",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"median\")",
+              "pass": true,
+              "detail": "final contains 'median': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 23993,
+          "output_tokens": 830,
+          "judge_input_tokens": 537,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.012830055,
+          "wall_secs": 34.043501208,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-review-flags-seeded-bug/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"median\")",
+              "pass": true,
+              "detail": "final contains 'median': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 32325,
+          "output_tokens": 596,
+          "judge_input_tokens": 528,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.016223895000000002,
+          "wall_secs": 82.370414167,
+          "tool_call_count": 3,
+          "run_dir": "results/main-deepseek/prompt-review-flags-seeded-bug/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"median\")",
+              "pass": true,
+              "detail": "final contains 'median': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 40923,
+          "output_tokens": 854,
+          "judge_input_tokens": 485,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.020059485000000002,
+          "wall_secs": 86.257645459,
+          "tool_call_count": 4,
+          "run_dir": "results/main-deepseek/prompt-review-flags-seeded-bug/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 9,
+      "content_hash": "97d759e0e4b17481",
+      "prompt_name": "review",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-review-security-clean-no-findings",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 24130,
+          "output_tokens": 2422,
+          "judge_input_tokens": 548,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.014307690000000001,
+          "wall_secs": 58.513049125,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-review-security-clean-no-findings/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 34238,
+          "output_tokens": 2343,
+          "judge_input_tokens": 588,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.01875594,
+          "wall_secs": 120.431082375,
+          "tool_call_count": 4,
+          "run_dir": "results/main-deepseek/prompt-review-security-clean-no-findings/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 46131,
+          "output_tokens": 3800,
+          "judge_input_tokens": 1558,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.028106984999999998,
+          "wall_secs": 186.407804625,
+          "tool_call_count": 26,
+          "run_dir": "results/main-deepseek/prompt-review-security-clean-no-findings/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 32,
+      "content_hash": "d4f4957d32eea5e1",
+      "prompt_name": "review-security",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-review-security-flags-injection",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called read (tool 'read' called: false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": false,
+              "detail": "tool 'read' called: false"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"ping\")",
+              "pass": true,
+              "detail": "final contains 'ping': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 24354,
+          "output_tokens": 606,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.01112121,
+          "wall_secs": 52.35308025,
+          "tool_call_count": 4,
+          "run_dir": "results/main-deepseek/prompt-review-security-flags-injection/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"ping\")",
+              "pass": true,
+              "detail": "final contains 'ping': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 41330,
+          "output_tokens": 1112,
+          "judge_input_tokens": 771,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.02131899,
+          "wall_secs": 85.083364375,
+          "tool_call_count": 5,
+          "run_dir": "results/main-deepseek/prompt-review-security-flags-injection/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"ping\")",
+              "pass": true,
+              "detail": "final contains 'ping': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 16965,
+          "output_tokens": 774,
+          "judge_input_tokens": 1206,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.011731155,
+          "wall_secs": 115.149783625,
+          "tool_call_count": 40,
+          "run_dir": "results/main-deepseek/prompt-review-security-flags-injection/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 49,
+      "content_hash": "4b068e6779181bee",
+      "prompt_name": "review-security",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-simplify-declines-behavior-change",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains work:fetch.py retry (some 'work:fetch.py' contains 'retry': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:fetch.py\", needle: \"retry\" }",
+              "pass": false,
+              "detail": "some 'work:fetch.py' contains 'retry': false"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 38884,
+          "output_tokens": 628,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0174609,
+          "wall_secs": 17.667696209,
+          "tool_call_count": 4,
+          "run_dir": "results/main-deepseek/prompt-simplify-declines-behavior-change/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains work:fetch.py retry (some 'work:fetch.py' contains 'retry': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:fetch.py\", needle: \"retry\" }",
+              "pass": false,
+              "detail": "some 'work:fetch.py' contains 'retry': false"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 39009,
+          "output_tokens": 739,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.017611845,
+          "wall_secs": 126.593546875,
+          "tool_call_count": 4,
+          "run_dir": "results/main-deepseek/prompt-simplify-declines-behavior-change/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains work:fetch.py retry (some 'work:fetch.py' contains 'retry': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:fetch.py\", needle: \"retry\" }",
+              "pass": false,
+              "detail": "some 'work:fetch.py' contains 'retry': false"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 48406,
+          "output_tokens": 826,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.02177523,
+          "wall_secs": 132.076132958,
+          "tool_call_count": 5,
+          "run_dir": "results/main-deepseek/prompt-simplify-declines-behavior-change/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 13,
+      "content_hash": "349066aff8807e9c",
+      "prompt_name": "simplify",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-simplify-preserves-why-comments",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:config_check.py\", needle: \"vendor API throttles\" }",
+              "pass": true,
+              "detail": "some 'work:config_check.py' contains 'vendor API throttles': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 38808,
+          "output_tokens": 532,
+          "judge_input_tokens": 204,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.01801632,
+          "wall_secs": 37.522598042,
+          "tool_call_count": 4,
+          "run_dir": "results/main-deepseek/prompt-simplify-preserves-why-comments/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:config_check.py\", needle: \"vendor API throttles\" }",
+              "pass": true,
+              "detail": "some 'work:config_check.py' contains 'vendor API throttles': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 31461,
+          "output_tokens": 766,
+          "judge_input_tokens": 303,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.015320954999999999,
+          "wall_secs": 42.700659375,
+          "tool_call_count": 3,
+          "run_dir": "results/main-deepseek/prompt-simplify-preserves-why-comments/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:config_check.py\", needle: \"vendor API throttles\" }",
+              "pass": true,
+              "detail": "some 'work:config_check.py' contains 'vendor API throttles': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 31436,
+          "output_tokens": 664,
+          "judge_input_tokens": 327,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.01529334,
+          "wall_secs": 40.407516083,
+          "tool_call_count": 3,
+          "run_dir": "results/main-deepseek/prompt-simplify-preserves-why-comments/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 10,
+      "content_hash": "8b41c8d8754a5aad",
+      "prompt_name": "simplify",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-write-prompt-follows-format",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"work:tutor.md\", needle: \"%%mode=readonly\" }",
+              "pass": true,
+              "detail": "some 'work:tutor.md' contains '%%mode=readonly': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 26683,
+          "output_tokens": 1258,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.012701565,
+          "wall_secs": 22.615524375,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-write-prompt-follows-format/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"work:tutor.md\", needle: \"%%mode=readonly\" }",
+              "pass": true,
+              "detail": "some 'work:tutor.md' contains '%%mode=readonly': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 26484,
+          "output_tokens": 1135,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.01250799,
+          "wall_secs": 43.805685042,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-write-prompt-follows-format/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"work:tutor.md\", needle: \"%%mode=readonly\" }",
+              "pass": true,
+              "detail": "some 'work:tutor.md' contains '%%mode=readonly': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 26796,
+          "output_tokens": 1380,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.01285686,
+          "wall_secs": 44.64121125,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-write-prompt-follows-format/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "52f693a5f2877d87",
+      "prompt_name": "write-prompt",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-write-text-produces-prose",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:announcement.md\", needle: \"memory\" }",
+              "pass": true,
+              "detail": "some 'work:announcement.md' contains 'memory': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"def\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'def'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"delve\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'delve'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"moreover\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'moreover'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"furthermore\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'furthermore'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"it is worth noting\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'it is worth noting'"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 25051,
+          "output_tokens": 421,
+          "judge_input_tokens": 179,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.011860455,
+          "wall_secs": 36.70920975,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/prompt-write-text-produces-prose/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:announcement.md\", needle: \"memory\" }",
+              "pass": true,
+              "detail": "some 'work:announcement.md' contains 'memory': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"def\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'def'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"delve\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'delve'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"moreover\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'moreover'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"furthermore\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'furthermore'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"it is worth noting\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'it is worth noting'"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 25243,
+          "output_tokens": 463,
+          "judge_input_tokens": 195,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.012028515,
+          "wall_secs": 53.147035959,
+          "tool_call_count": 3,
+          "run_dir": "results/main-deepseek/prompt-write-text-produces-prose/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:announcement.md\", needle: \"memory\" }",
+              "pass": true,
+              "detail": "some 'work:announcement.md' contains 'memory': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"def\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'def'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"delve\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'delve'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"moreover\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'moreover'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"furthermore\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'furthermore'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"it is worth noting\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'it is worth noting'"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 34826,
+          "output_tokens": 731,
+          "judge_input_tokens": 598,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.01763928,
+          "wall_secs": 76.356954542,
+          "tool_call_count": 17,
+          "run_dir": "results/main-deepseek/prompt-write-text-produces-prose/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 22,
+      "content_hash": "1441cc8ac5e4c94f",
+      "prompt_name": "write-text",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "session-continue-recalls",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalContains(\"osprey\")",
+              "pass": true,
+              "detail": "final contains 'osprey': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16017,
+          "output_tokens": 67,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007025685,
+          "wall_secs": 21.176703667,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/session-continue-recalls/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalContains(\"osprey\")",
+              "pass": true,
+              "detail": "final contains 'osprey': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16015,
+          "output_tokens": 79,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007035255,
+          "wall_secs": 53.30679325,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/session-continue-recalls/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalContains(\"osprey\")",
+              "pass": true,
+              "detail": "final contains 'osprey': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16015,
+          "output_tokens": 62,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007020465,
+          "wall_secs": 53.165624625,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/session-continue-recalls/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "21f8aa421e588b62",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "session-fresh-forgets",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalNotContains(\"osprey\")",
+              "pass": true,
+              "detail": "final contains 'osprey': false"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 33327,
+          "output_tokens": 677,
+          "judge_input_tokens": 224,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.015818235,
+          "wall_secs": 42.318217041,
+          "tool_call_count": 4,
+          "run_dir": "results/main-deepseek/session-fresh-forgets/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: final_not_contains osprey (final contains 'osprey': true)"
+          ],
+          "asserts": [
+            {
+              "spec": "FinalNotContains(\"osprey\")",
+              "pass": false,
+              "detail": "final contains 'osprey': true"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 68134,
+          "output_tokens": 971,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.030483060000000003,
+          "wall_secs": 104.338963042,
+          "tool_call_count": 10,
+          "run_dir": "results/main-deepseek/session-fresh-forgets/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: final_not_contains osprey (final contains 'osprey': true)"
+          ],
+          "asserts": [
+            {
+              "spec": "FinalNotContains(\"osprey\")",
+              "pass": false,
+              "detail": "final contains 'osprey': true"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 71653,
+          "output_tokens": 982,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.032023395,
+          "wall_secs": 105.823974292,
+          "tool_call_count": 10,
+          "run_dir": "results/main-deepseek/session-fresh-forgets/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 24,
+      "content_hash": "539523bda0ed4e84",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "session-prompt-recorded-stock",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "PromptRecorded { name: \"code\", source: \"built_in\" }",
+              "pass": true,
+              "detail": "prompt recorded name='code' source='built_in', want name='code' source='built_in': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 7986,
+          "output_tokens": 26,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00349653,
+          "wall_secs": 14.530226916,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/session-prompt-recorded-stock/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "PromptRecorded { name: \"code\", source: \"built_in\" }",
+              "pass": true,
+              "detail": "prompt recorded name='code' source='built_in', want name='code' source='built_in': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 7986,
+          "output_tokens": 26,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00349653,
+          "wall_secs": 20.953926916,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/session-prompt-recorded-stock/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "PromptRecorded { name: \"code\", source: \"built_in\" }",
+              "pass": true,
+              "detail": "prompt recorded name='code' source='built_in', want name='code' source='built_in': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 7986,
+          "output_tokens": 30,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0035000099999999996,
+          "wall_secs": 20.301860417,
+          "tool_call_count": 0,
+          "run_dir": "results/main-deepseek/session-prompt-recorded-stock/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "8093f6623c0bbc11",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "session-tool-call-recorded",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAny",
+              "pass": true,
+              "detail": "any tool called: 1 recorded"
+            },
+            {
+              "spec": "FinalContains(\"4821\")",
+              "pass": true,
+              "detail": "final contains '4821': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16142,
+          "output_tokens": 135,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007139219999999999,
+          "wall_secs": 6.017401292,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/session-tool-call-recorded/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAny",
+              "pass": true,
+              "detail": "any tool called: 1 recorded"
+            },
+            {
+              "spec": "FinalContains(\"4821\")",
+              "pass": true,
+              "detail": "final contains '4821': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16148,
+          "output_tokens": 141,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00714705,
+          "wall_secs": 6.801271083,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/session-tool-call-recorded/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAny",
+              "pass": true,
+              "detail": "any tool called: 2 recorded"
+            },
+            {
+              "spec": "FinalContains(\"4821\")",
+              "pass": true,
+              "detail": "final contains '4821': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 24420,
+          "output_tokens": 212,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.01080714,
+          "wall_secs": 9.714276458,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/session-tool-call-recorded/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 4,
+      "content_hash": "f458a2b3749fa926",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "subagents-delegates-crossref",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            },
+            {
+              "spec": "FinalContains(\"Config\")",
+              "pass": true,
+              "detail": "final contains 'Config': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 25343,
+          "output_tokens": 566,
+          "judge_input_tokens": 659,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.013553625000000001,
+          "wall_secs": 30.392447292,
+          "tool_call_count": 12,
+          "run_dir": "results/main-deepseek/subagents-delegates-crossref/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            },
+            {
+              "spec": "FinalContains(\"Config\")",
+              "pass": true,
+              "detail": "final contains 'Config': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 25371,
+          "output_tokens": 548,
+          "judge_input_tokens": 724,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.013745145,
+          "wall_secs": 89.653800708,
+          "tool_call_count": 17,
+          "run_dir": "results/main-deepseek/subagents-delegates-crossref/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: final_contains Config (final contains 'Config': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            },
+            {
+              "spec": "FinalContains(\"Config\")",
+              "pass": false,
+              "detail": "final contains 'Config': false"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16750,
+          "output_tokens": 431,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00766122,
+          "wall_secs": 84.260979208,
+          "tool_call_count": 15,
+          "run_dir": "results/main-deepseek/subagents-delegates-crossref/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 44,
+      "content_hash": "54d0e9a46892a794",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "subagents-integrates-results",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 36934,
+          "output_tokens": 2229,
+          "judge_input_tokens": 1296,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.02195352,
+          "wall_secs": 96.905512625,
+          "tool_call_count": 43,
+          "run_dir": "results/main-deepseek/subagents-integrates-results/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 35998,
+          "output_tokens": 2338,
+          "judge_input_tokens": 1244,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.02148519,
+          "wall_secs": 76.180278625,
+          "tool_call_count": 35,
+          "run_dir": "results/main-deepseek/subagents-integrates-results/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 35654,
+          "output_tokens": 1823,
+          "judge_input_tokens": 891,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0198285,
+          "wall_secs": 50.692436,
+          "tool_call_count": 20,
+          "run_dir": "results/main-deepseek/subagents-integrates-results/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 98,
+      "content_hash": "e77ae6c15395897f",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "subagents-skips-for-trivial",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            },
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FinalContains(\"slugify\")",
+              "pass": true,
+              "detail": "final contains 'slugify': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16078,
+          "output_tokens": 125,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007102680000000001,
+          "wall_secs": 6.861843334,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/subagents-skips-for-trivial/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            },
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FinalContains(\"slugify\")",
+              "pass": true,
+              "detail": "final contains 'slugify': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16081,
+          "output_tokens": 117,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007097025,
+          "wall_secs": 69.312273416,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/subagents-skips-for-trivial/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            },
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FinalContains(\"slugify\")",
+              "pass": true,
+              "detail": "final contains 'slugify': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 15151,
+          "output_tokens": 122,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.006696825000000001,
+          "wall_secs": 64.124740791,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/subagents-skips-for-trivial/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "8814b2cdc42d1366",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "tools-edit-precise",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains work:src/dupes.py def alpha():\n    timeout = 60 (some 'work:src/dupes.py' contains 'def alpha():\n    timeout = 60': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def alpha():\\n    timeout = 60\" }",
+              "pass": false,
+              "detail": "some 'work:src/dupes.py' contains 'def alpha():\n    timeout = 60': false"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def beta():\\n    timeout = 30\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def beta():\n    timeout = 30': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 41882,
+          "output_tokens": 659,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.018792,
+          "wall_secs": 38.186224292,
+          "tool_call_count": 5,
+          "run_dir": "results/main-deepseek/tools-edit-precise/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def alpha():\\n    timeout = 60\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def alpha():\n    timeout = 60': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def beta():\\n    timeout = 30\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def beta():\n    timeout = 30': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16183,
+          "output_tokens": 155,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007174455,
+          "wall_secs": 37.952455,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/tools-edit-precise/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def alpha():\\n    timeout = 60\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def alpha():\n    timeout = 60': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def beta():\\n    timeout = 30\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def beta():\n    timeout = 30': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16179,
+          "output_tokens": 165,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007181415,
+          "wall_secs": 38.2003195,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/tools-edit-precise/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 7,
+      "content_hash": "a2f13c8a9bf4e427",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "tools-find-files-over-bash",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"find_files\")",
+              "pass": true,
+              "detail": "tool 'find_files' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"find .\")",
+              "pass": true,
+              "detail": "no tool call contains 'find .'"
+            },
+            {
+              "spec": "FinalContains(\"test_util.py\")",
+              "pass": true,
+              "detail": "final contains 'test_util.py': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16343,
+          "output_tokens": 323,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007390215,
+          "wall_secs": 33.469093292,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/tools-find-files-over-bash/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"find_files\")",
+              "pass": true,
+              "detail": "tool 'find_files' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"find .\")",
+              "pass": true,
+              "detail": "no tool call contains 'find .'"
+            },
+            {
+              "spec": "FinalContains(\"test_util.py\")",
+              "pass": true,
+              "detail": "final contains 'test_util.py': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16324,
+          "output_tokens": 332,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00738978,
+          "wall_secs": 9.526395167,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/tools-find-files-over-bash/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"find_files\")",
+              "pass": true,
+              "detail": "tool 'find_files' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"find .\")",
+              "pass": true,
+              "detail": "no tool call contains 'find .'"
+            },
+            {
+              "spec": "FinalContains(\"test_util.py\")",
+              "pass": true,
+              "detail": "final contains 'test_util.py': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16325,
+          "output_tokens": 331,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007389345,
+          "wall_secs": 8.705001125,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/tools-find-files-over-bash/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "b553e1cae7e52ac7",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "tools-grep-over-bash",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"grep\")",
+              "pass": true,
+              "detail": "tool 'grep' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"grep -r\")",
+              "pass": true,
+              "detail": "no tool call contains 'grep -r'"
+            },
+            {
+              "spec": "NoToolCallContains(\"rg\")",
+              "pass": true,
+              "detail": "no tool call contains 'rg'"
+            },
+            {
+              "spec": "FinalContains(\"rate_limiter.py\")",
+              "pass": true,
+              "detail": "final contains 'rate_limiter.py': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16645,
+          "output_tokens": 169,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.007387605,
+          "wall_secs": 6.843549208,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/tools-grep-over-bash/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"grep\")",
+              "pass": true,
+              "detail": "tool 'grep' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"grep -r\")",
+              "pass": true,
+              "detail": "no tool call contains 'grep -r'"
+            },
+            {
+              "spec": "NoToolCallContains(\"rg\")",
+              "pass": true,
+              "detail": "no tool call contains 'rg'"
+            },
+            {
+              "spec": "FinalContains(\"rate_limiter.py\")",
+              "pass": true,
+              "detail": "final contains 'rate_limiter.py': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16648,
+          "output_tokens": 193,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00740979,
+          "wall_secs": 7.436782667,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/tools-grep-over-bash/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"grep\")",
+              "pass": true,
+              "detail": "tool 'grep' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"grep -r\")",
+              "pass": true,
+              "detail": "no tool call contains 'grep -r'"
+            },
+            {
+              "spec": "NoToolCallContains(\"rg\")",
+              "pass": true,
+              "detail": "no tool call contains 'rg'"
+            },
+            {
+              "spec": "FinalContains(\"rate_limiter.py\")",
+              "pass": true,
+              "detail": "final contains 'rate_limiter.py': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 16640,
+          "output_tokens": 152,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.00737064,
+          "wall_secs": 6.799450125,
+          "tool_call_count": 1,
+          "run_dir": "results/main-deepseek/tools-grep-over-bash/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "22e8aa7d3ae6b67f",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "tools-read-before-edit",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/util.py\", needle: \"MAX_RETRIES\" }",
+              "pass": true,
+              "detail": "some 'work:src/util.py' contains 'MAX_RETRIES': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:src/util.py\", needle: \"RETRY_LIMIT\" }",
+              "pass": true,
+              "detail": "no 'work:src/util.py' contains 'RETRY_LIMIT'"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 24604,
+          "output_tokens": 327,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.01098723,
+          "wall_secs": 9.377299583,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/tools-read-before-edit/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/util.py\", needle: \"MAX_RETRIES\" }",
+              "pass": true,
+              "detail": "some 'work:src/util.py' contains 'MAX_RETRIES': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:src/util.py\", needle: \"RETRY_LIMIT\" }",
+              "pass": true,
+              "detail": "no 'work:src/util.py' contains 'RETRY_LIMIT'"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 24623,
+          "output_tokens": 348,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.011013764999999998,
+          "wall_secs": 9.952396083,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/tools-read-before-edit/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/util.py\", needle: \"MAX_RETRIES\" }",
+              "pass": true,
+              "detail": "some 'work:src/util.py' contains 'MAX_RETRIES': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:src/util.py\", needle: \"RETRY_LIMIT\" }",
+              "pass": true,
+              "detail": "no 'work:src/util.py' contains 'RETRY_LIMIT'"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 24603,
+          "output_tokens": 305,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.010967655,
+          "wall_secs": 8.927675834,
+          "tool_call_count": 2,
+          "run_dir": "results/main-deepseek/tools-read-before-edit/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "16d739bece4081b3",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    }
+  ],
+  "summary": {
+    "n_scenarios": 43,
+    "n_gradable": 43,
+    "pass_at_k": 0.8372,
+    "pass_hat_k": 0.6512,
+    "indeterminate_scenarios": 0,
+    "indeterminate_trials": 0,
+    "total_cost_usd": 1.6983,
+    "avg_wall_secs": 44.1783,
+    "regression": {
+      "n_scenarios": 30,
+      "n_gradable": 30,
+      "pass_at_k": 0.9333,
+      "pass_hat_k": 0.8333
+    },
+    "capability": {
+      "n_scenarios": 13,
+      "n_gradable": 13,
+      "pass_at_k": 0.6154,
+      "pass_hat_k": 0.2308
+    }
+  }
+}

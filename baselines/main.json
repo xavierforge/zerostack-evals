@@ -1,0 +1,4832 @@
+{
+  "schema_version": 1,
+  "tag": "main",
+  "model": "anthropic/claude-sonnet-5",
+  "backend": "zs-cli",
+  "timestamp": "2026-08-03T00:55:18Z",
+  "trials": 3,
+  "judge_file": "judges/sonnet.toml",
+  "judge_hash": "4cd972111ef8c9b8",
+  "judge_model": [
+    "claude-sonnet-4-6"
+  ],
+  "target": "targets/anthropic.toml",
+  "budget_truncated": false,
+  "prompts_pack": "",
+  "prompts_hash": "",
+  "prompts_names": [],
+  "zs_version": "zerostack 1.7.2",
+  "zs_bin_path": "zerostack",
+  "zs_bin_sha256": "d8bbfe5dc1a9ecf67e3539396d134000ce0cc1d04abec89f08eefba648513777",
+  "git_sha": null,
+  "features": null,
+  "scenarios": [
+    {
+      "id": "context-follows-agents-md",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"SPDX-License-Identifier: MIT\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'SPDX-License-Identifier: MIT': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"def slugify\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'def slugify': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 116,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.033736,
+          "wall_secs": 4.281198833,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/context-follows-agents-md/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"SPDX-License-Identifier: MIT\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'SPDX-License-Identifier: MIT': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"def slugify\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'def slugify': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 116,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.024408000000000003,
+          "wall_secs": 5.91294875,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/context-follows-agents-md/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"SPDX-License-Identifier: MIT\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'SPDX-License-Identifier: MIT': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:slugify.py\", needle: \"def slugify\" }",
+              "pass": true,
+              "detail": "some 'work:slugify.py' contains 'def slugify': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 116,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.024408000000000003,
+          "wall_secs": 6.126909791,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/context-follows-agents-md/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "c9d7fb861ccc3c0d",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "context-no-overapply",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:NOTES.md\", needle: \"SPDX\" }",
+              "pass": true,
+              "detail": "no 'work:NOTES.md' contains 'SPDX'"
+            },
+            {
+              "spec": "FileContains { path: \"work:NOTES.md\", needle: \"Project notes\" }",
+              "pass": true,
+              "detail": "some 'work:NOTES.md' contains 'Project notes': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 160,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.024806,
+          "wall_secs": 6.934540666,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/context-no-overapply/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:NOTES.md\", needle: \"SPDX\" }",
+              "pass": true,
+              "detail": "no 'work:NOTES.md' contains 'SPDX'"
+            },
+            {
+              "spec": "FileContains { path: \"work:NOTES.md\", needle: \"Project notes\" }",
+              "pass": true,
+              "detail": "some 'work:NOTES.md' contains 'Project notes': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 141,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.02459,
+          "wall_secs": 7.536570458,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/context-no-overapply/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:NOTES.md\", needle: \"SPDX\" }",
+              "pass": true,
+              "detail": "no 'work:NOTES.md' contains 'SPDX'"
+            },
+            {
+              "spec": "FileContains { path: \"work:NOTES.md\", needle: \"Project notes\" }",
+              "pass": true,
+              "detail": "some 'work:NOTES.md' contains 'Project notes': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 138,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.024574,
+          "wall_secs": 5.298627583,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/context-no-overapply/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "20dc03fc7c801d9b",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "loop-fixes-failing-test",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:calc.py\", needle: \"return a - b\" }",
+              "pass": true,
+              "detail": "no 'work:calc.py' contains 'return a - b'"
+            },
+            {
+              "spec": "TranscriptContains(\"ALL TESTS PASS\")",
+              "pass": true,
+              "detail": "transcript contains 'ALL TESTS PASS': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 29.369852667,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/loop-fixes-failing-test/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:calc.py\", needle: \"return a - b\" }",
+              "pass": true,
+              "detail": "no 'work:calc.py' contains 'return a - b'"
+            },
+            {
+              "spec": "TranscriptContains(\"ALL TESTS PASS\")",
+              "pass": true,
+              "detail": "transcript contains 'ALL TESTS PASS': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 41.780352333,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/loop-fixes-failing-test/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileNotContains { path: \"work:calc.py\", needle: \"return a - b\" }",
+              "pass": true,
+              "detail": "no 'work:calc.py' contains 'return a - b'"
+            },
+            {
+              "spec": "TranscriptContains(\"ALL TESTS PASS\")",
+              "pass": true,
+              "detail": "transcript contains 'ALL TESTS PASS': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.0,
+          "wall_secs": 41.560641042,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/loop-fixes-failing-test/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "cb45bafa28279513",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "mcp-ignores-irrelevant-tool",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"144\")",
+              "pass": true,
+              "detail": "final contains '144': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 2,
+          "output_tokens": 3,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.028126,
+          "wall_secs": 1.880538,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/mcp-ignores-irrelevant-tool/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"144\")",
+              "pass": true,
+              "detail": "final contains '144': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 2,
+          "output_tokens": 3,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.02013,
+          "wall_secs": 2.095693167,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/mcp-ignores-irrelevant-tool/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"144\")",
+              "pass": true,
+              "detail": "final contains '144': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 2,
+          "output_tokens": 3,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.002282,
+          "wall_secs": 123.681541458,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/mcp-ignores-irrelevant-tool/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "520759ee31e831ca",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "mcp-uses-provided-tool",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called: true"
+            },
+            {
+              "spec": "FinalContains(\"flickers\")",
+              "pass": true,
+              "detail": "final contains 'flickers': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 79,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023356,
+          "wall_secs": 3.513572709,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/mcp-uses-provided-tool/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called: true"
+            },
+            {
+              "spec": "FinalContains(\"flickers\")",
+              "pass": true,
+              "detail": "final contains 'flickers': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 93,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023496,
+          "wall_secs": 3.9618597920000003,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/mcp-uses-provided-tool/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"lookup_ticket\")",
+              "pass": true,
+              "detail": "tool 'lookup_ticket' called: true"
+            },
+            {
+              "spec": "FinalContains(\"flickers\")",
+              "pass": true,
+              "detail": "final contains 'flickers': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 97,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023536,
+          "wall_secs": 3.939664042,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/mcp-uses-provided-tool/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "9a3c14650597008e",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "memory-no-write-smalltalk",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"teapot\")",
+              "pass": true,
+              "detail": "final contains 'teapot': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 2,
+          "output_tokens": 59,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.020816,
+          "wall_secs": 3.349076834,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/memory-no-write-smalltalk/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"teapot\")",
+              "pass": true,
+              "detail": "final contains 'teapot': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 2,
+          "output_tokens": 60,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.020826,
+          "wall_secs": 4.156160792,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/memory-no-write-smalltalk/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"teapot\")",
+              "pass": true,
+              "detail": "final contains 'teapot': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 2,
+          "output_tokens": 88,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.021106,
+          "wall_secs": 3.534111167,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/memory-no-write-smalltalk/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "142ac1a18edb8ab4",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "memory-search-snippet-sufficient",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_search\")",
+              "pass": true,
+              "detail": "tool 'memory_search' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_read\")",
+              "pass": true,
+              "detail": "tool 'memory_read' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"fly.io\")",
+              "pass": true,
+              "detail": "final contains 'fly.io': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 94,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.024458,
+          "wall_secs": 4.817893292,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/memory-search-snippet-sufficient/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_search\")",
+              "pass": true,
+              "detail": "tool 'memory_search' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_read\")",
+              "pass": true,
+              "detail": "tool 'memory_read' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"fly.io\")",
+              "pass": true,
+              "detail": "final contains 'fly.io': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 91,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.024424,
+          "wall_secs": 5.422557542,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/memory-search-snippet-sufficient/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_search\")",
+              "pass": true,
+              "detail": "tool 'memory_search' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_read\")",
+              "pass": true,
+              "detail": "tool 'memory_read' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"fly.io\")",
+              "pass": true,
+              "detail": "final contains 'fly.io': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 80,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.02432,
+          "wall_secs": 6.2218595,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/memory-search-snippet-sufficient/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "f86dec71338fb567",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "memory-search-then-read-when-needed",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_arg_contains memory_read deploy ('memory_read' summary contains 'deploy': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_search\")",
+              "pass": true,
+              "detail": "tool 'memory_search' called: true"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"memory_read\", earlier: \"memory_search\" }",
+              "pass": true,
+              "detail": "'memory_read' after 'memory_search': true"
+            },
+            {
+              "spec": "ToolArgContains { tool: \"memory_read\", needle: \"deploy\" }",
+              "pass": false,
+              "detail": "'memory_read' summary contains 'deploy': false"
+            },
+            {
+              "spec": "FinalContains(\"seconds\")",
+              "pass": true,
+              "detail": "final contains 'seconds': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 272,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.03016,
+          "wall_secs": 10.214342416,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/memory-search-then-read-when-needed/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_arg_contains memory_read deploy ('memory_read' summary contains 'deploy': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_search\")",
+              "pass": true,
+              "detail": "tool 'memory_search' called: true"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"memory_read\", earlier: \"memory_search\" }",
+              "pass": true,
+              "detail": "'memory_read' after 'memory_search': true"
+            },
+            {
+              "spec": "ToolArgContains { tool: \"memory_read\", needle: \"deploy\" }",
+              "pass": false,
+              "detail": "'memory_read' summary contains 'deploy': false"
+            },
+            {
+              "spec": "FinalContains(\"seconds\")",
+              "pass": true,
+              "detail": "final contains 'seconds': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 290,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.03033,
+          "wall_secs": 8.3248895,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/memory-search-then-read-when-needed/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_arg_contains memory_read deploy ('memory_read' summary contains 'deploy': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_search\")",
+              "pass": true,
+              "detail": "tool 'memory_search' called: true"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"memory_read\", earlier: \"memory_search\" }",
+              "pass": true,
+              "detail": "'memory_read' after 'memory_search': true"
+            },
+            {
+              "spec": "ToolArgContains { tool: \"memory_read\", needle: \"deploy\" }",
+              "pass": false,
+              "detail": "'memory_read' summary contains 'deploy': false"
+            },
+            {
+              "spec": "FinalContains(\"seconds\")",
+              "pass": true,
+              "detail": "final contains 'seconds': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 303,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.030476000000000003,
+          "wall_secs": 8.1276975,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/memory-search-then-read-when-needed/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "fa50701207c1e7be",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "memory-update-not-duplicate",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called memory_write (tool 'memory_write' called: false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": false,
+              "detail": "tool 'memory_write' called: false"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/projects/*/notes/rate-limit.md\", needle: \"900\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/projects/*/notes/rate-limit.md' contains '900': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 211,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.028254,
+          "wall_secs": 8.34598925,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/memory-update-not-duplicate/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called memory_write (tool 'memory_write' called: false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": false,
+              "detail": "tool 'memory_write' called: false"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/projects/*/notes/rate-limit.md\", needle: \"900\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/projects/*/notes/rate-limit.md' contains '900': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 222,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.02836,
+          "wall_secs": 11.031040083,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/memory-update-not-duplicate/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: tool_called memory_write (tool 'memory_write' called: false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": false,
+              "detail": "tool 'memory_write' called: false"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/projects/*/notes/rate-limit.md\", needle: \"900\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/projects/*/notes/rate-limit.md' contains '900': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 240,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.028578,
+          "wall_secs": 7.692292625,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/memory-update-not-duplicate/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "8271ddcaf9f6425a",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "memory-write-remember-fact",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/MEMORY.md\", needle: \"450\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/MEMORY.md' contains '450': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 92,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023918,
+          "wall_secs": 5.00871625,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/memory-write-remember-fact/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/MEMORY.md\", needle: \"450\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/MEMORY.md' contains '450': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 91,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023908,
+          "wall_secs": 5.419205708,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/memory-write-remember-fact/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:agent/memory/MEMORY.md\", needle: \"450\" }",
+              "pass": true,
+              "detail": "some 'config:agent/memory/MEMORY.md' contains '450': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 91,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023908,
+          "wall_secs": 6.237615,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/memory-write-remember-fact/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "27f2d355064a6747",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-ask-answers-question",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FinalContains(\"greet\")",
+              "pass": true,
+              "detail": "final contains 'greet': true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 138,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023548,
+          "wall_secs": 11.22393425,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-ask-answers-question/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FinalContains(\"greet\")",
+              "pass": true,
+              "detail": "final contains 'greet': true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 141,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023578,
+          "wall_secs": 6.468262417,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-ask-answers-question/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FinalContains(\"greet\")",
+              "pass": true,
+              "detail": "final contains 'greet': true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 154,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023708,
+          "wall_secs": 6.418162042,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-ask-answers-question/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "10b347e96df71ab9",
+      "prompt_name": "ask",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-ask-readonly-refuses-edit",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": true,
+              "detail": "tool 'bash' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 2,
+          "output_tokens": 45,
+          "judge_input_tokens": 153,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.018470999999999998,
+          "wall_secs": 4.361373959,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/prompt-ask-readonly-refuses-edit/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": true,
+              "detail": "tool 'bash' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 2,
+          "output_tokens": 45,
+          "judge_input_tokens": 153,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.018470999999999998,
+          "wall_secs": 3.324895041,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/prompt-ask-readonly-refuses-edit/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": true,
+              "detail": "tool 'bash' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 2,
+          "output_tokens": 42,
+          "judge_input_tokens": 151,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.018435,
+          "wall_secs": 3.330742333,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/prompt-ask-readonly-refuses-edit/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "73608a8f2095a5d2",
+      "prompt_name": "ask",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-autoconfig-edits-config",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"max_tokens\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains 'max_tokens': true"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"8000\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains '8000': true"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"provider\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains 'provider': true"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 16,
+          "output_tokens": 1052,
+          "judge_input_tokens": 468,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.056746,
+          "wall_secs": 21.191635917,
+          "tool_call_count": 7,
+          "run_dir": "results/main/anthropic/prompt-autoconfig-edits-config/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"max_tokens\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains 'max_tokens': true"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"8000\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains '8000': true"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"provider\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains 'provider': true"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 14,
+          "output_tokens": 696,
+          "judge_input_tokens": 394,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.049634,
+          "wall_secs": 17.705767375,
+          "tool_call_count": 6,
+          "run_dir": "results/main/anthropic/prompt-autoconfig-edits-config/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"max_tokens\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains 'max_tokens': true"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"8000\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains '8000': true"
+            },
+            {
+              "spec": "FileContains { path: \"config:config.toml\", needle: \"provider\" }",
+              "pass": true,
+              "detail": "some 'config:config.toml' contains 'provider': true"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 14,
+          "output_tokens": 978,
+          "judge_input_tokens": 480,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.053231999999999995,
+          "wall_secs": 19.169676166,
+          "tool_call_count": 6,
+          "run_dir": "results/main/anthropic/prompt-autoconfig-edits-config/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 19,
+      "content_hash": "b95755dd987a42ae",
+      "prompt_name": "autoconfig",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-brainstorm-explores-ideas",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalNotContains(\"```python\")",
+              "pass": true,
+              "detail": "final contains '```python': false"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 2,
+          "output_tokens": 272,
+          "judge_input_tokens": 350,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.021112,
+          "wall_secs": 6.634117625,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/prompt-brainstorm-explores-ideas/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalNotContains(\"```python\")",
+              "pass": true,
+              "detail": "final contains '```python': false"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 2,
+          "output_tokens": 253,
+          "judge_input_tokens": 334,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.020874,
+          "wall_secs": 6.659148792,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/prompt-brainstorm-explores-ideas/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "indeterminate",
+          "reasons": [
+            "judge: Unknown (rubric may need work — see vault note)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalNotContains(\"```python\")",
+              "pass": true,
+              "detail": "final contains '```python': false"
+            }
+          ],
+          "judge": "unknown",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 2,
+          "output_tokens": 80,
+          "judge_input_tokens": 207,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.018763,
+          "wall_secs": 4.158851042,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/prompt-brainstorm-explores-ideas/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 1,
+      "total_tool_calls": 0,
+      "content_hash": "0af9eb1d5730a251",
+      "prompt_name": "brainstorm",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-brainstorm-refuses-implementation",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": true,
+              "detail": "tool 'bash' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 2,
+          "output_tokens": 129,
+          "judge_input_tokens": 230,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.0193,
+          "wall_secs": 4.797383375,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/prompt-brainstorm-refuses-implementation/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": true,
+              "detail": "tool 'bash' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 2,
+          "output_tokens": 90,
+          "judge_input_tokens": 197,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.018811,
+          "wall_secs": 3.551869083,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/prompt-brainstorm-refuses-implementation/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"bash\")",
+              "pass": true,
+              "detail": "tool 'bash' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 2,
+          "output_tokens": 80,
+          "judge_input_tokens": 195,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.018705,
+          "wall_secs": 3.969216167,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/prompt-brainstorm-refuses-implementation/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "a3d85091f354cc44",
+      "prompt_name": "brainstorm",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-code-concise-answer",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalMaxLines(4)",
+              "pass": true,
+              "detail": "final non-empty lines 1 <= 4"
+            },
+            {
+              "spec": "FinalNotContains(\"Here is\")",
+              "pass": true,
+              "detail": "final contains 'Here is': false"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 2,
+          "output_tokens": 67,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.020868,
+          "wall_secs": 3.345427541,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/prompt-code-concise-answer/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalMaxLines(4)",
+              "pass": true,
+              "detail": "final non-empty lines 1 <= 4"
+            },
+            {
+              "spec": "FinalNotContains(\"Here is\")",
+              "pass": true,
+              "detail": "final contains 'Here is': false"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 2,
+          "output_tokens": 62,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.020818,
+          "wall_secs": 3.319771333,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/prompt-code-concise-answer/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalMaxLines(4)",
+              "pass": true,
+              "detail": "final non-empty lines 1 <= 4"
+            },
+            {
+              "spec": "FinalNotContains(\"Here is\")",
+              "pass": true,
+              "detail": "final contains 'Here is': false"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 2,
+          "output_tokens": 70,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.020898,
+          "wall_secs": 3.7389085829999997,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/prompt-code-concise-answer/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "98aac2204de37984",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-debug-no-overinvestigation",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            },
+            {
+              "spec": "ToolCount { tool: \"read\", op: Le, n: 2 }",
+              "pass": true,
+              "detail": "count('read')=1, want <= 2"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 10,
+          "output_tokens": 730,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.038202,
+          "wall_secs": 14.354360584,
+          "tool_call_count": 5,
+          "run_dir": "results/main/anthropic/prompt-debug-no-overinvestigation/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            },
+            {
+              "spec": "ToolCount { tool: \"read\", op: Le, n: 2 }",
+              "pass": true,
+              "detail": "count('read')=1, want <= 2"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 12,
+          "output_tokens": 639,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.040104,
+          "wall_secs": 16.226657625,
+          "tool_call_count": 6,
+          "run_dir": "results/main/anthropic/prompt-debug-no-overinvestigation/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            },
+            {
+              "spec": "ToolCount { tool: \"read\", op: Le, n: 2 }",
+              "pass": true,
+              "detail": "count('read')=1, want <= 2"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 12,
+          "output_tokens": 557,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.039028,
+          "wall_secs": 13.334337,
+          "tool_call_count": 5,
+          "run_dir": "results/main/anthropic/prompt-debug-no-overinvestigation/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 16,
+      "content_hash": "a72de69e30b44a80",
+      "prompt_name": "debug",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-debug-root-cause-first",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 10,
+          "output_tokens": 932,
+          "judge_input_tokens": 366,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.041428,
+          "wall_secs": 16.652113458,
+          "tool_call_count": 5,
+          "run_dir": "results/main/anthropic/prompt-debug-root-cause-first/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 10,
+          "output_tokens": 1115,
+          "judge_input_tokens": 361,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.043257,
+          "wall_secs": 16.599156583,
+          "tool_call_count": 5,
+          "run_dir": "results/main/anthropic/prompt-debug-root-cause-first/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:pricing.py\", needle: \"replace\" }",
+              "pass": true,
+              "detail": "some 'work:pricing.py' contains 'replace': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 10,
+          "output_tokens": 725,
+          "judge_input_tokens": 339,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.039285,
+          "wall_secs": 14.380280125,
+          "tool_call_count": 5,
+          "run_dir": "results/main/anthropic/prompt-debug-root-cause-first/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 15,
+      "content_hash": "31454c8903e602ab",
+      "prompt_name": "debug",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-default-redirects-to-specialized",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 506,
+          "judge_input_tokens": 456,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.03659,
+          "wall_secs": 176.171130875,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-default-redirects-to-specialized/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 863,
+          "judge_input_tokens": 718,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.035034,
+          "wall_secs": 13.527856709,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-default-redirects-to-specialized/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 811,
+          "judge_input_tokens": 683,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.034427,
+          "wall_secs": 12.896142,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-default-redirects-to-specialized/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "96cc85a1701f5390",
+      "prompt_name": "default",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-frontend-design-commits-to-direction",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_not_contains work:hero.html Arial ('/Users/chihying/rust-playground/projects/zerostack-evals/results/main/anthropic/prompt-frontend-design-commits-to-direction/trial-0/work/hero.html' contains 'Arial')"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hero.html\", needle: \"<html\" }",
+              "pass": true,
+              "detail": "some 'work:hero.html' contains '<html': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Inter\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Inter'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Roboto\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Roboto'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Arial\" }",
+              "pass": false,
+              "detail": "'/Users/chihying/rust-playground/projects/zerostack-evals/results/main/anthropic/prompt-frontend-design-commits-to-direction/trial-0/work/hero.html' contains 'Arial'"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 6456,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.102714,
+          "wall_secs": 58.832875625,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-frontend-design-commits-to-direction/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_not_contains work:hero.html Arial ('/Users/chihying/rust-playground/projects/zerostack-evals/results/main/anthropic/prompt-frontend-design-commits-to-direction/trial-1/work/hero.html' contains 'Arial')"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hero.html\", needle: \"<html\" }",
+              "pass": true,
+              "detail": "some 'work:hero.html' contains '<html': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Inter\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Inter'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Roboto\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Roboto'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Arial\" }",
+              "pass": false,
+              "detail": "'/Users/chihying/rust-playground/projects/zerostack-evals/results/main/anthropic/prompt-frontend-design-commits-to-direction/trial-1/work/hero.html' contains 'Arial'"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 7611,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.114744,
+          "wall_secs": 62.988451041,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/prompt-frontend-design-commits-to-direction/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hero.html\", needle: \"<html\" }",
+              "pass": true,
+              "detail": "some 'work:hero.html' contains '<html': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Inter\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Inter'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Roboto\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Roboto'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hero.html\", needle: \"Arial\" }",
+              "pass": true,
+              "detail": "no 'work:hero.html' contains 'Arial'"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 6587,
+          "judge_input_tokens": 241,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.105739,
+          "wall_secs": 61.550869375,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-frontend-design-commits-to-direction/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 5,
+      "content_hash": "7089593124dfbb87",
+      "prompt_name": "frontend-design",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-orchestrator-small-task-direct",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"hello\" }",
+              "pass": true,
+              "detail": "some 'work:hello.py' contains 'hello': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hello.py\", needle: \"helo\" }",
+              "pass": true,
+              "detail": "no 'work:hello.py' contains 'helo'"
+            },
+            {
+              "spec": "NoToolCallContains(\"zerostack\")",
+              "pass": true,
+              "detail": "no tool call contains 'zerostack'"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 217,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.028252,
+          "wall_secs": 7.465303208,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-orchestrator-small-task-direct/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"hello\" }",
+              "pass": true,
+              "detail": "some 'work:hello.py' contains 'hello': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hello.py\", needle: \"helo\" }",
+              "pass": true,
+              "detail": "no 'work:hello.py' contains 'helo'"
+            },
+            {
+              "spec": "NoToolCallContains(\"zerostack\")",
+              "pass": true,
+              "detail": "no tool call contains 'zerostack'"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 8,
+          "output_tokens": 304,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.03206,
+          "wall_secs": 10.590382084,
+          "tool_call_count": 3,
+          "run_dir": "results/main/anthropic/prompt-orchestrator-small-task-direct/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"hello\" }",
+              "pass": true,
+              "detail": "some 'work:hello.py' contains 'hello': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:hello.py\", needle: \"helo\" }",
+              "pass": true,
+              "detail": "no 'work:hello.py' contains 'helo'"
+            },
+            {
+              "spec": "NoToolCallContains(\"zerostack\")",
+              "pass": true,
+              "detail": "no tool call contains 'zerostack'"
+            },
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 8,
+          "output_tokens": 314,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.03216,
+          "wall_secs": 11.416211375,
+          "tool_call_count": 3,
+          "run_dir": "results/main/anthropic/prompt-orchestrator-small-task-direct/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 8,
+      "content_hash": "762d84fbf8c1f576",
+      "prompt_name": "orchestrator",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-plan-approval-gate",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains work:hello.py def add (some 'work:hello.py' contains 'def add': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"def add\" }",
+              "pass": false,
+              "detail": "some 'work:hello.py' contains 'def add': false"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 14,
+          "output_tokens": 1472,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.050374,
+          "wall_secs": 24.323781792,
+          "tool_call_count": 6,
+          "run_dir": "results/main/anthropic/prompt-plan-approval-gate/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains work:hello.py def add (some 'work:hello.py' contains 'def add': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"def add\" }",
+              "pass": false,
+              "detail": "some 'work:hello.py' contains 'def add': false"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 18,
+          "output_tokens": 1677,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.057326,
+          "wall_secs": 38.339437791,
+          "tool_call_count": 7,
+          "run_dir": "results/main/anthropic/prompt-plan-approval-gate/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: file_contains work:hello.py def add (some 'work:hello.py' contains 'def add': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:hello.py\", needle: \"def add\" }",
+              "pass": false,
+              "detail": "some 'work:hello.py' contains 'def add': false"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 12,
+          "output_tokens": 1548,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.049128000000000005,
+          "wall_secs": 28.214684459,
+          "tool_call_count": 6,
+          "run_dir": "results/main/anthropic/prompt-plan-approval-gate/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 19,
+      "content_hash": "fdb20f5032fdb23f",
+      "prompt_name": "plan",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-plan-no-implementation",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 8,
+          "output_tokens": 733,
+          "judge_input_tokens": 434,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.034384,
+          "wall_secs": 18.590083375,
+          "tool_call_count": 3,
+          "run_dir": "results/main/anthropic/prompt-plan-no-implementation/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 8,
+          "output_tokens": 727,
+          "judge_input_tokens": 453,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.034691,
+          "wall_secs": 14.876895042,
+          "tool_call_count": 4,
+          "run_dir": "results/main/anthropic/prompt-plan-no-implementation/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 8,
+          "output_tokens": 595,
+          "judge_input_tokens": 390,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.033216,
+          "wall_secs": 14.658996167,
+          "tool_call_count": 4,
+          "run_dir": "results/main/anthropic/prompt-plan-no-implementation/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 11,
+      "content_hash": "08e6cf4bbe61a764",
+      "prompt_name": "plan",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-refactor-preserves-tests",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert add(2, 2) == 4\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert add(2, 2) == 4': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert multiply(3, 4) == 12\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert multiply(3, 4) == 12': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 24,
+          "output_tokens": 1776,
+          "judge_input_tokens": 465,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.07188699999999999,
+          "wall_secs": 40.773656083,
+          "tool_call_count": 11,
+          "run_dir": "results/main/anthropic/prompt-refactor-preserves-tests/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert add(2, 2) == 4\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert add(2, 2) == 4': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert multiply(3, 4) == 12\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert multiply(3, 4) == 12': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 16,
+          "output_tokens": 1291,
+          "judge_input_tokens": 306,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.055048,
+          "wall_secs": 24.754276334,
+          "tool_call_count": 7,
+          "run_dir": "results/main/anthropic/prompt-refactor-preserves-tests/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert add(2, 2) == 4\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert add(2, 2) == 4': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:test_calc.py\", needle: \"assert multiply(3, 4) == 12\" }",
+              "pass": true,
+              "detail": "some 'work:test_calc.py' contains 'assert multiply(3, 4) == 12': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 16,
+          "output_tokens": 1365,
+          "judge_input_tokens": 372,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.055658,
+          "wall_secs": 27.1838655,
+          "tool_call_count": 7,
+          "run_dir": "results/main/anthropic/prompt-refactor-preserves-tests/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 25,
+      "content_hash": "a85ccf063871868e",
+      "prompt_name": "refactor",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-review-clean-approves",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 670,
+          "judge_input_tokens": 489,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.033749,
+          "wall_secs": 18.535648917,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-review-clean-approves/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 579,
+          "judge_input_tokens": 392,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.032548,
+          "wall_secs": 13.696834125,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-review-clean-approves/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 464,
+          "judge_input_tokens": 320,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.031182,
+          "wall_secs": 12.238379208,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-review-clean-approves/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "9f5bd7aed7e46b92",
+      "prompt_name": "review",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-review-flags-seeded-bug",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"median\")",
+              "pass": true,
+              "detail": "final contains 'median': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 645,
+          "judge_input_tokens": 566,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.033374,
+          "wall_secs": 12.869737875,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-review-flags-seeded-bug/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"median\")",
+              "pass": true,
+              "detail": "final contains 'median': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 8,
+          "output_tokens": 778,
+          "judge_input_tokens": 615,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.037405,
+          "wall_secs": 16.797696834,
+          "tool_call_count": 3,
+          "run_dir": "results/main/anthropic/prompt-review-flags-seeded-bug/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"median\")",
+              "pass": true,
+              "detail": "final contains 'median': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 8,
+          "output_tokens": 643,
+          "judge_input_tokens": 491,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.035729,
+          "wall_secs": 15.783666542,
+          "tool_call_count": 3,
+          "run_dir": "results/main/anthropic/prompt-review-flags-seeded-bug/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 8,
+      "content_hash": "97d759e0e4b17481",
+      "prompt_name": "review",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-review-security-clean-no-findings",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 1995,
+          "judge_input_tokens": 749,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.048034999999999994,
+          "wall_secs": 29.410950875,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-review-security-clean-no-findings/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 8,
+          "output_tokens": 1155,
+          "judge_input_tokens": 469,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.041505,
+          "wall_secs": 22.62624975,
+          "tool_call_count": 3,
+          "run_dir": "results/main/anthropic/prompt-review-security-clean-no-findings/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 351,
+          "judge_input_tokens": 231,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.030041,
+          "wall_secs": 10.601931,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-review-security-clean-no-findings/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 7,
+      "content_hash": "d4f4957d32eea5e1",
+      "prompt_name": "review-security",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-review-security-flags-injection",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"ping\")",
+              "pass": true,
+              "detail": "final contains 'ping': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 8,
+          "output_tokens": 644,
+          "judge_input_tokens": 510,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.036248,
+          "wall_secs": 13.507549709,
+          "tool_call_count": 3,
+          "run_dir": "results/main/anthropic/prompt-review-security-flags-injection/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"ping\")",
+              "pass": true,
+              "detail": "final contains 'ping': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 608,
+          "judge_input_tokens": 512,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.033284,
+          "wall_secs": 12.402814167,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-review-security-flags-injection/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolNotCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called 0 time(s)"
+            },
+            {
+              "spec": "ToolNotCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called 0 time(s)"
+            },
+            {
+              "spec": "FinalContains(\"ping\")",
+              "pass": true,
+              "detail": "final contains 'ping': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 635,
+          "judge_input_tokens": 539,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.033635,
+          "wall_secs": 12.651441209,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-review-security-flags-injection/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 7,
+      "content_hash": "4b068e6779181bee",
+      "prompt_name": "review-security",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-simplify-declines-behavior-change",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:fetch.py\", needle: \"retry\" }",
+              "pass": true,
+              "detail": "some 'work:fetch.py' contains 'retry': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 980,
+          "judge_input_tokens": 271,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.033809,
+          "wall_secs": 17.198732333,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-simplify-declines-behavior-change/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:fetch.py\", needle: \"retry\" }",
+              "pass": true,
+              "detail": "some 'work:fetch.py' contains 'retry': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 541,
+          "judge_input_tokens": 310,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.029536,
+          "wall_secs": 14.955031625,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-simplify-declines-behavior-change/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:fetch.py\", needle: \"retry\" }",
+              "pass": true,
+              "detail": "some 'work:fetch.py' contains 'retry': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 508,
+          "judge_input_tokens": 282,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.029122000000000002,
+          "wall_secs": 12.441124958,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-simplify-declines-behavior-change/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "349066aff8807e9c",
+      "prompt_name": "simplify",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-simplify-preserves-why-comments",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:config_check.py\", needle: \"vendor API throttles\" }",
+              "pass": true,
+              "detail": "some 'work:config_check.py' contains 'vendor API throttles': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 10,
+          "output_tokens": 697,
+          "judge_input_tokens": 178,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.036759999999999994,
+          "wall_secs": 18.2716635,
+          "tool_call_count": 4,
+          "run_dir": "results/main/anthropic/prompt-simplify-preserves-why-comments/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:config_check.py\", needle: \"vendor API throttles\" }",
+              "pass": true,
+              "detail": "some 'work:config_check.py' contains 'vendor API throttles': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 10,
+          "output_tokens": 625,
+          "judge_input_tokens": 169,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.035903,
+          "wall_secs": 16.998881,
+          "tool_call_count": 4,
+          "run_dir": "results/main/anthropic/prompt-simplify-preserves-why-comments/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:config_check.py\", needle: \"vendor API throttles\" }",
+              "pass": true,
+              "detail": "some 'work:config_check.py' contains 'vendor API throttles': true"
+            },
+            {
+              "spec": "ToolCalled(\"edit\")",
+              "pass": true,
+              "detail": "tool 'edit' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 10,
+          "output_tokens": 872,
+          "judge_input_tokens": 195,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.039025,
+          "wall_secs": 18.289651708,
+          "tool_call_count": 4,
+          "run_dir": "results/main/anthropic/prompt-simplify-preserves-why-comments/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 12,
+      "content_hash": "8b41c8d8754a5aad",
+      "prompt_name": "simplify",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-write-prompt-follows-format",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"work:tutor.md\", needle: \"%%mode=readonly\" }",
+              "pass": true,
+              "detail": "some 'work:tutor.md' contains '%%mode=readonly': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 1622,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.048465999999999995,
+          "wall_secs": 23.469781,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-write-prompt-follows-format/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"work:tutor.md\", needle: \"%%mode=readonly\" }",
+              "pass": true,
+              "detail": "some 'work:tutor.md' contains '%%mode=readonly': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 1651,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.048816,
+          "wall_secs": 22.893884834,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-write-prompt-follows-format/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "ToolCalled(\"write\")",
+              "pass": true,
+              "detail": "tool 'write' called: true"
+            },
+            {
+              "spec": "FileContains { path: \"work:tutor.md\", needle: \"%%mode=readonly\" }",
+              "pass": true,
+              "detail": "some 'work:tutor.md' contains '%%mode=readonly': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 1611,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.048392,
+          "wall_secs": 22.203480333,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-write-prompt-follows-format/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 6,
+      "content_hash": "52f693a5f2877d87",
+      "prompt_name": "write-prompt",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "prompt-write-text-produces-prose",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "judge: No"
+          ],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:announcement.md\", needle: \"memory\" }",
+              "pass": true,
+              "detail": "some 'work:announcement.md' contains 'memory': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"def\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'def'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"delve\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'delve'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"moreover\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'moreover'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"furthermore\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'furthermore'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"it is worth noting\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'it is worth noting'"
+            }
+          ],
+          "judge": "no",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 462,
+          "judge_input_tokens": 167,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.031897,
+          "wall_secs": 15.120046625,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/prompt-write-text-produces-prose/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:announcement.md\", needle: \"memory\" }",
+              "pass": true,
+              "detail": "some 'work:announcement.md' contains 'memory': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"def\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'def'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"delve\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'delve'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"moreover\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'moreover'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"furthermore\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'furthermore'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"it is worth noting\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'it is worth noting'"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 4,
+          "output_tokens": 323,
+          "judge_input_tokens": 176,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.027930000000000003,
+          "wall_secs": 9.967711542,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/prompt-write-text-produces-prose/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:announcement.md\", needle: \"memory\" }",
+              "pass": true,
+              "detail": "some 'work:announcement.md' contains 'memory': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"def\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'def'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"delve\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'delve'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"moreover\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'moreover'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"furthermore\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'furthermore'"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:announcement.md\", needle: \"it is worth noting\" }",
+              "pass": true,
+              "detail": "no 'work:announcement.md' contains 'it is worth noting'"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 4,
+          "output_tokens": 288,
+          "judge_input_tokens": 184,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.027472,
+          "wall_secs": 9.157236875,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/prompt-write-text-produces-prose/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 4,
+      "content_hash": "1441cc8ac5e4c94f",
+      "prompt_name": "write-text",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "session-continue-recalls",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalContains(\"osprey\")",
+              "pass": true,
+              "detail": "final contains 'osprey': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 22,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.022892,
+          "wall_secs": 7.280207083,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/session-continue-recalls/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalContains(\"osprey\")",
+              "pass": true,
+              "detail": "final contains 'osprey': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 24,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.022918,
+          "wall_secs": 7.893901625,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/session-continue-recalls/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalContains(\"osprey\")",
+              "pass": true,
+              "detail": "final contains 'osprey': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 25,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.02293,
+          "wall_secs": 11.864616291,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/session-continue-recalls/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "21f8aa421e588b62",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "session-fresh-forgets",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalNotContains(\"osprey\")",
+              "pass": true,
+              "detail": "final contains 'osprey': false"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 124,
+          "judge_input_tokens": 159,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.027089,
+          "wall_secs": 9.355320459,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/session-fresh-forgets/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalNotContains(\"osprey\")",
+              "pass": true,
+              "detail": "final contains 'osprey': false"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 8,
+          "output_tokens": 229,
+          "judge_input_tokens": 187,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.030763000000000002,
+          "wall_secs": 13.301342875,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/session-fresh-forgets/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FinalNotContains(\"osprey\")",
+              "pass": true,
+              "detail": "final contains 'osprey': false"
+            },
+            {
+              "spec": "ToolNotCalled(\"memory_write\")",
+              "pass": true,
+              "detail": "tool 'memory_write' called 0 time(s)"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 8,
+          "output_tokens": 263,
+          "judge_input_tokens": 179,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.031079000000000002,
+          "wall_secs": 12.876679125,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/session-fresh-forgets/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 5,
+      "content_hash": "539523bda0ed4e84",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "session-prompt-recorded-stock",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "PromptRecorded { name: \"code\", source: \"built_in\" }",
+              "pass": true,
+              "detail": "prompt recorded name='code' source='built_in', want name='code' source='built_in': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 2,
+          "output_tokens": 12,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.020308,
+          "wall_secs": 4.153023667,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/session-prompt-recorded-stock/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "PromptRecorded { name: \"code\", source: \"built_in\" }",
+              "pass": true,
+              "detail": "prompt recorded name='code' source='built_in', want name='code' source='built_in': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 2,
+          "output_tokens": 12,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.020308,
+          "wall_secs": 3.922508084,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/session-prompt-recorded-stock/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "PromptRecorded { name: \"code\", source: \"built_in\" }",
+              "pass": true,
+              "detail": "prompt recorded name='code' source='built_in', want name='code' source='built_in': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 2,
+          "output_tokens": 12,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.020308,
+          "wall_secs": 3.736468542,
+          "tool_call_count": 0,
+          "run_dir": "results/main/anthropic/session-prompt-recorded-stock/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 0,
+      "content_hash": "8093f6623c0bbc11",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "session-tool-call-recorded",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAny",
+              "pass": true,
+              "detail": "any tool called: 1 recorded"
+            },
+            {
+              "spec": "FinalContains(\"4821\")",
+              "pass": true,
+              "detail": "final contains '4821': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 85,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.02366,
+          "wall_secs": 5.849640958,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/session-tool-call-recorded/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAny",
+              "pass": true,
+              "detail": "any tool called: 2 recorded"
+            },
+            {
+              "spec": "FinalContains(\"4821\")",
+              "pass": true,
+              "detail": "final contains '4821': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 186,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.03877,
+          "wall_secs": 195.271424542,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/session-tool-call-recorded/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAny",
+              "pass": true,
+              "detail": "any tool called: 2 recorded"
+            },
+            {
+              "spec": "FinalContains(\"4821\")",
+              "pass": true,
+              "detail": "final contains '4821': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 6,
+          "output_tokens": 210,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.038652,
+          "wall_secs": 195.318516083,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/session-tool-call-recorded/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 5,
+      "content_hash": "f458a2b3749fa926",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "subagents-delegates-crossref",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            },
+            {
+              "spec": "FinalContains(\"Config\")",
+              "pass": true,
+              "detail": "final contains 'Config': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 8,
+          "output_tokens": 533,
+          "judge_input_tokens": 455,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.035665,
+          "wall_secs": 11.995260625,
+          "tool_call_count": 3,
+          "run_dir": "results/main/anthropic/subagents-delegates-crossref/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            },
+            {
+              "spec": "FinalContains(\"Config\")",
+              "pass": true,
+              "detail": "final contains 'Config': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 8,
+          "output_tokens": 496,
+          "judge_input_tokens": 476,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.035294000000000006,
+          "wall_secs": 19.056889625,
+          "tool_call_count": 3,
+          "run_dir": "results/main/anthropic/subagents-delegates-crossref/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            },
+            {
+              "spec": "FinalContains(\"Config\")",
+              "pass": true,
+              "detail": "final contains 'Config': true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 10,
+          "output_tokens": 676,
+          "judge_input_tokens": 527,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.040098999999999996,
+          "wall_secs": 15.929181458,
+          "tool_call_count": 4,
+          "run_dir": "results/main/anthropic/subagents-delegates-crossref/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 10,
+      "content_hash": "54d0e9a46892a794",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "subagents-integrates-results",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 8,
+          "output_tokens": 1105,
+          "judge_input_tokens": 564,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.043212,
+          "wall_secs": 18.068008792,
+          "tool_call_count": 4,
+          "run_dir": "results/main/anthropic/subagents-integrates-results/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 6,
+          "output_tokens": 918,
+          "judge_input_tokens": 734,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.038306,
+          "wall_secs": 14.074313125,
+          "tool_call_count": 2,
+          "run_dir": "results/main/anthropic/subagents-integrates-results/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called: true"
+            }
+          ],
+          "judge": "yes",
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "claude-sonnet-4-6",
+          "input_tokens": 8,
+          "output_tokens": 1434,
+          "judge_input_tokens": 786,
+          "judge_output_tokens": 4,
+          "cost_usd": 0.047479999999999994,
+          "wall_secs": 19.534706375,
+          "tool_call_count": 8,
+          "run_dir": "results/main/anthropic/subagents-integrates-results/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 14,
+      "content_hash": "e77ae6c15395897f",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "subagents-skips-for-trivial",
+      "kind": "capability",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: final_contains slugify (final contains 'slugify': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            },
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FinalContains(\"slugify\")",
+              "pass": false,
+              "detail": "final contains 'slugify': false"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 71,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023526,
+          "wall_secs": 6.436165583,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/subagents-skips-for-trivial/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: final_contains slugify (final contains 'slugify': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            },
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FinalContains(\"slugify\")",
+              "pass": false,
+              "detail": "final contains 'slugify': false"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 71,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023526,
+          "wall_secs": 5.397742875,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/subagents-skips-for-trivial/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "fail",
+          "reasons": [
+            "assert failed: final_contains slugify (final contains 'slugify': false)"
+          ],
+          "asserts": [
+            {
+              "spec": "ToolNotCalled(\"task\")",
+              "pass": true,
+              "detail": "tool 'task' called 0 time(s)"
+            },
+            {
+              "spec": "ToolCalled(\"read\")",
+              "pass": true,
+              "detail": "tool 'read' called: true"
+            },
+            {
+              "spec": "FinalContains(\"slugify\")",
+              "pass": false,
+              "detail": "final contains 'slugify': false"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 71,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023526,
+          "wall_secs": 5.414007333,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/subagents-skips-for-trivial/trial-2"
+        }
+      ],
+      "pass_at_k": 0.0,
+      "pass_hat_k": 0.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "8814b2cdc42d1366",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "tools-edit-precise",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def alpha():\\n    timeout = 60\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def alpha():\n    timeout = 60': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def beta():\\n    timeout = 30\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def beta():\n    timeout = 30': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 8,
+          "output_tokens": 309,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.031856,
+          "wall_secs": 10.360609666,
+          "tool_call_count": 3,
+          "run_dir": "results/main/anthropic/tools-edit-precise/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def alpha():\\n    timeout = 60\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def alpha():\n    timeout = 60': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def beta():\\n    timeout = 30\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def beta():\n    timeout = 30': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 8,
+          "output_tokens": 311,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.031876,
+          "wall_secs": 8.506799958,
+          "tool_call_count": 3,
+          "run_dir": "results/main/anthropic/tools-edit-precise/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def alpha():\\n    timeout = 60\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def alpha():\n    timeout = 60': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/dupes.py\", needle: \"def beta():\\n    timeout = 30\" }",
+              "pass": true,
+              "detail": "some 'work:src/dupes.py' contains 'def beta():\n    timeout = 30': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 8,
+          "output_tokens": 370,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.032616,
+          "wall_secs": 10.568288708,
+          "tool_call_count": 3,
+          "run_dir": "results/main/anthropic/tools-edit-precise/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 9,
+      "content_hash": "a2f13c8a9bf4e427",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "tools-find-files-over-bash",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"find_files\")",
+              "pass": true,
+              "detail": "tool 'find_files' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"find .\")",
+              "pass": true,
+              "detail": "no tool call contains 'find .'"
+            },
+            {
+              "spec": "FinalContains(\"test_util.py\")",
+              "pass": true,
+              "detail": "final contains 'test_util.py': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 75,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.02352,
+          "wall_secs": 8.520009125,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/tools-find-files-over-bash/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"find_files\")",
+              "pass": true,
+              "detail": "tool 'find_files' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"find .\")",
+              "pass": true,
+              "detail": "no tool call contains 'find .'"
+            },
+            {
+              "spec": "FinalContains(\"test_util.py\")",
+              "pass": true,
+              "detail": "final contains 'test_util.py': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 90,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.02367,
+          "wall_secs": 5.581592625,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/tools-find-files-over-bash/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"find_files\")",
+              "pass": true,
+              "detail": "tool 'find_files' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"find .\")",
+              "pass": true,
+              "detail": "no tool call contains 'find .'"
+            },
+            {
+              "spec": "FinalContains(\"test_util.py\")",
+              "pass": true,
+              "detail": "final contains 'test_util.py': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 87,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023648,
+          "wall_secs": 5.379908875,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/tools-find-files-over-bash/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "b553e1cae7e52ac7",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "tools-grep-over-bash",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"grep\")",
+              "pass": true,
+              "detail": "tool 'grep' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"grep -r\")",
+              "pass": true,
+              "detail": "no tool call contains 'grep -r'"
+            },
+            {
+              "spec": "NoToolCallContains(\"rg\")",
+              "pass": true,
+              "detail": "no tool call contains 'rg'"
+            },
+            {
+              "spec": "FinalContains(\"rate_limiter.py\")",
+              "pass": true,
+              "detail": "final contains 'rate_limiter.py': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 66,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023566,
+          "wall_secs": 4.74811575,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/tools-grep-over-bash/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"grep\")",
+              "pass": true,
+              "detail": "tool 'grep' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"grep -r\")",
+              "pass": true,
+              "detail": "no tool call contains 'grep -r'"
+            },
+            {
+              "spec": "NoToolCallContains(\"rg\")",
+              "pass": true,
+              "detail": "no tool call contains 'rg'"
+            },
+            {
+              "spec": "FinalContains(\"rate_limiter.py\")",
+              "pass": true,
+              "detail": "final contains 'rate_limiter.py': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 64,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023546,
+          "wall_secs": 4.751811333,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/tools-grep-over-bash/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalled(\"grep\")",
+              "pass": true,
+              "detail": "tool 'grep' called: true"
+            },
+            {
+              "spec": "NoToolCallContains(\"grep -r\")",
+              "pass": true,
+              "detail": "no tool call contains 'grep -r'"
+            },
+            {
+              "spec": "NoToolCallContains(\"rg\")",
+              "pass": true,
+              "detail": "no tool call contains 'rg'"
+            },
+            {
+              "spec": "FinalContains(\"rate_limiter.py\")",
+              "pass": true,
+              "detail": "final contains 'rate_limiter.py': true"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 4,
+          "output_tokens": 64,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.023546,
+          "wall_secs": 4.552080625,
+          "tool_call_count": 1,
+          "run_dir": "results/main/anthropic/tools-grep-over-bash/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 3,
+      "content_hash": "22e8aa7d3ae6b67f",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    },
+    {
+      "id": "tools-read-before-edit",
+      "kind": "regression",
+      "trials": [
+        {
+          "trial": 0,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/util.py\", needle: \"MAX_RETRIES\" }",
+              "pass": true,
+              "detail": "some 'work:src/util.py' contains 'MAX_RETRIES': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:src/util.py\", needle: \"RETRY_LIMIT\" }",
+              "pass": true,
+              "detail": "no 'work:src/util.py' contains 'RETRY_LIMIT'"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 12,
+          "output_tokens": 784,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.042924,
+          "wall_secs": 15.135952333,
+          "tool_call_count": 5,
+          "run_dir": "results/main/anthropic/tools-read-before-edit/trial-0"
+        },
+        {
+          "trial": 1,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/util.py\", needle: \"MAX_RETRIES\" }",
+              "pass": true,
+              "detail": "some 'work:src/util.py' contains 'MAX_RETRIES': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:src/util.py\", needle: \"RETRY_LIMIT\" }",
+              "pass": true,
+              "detail": "no 'work:src/util.py' contains 'RETRY_LIMIT'"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 8,
+          "output_tokens": 595,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.035458,
+          "wall_secs": 10.988546166999999,
+          "tool_call_count": 3,
+          "run_dir": "results/main/anthropic/tools-read-before-edit/trial-1"
+        },
+        {
+          "trial": 2,
+          "outcome": "pass",
+          "reasons": [],
+          "asserts": [
+            {
+              "spec": "ToolCalledAfter { later: \"edit\", earlier: \"read\" }",
+              "pass": true,
+              "detail": "'edit' after 'read': true"
+            },
+            {
+              "spec": "FileContains { path: \"work:src/util.py\", needle: \"MAX_RETRIES\" }",
+              "pass": true,
+              "detail": "some 'work:src/util.py' contains 'MAX_RETRIES': true"
+            },
+            {
+              "spec": "FileNotContains { path: \"work:src/util.py\", needle: \"RETRY_LIMIT\" }",
+              "pass": true,
+              "detail": "no 'work:src/util.py' contains 'RETRY_LIMIT'"
+            }
+          ],
+          "judge": null,
+          "judge_file": "judges/sonnet.toml",
+          "judge_hash": "4cd972111ef8c9b8",
+          "judge_model": "",
+          "input_tokens": 8,
+          "output_tokens": 553,
+          "judge_input_tokens": 0,
+          "judge_output_tokens": 0,
+          "cost_usd": 0.035024,
+          "wall_secs": 9.95650875,
+          "tool_call_count": 3,
+          "run_dir": "results/main/anthropic/tools-read-before-edit/trial-2"
+        }
+      ],
+      "pass_at_k": 1.0,
+      "pass_hat_k": 1.0,
+      "indeterminate": 0,
+      "total_tool_calls": 11,
+      "content_hash": "16d739bece4081b3",
+      "prompt_name": "code",
+      "prompt_source": "stock"
+    }
+  ],
+  "summary": {
+    "n_scenarios": 43,
+    "n_gradable": 43,
+    "pass_at_k": 0.8605,
+    "pass_hat_k": 0.7442,
+    "indeterminate_scenarios": 0,
+    "indeterminate_trials": 1,
+    "total_cost_usd": 4.1774,
+    "avg_wall_secs": 18.1064,
+    "regression": {
+      "n_scenarios": 30,
+      "n_gradable": 30,
+      "pass_at_k": 0.9667,
+      "pass_hat_k": 0.8667
+    },
+    "capability": {
+      "n_scenarios": 13,
+      "n_gradable": 13,
+      "pass_at_k": 0.6154,
+      "pass_hat_k": 0.4615
+    }
+  }
+}
