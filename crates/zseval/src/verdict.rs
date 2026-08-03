@@ -37,11 +37,14 @@ pub enum Final {
 }
 
 /// Which layer supplied a scenario's `prompt_name` — see
-/// `ScenarioResult::prompt_source` for the resolution order (implemented in
-/// section 6; this section only carries the type and its defaults).
+/// `ScenarioResult::prompt_source` for the resolution order and where the run
+/// path decides it (`runner::record_prompt`).
 ///
-/// `Unknown` is the `#[derive(Default)]` variant: the placeholder value the
-/// run path writes for now, before section 6 fills in a real resolution. It
+/// `Unknown` is the `#[derive(Default)]` variant, and it is what a scenario
+/// keeps when nothing observed which prompt loaded: no trial ran at all (a pin
+/// the run's pack shadowed), no trial produced a readable session, the
+/// sessions that were read recorded no prompt, the trials disagreed, or the
+/// prompt came from a user file neither the scenario nor the pack planted. It
 /// is deliberately distinct from `Stock` — an unobserved prompt is not the
 /// same fact as a run that observably used zerostack's built-in prompts.
 ///
@@ -139,16 +142,32 @@ pub struct ScenarioResult {
     /// mismatch; `matrix`'s `drift_for_row` skips unknowns — observing no
     /// hash is not observing a change.
     pub content_hash: String,
-    /// The prompt name this scenario actually loaded — `""` when unresolved.
+    /// The prompt name this scenario actually loaded, read back off its
+    /// trials' sessions and reconciled into one value by the run path
+    /// (`runner::record_prompt`): what zerostack reported loading, not what
+    /// the harness seeded, since inferring from seeds is not observing. `""`
+    /// when nothing observed one — no trial ran, no trial produced a readable
+    /// session, the sessions recorded no prompt, or the trials disagreed. A
+    /// `mode = "loop"` scenario leaves no session to read, so it records the
+    /// name its seeds derive instead (its own `prompt`, else the target
+    /// config's `default_prompt`, else zerostack's `code`), and `""` when it
+    /// overwrites that config itself: the derived value would then be one that
+    /// never took effect, and no session can say what did.
+    ///
     /// Scenario-level rather than trial-level: constant across a scenario's
     /// trials (unlike `TrialResult::judge_file`, which varies because
     /// `regrade --judge` can re-score one trial with a different ruler), so it
-    /// sits beside `content_hash` instead. Populated by the resolution added
-    /// in a later section; the run path writes `""` for now.
+    /// sits beside `content_hash` instead.
     pub prompt_name: String,
-    /// Which layer supplied `prompt_name` — see `PromptSource`. Populated by
-    /// the resolution added in a later section; the run path writes
-    /// `Unknown` for now.
+    /// Which layer supplied `prompt_name` — see `PromptSource`. Mapped from
+    /// what the session recorded: upstream's `built_in` is `Stock`; a
+    /// `user_file` is attributed to the layer that provided that name, the
+    /// scenario's own `work:.zerostack/prompts/<name>.md` seed first (it lands
+    /// after the pack is copied, so it wins), then the pack — and `Unknown`
+    /// plus a warning when neither planted it, because the trial environment
+    /// is then not what the harness set up. A loop scenario applies the same
+    /// order to its derived name. Every route that leaves `prompt_name` empty
+    /// leaves this `Unknown` too.
     pub prompt_source: PromptSource,
 }
 
