@@ -52,14 +52,20 @@ fn main() -> ExitCode {
     }
 }
 
+/// The help card: what each subcommand takes, one pastable command per flow,
+/// and what a live run needs before it can spend anything. Deliberately a card
+/// and not a manual — every rule it used to restate (why a judge file is an
+/// inert card, why --target is repeatable and --prompts is not, what mock
+/// replays) lives in the READMEs the closing line points at, and a second copy
+/// here is a second thing to keep true.
 const USAGE: &str = "\
 zseval — eval harness for zerostack agents
 
 USAGE:
-  zseval run <scenario-path> [--target config.toml]... [--trials N]
-             [--tag T] [--zs-bin PATH] [--backend zs|mock=<session.json>]
-             [--judge judges/opus.toml] [--no-judge] [--max-total-usd X]
-             [--prompts DIR] [--results DIR] [--jobs N] [--json] [--verbose]
+  zseval run <scenario-path> [--target config.toml]... [--trials N] [--tag T]
+             [--zs-bin PATH] [--backend zs|mock=<session.json>] [--jobs N]
+             [--judge judges/sonnet.toml] [--no-judge] [--max-total-usd X]
+             [--prompts DIR] [--results DIR] [--json] [--verbose]
   zseval compare <baseline.json> <candidate.json> [--threshold 0.05] [--json]
   zseval explain <trial-dir>
   zseval list [scenarios-root]
@@ -67,100 +73,38 @@ USAGE:
   zseval matrix <report.json>... [--json] [--markdown]
   zseval site <report.json> --out <file.html> [--json] [--ledger <path>]
 
-  --target is a zerostack config.toml (provider + model) seeded into each run's
-  isolated config dir — the reproducible way to pick what you evaluate against.
-  Put the API key in an env var (not the file); it is passed through to zerostack.
-  Required for --backend zs; rejected for --backend mock. Repeatable: give
-  --target more than once to evaluate N targets sequentially against the same
-  suite in one invocation, under one shared --max-total-usd (an earlier
-  target's spend shrinks what is left for the next one, not a fresh cap each);
-  at the end, a scenario x target table renders to stderr (the same renderer
-  `zseval matrix` uses). --json is a usage error when more than one --target is
-  given (N reports have no single JSON form) — use `zseval matrix --json`
-  over the resulting reports instead.
+EXAMPLES:
+  # first run: no zerostack build, no key, a canned session replayed
+  zseval run scenarios/prompts/ask-readonly --no-judge \\
+    --backend mock=crates/zseval/tests/fixtures/session-ask-readonly.json
 
-  --judge is a judge file naming which LLM grades the subjective layer — see
-  judges/README.md. It is an inert ruler card with exactly four required
-  fields: provider (anthropic | openai | openrouter | gemini), model,
-  price_in_usd_per_mtok, price_out_usd_per_mtok. Nothing else is accepted: a
-  judge file can never name a network destination or an env var — routing
-  (endpoint and key) is derived from provider alone, in code. Unlike --target
-  it may be given at most once: a matrix holds everything but the target
-  fixed, so the ruler must not vary with the column.
+  # one scenario against a live target, deterministic asserts only
+  zseval run scenarios/prompts/ask-readonly --target targets/anthropic.toml \\
+    --trials 1 --no-judge
 
-  There is no built-in default judge. A suite with at least one judge-graded
-  scenario requires an explicit choice: --judge <file> or --no-judge; giving
-  neither is a usage error (exit 2) before any trial runs. A suite with no
-  judge-graded scenarios needs neither flag.
+  # the whole suite, judge-graded, trials fanned out, then gated
+  zseval run scenarios --target targets/anthropic.toml --trials 3 --jobs 3 \\
+    --tag candidate --judge judges/sonnet.toml
+  zseval compare baselines/main.json results/candidate/report.json
 
-  Before any trial spends money, --judge is preflighted: the provider's key
-  env var must be set, and one live dry-run call (in the same prompt/token/
-  temperature shape as real grading) must return a parseable verdict.
-  Either failure exits 2 relaying the problem, before any trial — the probe
-  itself is never recorded in the report or counted toward --max-total-usd.
+  # N targets side by side, from reports that already exist
+  zseval matrix baselines/main.json baselines/deepseek-v4-pro.json --markdown
 
-  Every report records the judge file and a hash of its bytes, plus the models
-  that actually graded as the judge's own responses reported them ([] if
-  nothing was graded, absent if unknown — never the configured model echoed
-  back as if it were a fact).
+WHAT A LIVE RUN NEEDS:
+  ZS_BIN              an --all-features zerostack build to drive; --backend
+                      mock replays canned artifacts and needs none
+  <PROVIDER>_API_KEY  the key for the provider --target names, and for the
+                      one the judge card names: ANTHROPIC_API_KEY,
+                      OPENAI_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY
+  --judge <file>      or --no-judge, mandatory once the suite holds a
+                      judge-graded scenario (exit 2 before any trial runs)
+  keys come from the environment only; a target or a judge file names a
+  provider, and the endpoint and key variable follow from that, in code
 
-  --prompts is a directory of zerostack prompt files to evaluate against — a
-  prompt pack. A pack holds top-level *.md files only, each file's stem being
-  the prompt name it overrides; a subdirectory or a non-.md entry is a usage
-  error naming it, since zerostack reads neither, and so is a directory with
-  no *.md file at all. The whole pack is validated before any trial spends
-  money. Unlike --target it may be given at most once: a run evaluates exactly
-  one pack, and two packs are compared by two runs plus `zseval matrix` over
-  their reports. Rejected for --backend mock, which replays canned artifacts
-  and never constructs a zerostack invocation, so it could not load a pack.
+EXIT CODES: 0 pass / no regression, 1 fail or regression, 2 harness error.
 
-  --backend mock=<path> replays canned artifacts instead of a live zerostack
-  build: a single session JSON file, or a directory shaped like a captured
-  trial dir (data/sessions/*.json + turn-N.{stdout,stderr,zslog}) to also
-  replay stdout-based tool-call evidence.
-
-  --jobs N runs up to N trials of the same scenario concurrently (default 1,
-  strictly sequential). Trials are independent — their own isolated run_dir —
-  so this only changes wall-clock time, never grading. Trial 0 always runs
-  solo first to warm the provider's prompt cache before the rest fan out.
-  Scenarios themselves always run one at a time.
-
-  regrade re-scores an already-completed <trial-dir> against <scenario-dir>'s
-  *current* asserts/judge, without driving the agent again — for checking
-  whether an assert edit would have changed the verdict on frozen evidence.
-
-  matrix renders a scenario x target table from one or more existing
-  report.json files. It is a pure renderer: no API calls, nothing written to
-  disk. Give it two reports to compare two targets, or reuse a committed
-  baseline as one column to compose across time. Defaults to the fixed-width
-  terminal table; --json emits the table model, --markdown emits a table for
-  records (e.g. experiments/). A report with no target identity, or one that
-  shares no scenario id with any other report given, is a usage error (exit
-  2) naming the offending file; partial overlap instead renders `-` holes.
-
-  site renders one report plus the coverage ledger (scenarios/coverage.toml)
-  into a single self-contained HTML file: the run's identity, the ledger's
-  coverage (every area, every claim, no percentage), and the scenario table
-  matrix already renders. It makes no API call and invokes no backend or
-  judge — pure rendering, so it costs nothing and runs offline. --out <file>
-  is required (writing the page is what the command is for); --json
-  additionally emits the page model to stdout. The ledger's drift check runs
-  first and aborts before anything is written if the ledger and the scenario
-  tree disagree (exit 2, naming the offending id); a mismatch between the
-  ledger's audited_against and the report's zs_version is shown on the page
-  instead, never fatal. --ledger <path> overrides the ledger site reads
-  (default scenarios/coverage.toml); it exists so tests can point at a
-  fixture without building a whole tree — not a general-purpose option.
-
-ENV:
-  ZS_BIN             default path to the zerostack binary
-  <PROVIDER>_API_KEY the target provider's key (e.g. ANTHROPIC_API_KEY, OPENROUTER_API_KEY)
-  the judge's key: fixed per its card's provider, never named by the file —
-                     ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, or
-                     GEMINI_API_KEY. LLM-judge scenarios only; skip with
-                     --no-judge.
-
-EXIT CODES: 0 pass / no regression, 1 fail or regression, 2 harness error.";
+Why any of it is shaped this way: see README.md, and judges/README.md for the
+judge card.";
 
 struct Flags {
     positional: Vec<String>,
