@@ -24,6 +24,7 @@ ul { margin: 0; padding-left: 1.25rem; }
 li { margin: 0.2rem 0; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+caption { padding: 1.25rem 0 0.3rem; font-weight: 600; text-align: left; }
 th, td { padding: 0.25rem 0.6rem; text-align: right; border-bottom: 1px solid rgba(128, 128, 128, 0.3); }
 th:first-child, td:first-child { text-align: left; }
 details { margin: 1.5rem 0; }
@@ -87,6 +88,7 @@ summary { cursor: pointer; }
 <details>
 <summary>Per-scenario results (43 scenarios)</summary>
 <table>
+<caption>context</caption>
 <thead>
 <tr><th>scenario</th><th>anthropic</th></tr>
 </thead>
@@ -94,11 +96,51 @@ summary { cursor: pointer; }
 <tr><th colspan="2">regression</th></tr>
 <tr><td>context-follows-agents-md</td><td>1.000</td></tr>
 <tr><td>context-no-overapply</td><td>1.000</td></tr>
+</tbody>
+</table>
+<table>
+<caption>loop</caption>
+<thead>
+<tr><th>scenario</th><th>anthropic</th></tr>
+</thead>
+<tbody>
+<tr><th colspan="2">regression</th></tr>
 <tr><td>loop-fixes-failing-test</td><td>1.000</td></tr>
+</tbody>
+</table>
+<table>
+<caption>mcp</caption>
+<thead>
+<tr><th>scenario</th><th>anthropic</th></tr>
+</thead>
+<tbody>
+<tr><th colspan="2">regression</th></tr>
 <tr><td>mcp-ignores-irrelevant-tool</td><td>1.000</td></tr>
 <tr><td>mcp-uses-provided-tool</td><td>1.000</td></tr>
+</tbody>
+</table>
+<table>
+<caption>memory</caption>
+<thead>
+<tr><th>scenario</th><th>anthropic</th></tr>
+</thead>
+<tbody>
+<tr><th colspan="2">regression</th></tr>
 <tr><td>memory-no-write-smalltalk</td><td>1.000</td></tr>
 <tr><td>memory-write-remember-fact</td><td>1.000</td></tr>
+<tr><th colspan="2">capability</th></tr>
+<tr><td>memory-search-snippet-sufficient</td><td>1.000</td></tr>
+<tr><td>memory-search-then-read-when-needed</td><td>0.000</td></tr>
+<tr><td>memory-update-not-duplicate</td><td>0.000</td></tr>
+</tbody>
+</table>
+<table>
+<caption>prompt</caption>
+<thead>
+<tr><th>scenario</th><th>anthropic</th></tr>
+</thead>
+<tbody>
+<tr><th colspan="2">regression</th></tr>
 <tr><td>prompt-ask-answers-question</td><td>1.000</td></tr>
 <tr><td>prompt-ask-readonly-refuses-edit</td><td>1.000</td></tr>
 <tr><td>prompt-brainstorm-explores-ideas</td><td>0.500</td></tr>
@@ -114,18 +156,7 @@ summary { cursor: pointer; }
 <tr><td>prompt-simplify-preserves-why-comments</td><td>1.000</td></tr>
 <tr><td>prompt-write-prompt-follows-format</td><td>1.000</td></tr>
 <tr><td>prompt-write-text-produces-prose</td><td>0.667</td></tr>
-<tr><td>session-continue-recalls</td><td>1.000</td></tr>
-<tr><td>session-fresh-forgets</td><td>1.000</td></tr>
-<tr><td>session-prompt-recorded-stock</td><td>1.000</td></tr>
-<tr><td>session-tool-call-recorded</td><td>1.000</td></tr>
-<tr><td>tools-edit-precise</td><td>1.000</td></tr>
-<tr><td>tools-find-files-over-bash</td><td>1.000</td></tr>
-<tr><td>tools-grep-over-bash</td><td>1.000</td></tr>
-<tr><td>tools-read-before-edit</td><td>1.000</td></tr>
 <tr><th colspan="2">capability</th></tr>
-<tr><td>memory-search-snippet-sufficient</td><td>1.000</td></tr>
-<tr><td>memory-search-then-read-when-needed</td><td>0.000</td></tr>
-<tr><td>memory-update-not-duplicate</td><td>0.000</td></tr>
 <tr><td>prompt-autoconfig-edits-config</td><td>0.000</td></tr>
 <tr><td>prompt-default-redirects-to-specialized</td><td>0.000</td></tr>
 <tr><td>prompt-review-clean-approves</td><td>0.667</td></tr>
@@ -133,6 +164,41 @@ summary { cursor: pointer; }
 <tr><td>prompt-review-security-clean-no-findings</td><td>0.667</td></tr>
 <tr><td>prompt-review-security-flags-injection</td><td>1.000</td></tr>
 <tr><td>prompt-simplify-declines-behavior-change</td><td>1.000</td></tr>
+</tbody>
+</table>
+<table>
+<caption>session</caption>
+<thead>
+<tr><th>scenario</th><th>anthropic</th></tr>
+</thead>
+<tbody>
+<tr><th colspan="2">regression</th></tr>
+<tr><td>session-continue-recalls</td><td>1.000</td></tr>
+<tr><td>session-fresh-forgets</td><td>1.000</td></tr>
+<tr><td>session-prompt-recorded-stock</td><td>1.000</td></tr>
+<tr><td>session-tool-call-recorded</td><td>1.000</td></tr>
+</tbody>
+</table>
+<table>
+<caption>tools</caption>
+<thead>
+<tr><th>scenario</th><th>anthropic</th></tr>
+</thead>
+<tbody>
+<tr><th colspan="2">regression</th></tr>
+<tr><td>tools-edit-precise</td><td>1.000</td></tr>
+<tr><td>tools-find-files-over-bash</td><td>1.000</td></tr>
+<tr><td>tools-grep-over-bash</td><td>1.000</td></tr>
+<tr><td>tools-read-before-edit</td><td>1.000</td></tr>
+</tbody>
+</table>
+<table>
+<caption>subagents</caption>
+<thead>
+<tr><th>scenario</th><th>anthropic</th></tr>
+</thead>
+<tbody>
+<tr><th colspan="2">capability</th></tr>
 <tr><td>subagents-delegates-crossref</td><td>1.000</td></tr>
 <tr><td>subagents-integrates-results</td><td>1.000</td></tr>
 <tr><td>subagents-skips-for-trivial</td><td>0.000</td></tr>
