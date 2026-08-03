@@ -38,7 +38,7 @@ pub struct Scenario {
     /// Required, with no default in either direction: a default would un-ask
     /// the very question this field exists to force the author to answer, "is
     /// a low score here a problem or a measurement?" A missing or unrecognized
-    /// value is a load-time error (scenario-kind spec / design D4).
+    /// value is a load-time error.
     pub kind: Kind,
     /// Named prompt to load (`zs --load-prompt <name>`). None = default prompt.
     #[serde(default)]
@@ -101,8 +101,8 @@ pub struct Scenario {
 /// Is a low score on this scenario a problem or a measurement? The answer
 /// decides whether a break gates a prompts PR (`Regression`) or is tracked as
 /// a capability number (`Capability`). Deliberately two-valued and undefaulted
-/// (see `Scenario::kind` and design D4): the closed set means adding a third
-/// kind must be a loud schema decision, not a quiet new value.
+/// (see `Scenario::kind`): the closed set means adding a third kind must be a
+/// loud schema decision, not a quiet new value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
@@ -249,9 +249,8 @@ fn loop_incompatible_assert(a: &crate::asserts::Assert) -> Option<&'static str> 
         ToolArgContains { .. } => Some("tool_arg_contains"),
         NoToolCallContains(_) => Some("no_tool_call_contains"),
         TokensUnder(_) => Some("tokens_under"),
-        // Loop mode writes no session file (design D6's Non-Goals), so
-        // `Transcript.prompt` is always `None` there — same evidence gap as
-        // the tool-call asserts above.
+        // Loop mode writes no session file, so `Transcript.prompt` is always
+        // `None` there — same evidence gap as the tool-call asserts above.
         PromptRecorded { .. } => Some("prompt_recorded"),
         FinalContains(_)
         | FinalNotContains(_)

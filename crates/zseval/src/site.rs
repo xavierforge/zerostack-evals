@@ -2,39 +2,37 @@
 //! that run's scenario table, assembled into one artifact a human can open
 //! from a bare file path.
 //!
-//! **Every runtime value is escaped, and the type is what enforces that**
-//! (design D9). `zs_version` is captured verbatim from `ZS_BIN --version` and
-//! deliberately never format-validated, so upstream's banner shape never
-//! becomes a compatibility contract; `zs_bin_path`, `target` and `judge_file`
-//! come off a filesystem. Markup can therefore reach this module from
-//! outside, and a rule of the form "remember to call `escape`" holds only as
-//! long as every future editor remembers it. So the buffer is private to
-//! [`Page`] and there are exactly two ways into it: [`Page::text`], which
-//! escapes, and [`Page::raw`], which takes `&'static str` and so accepts only
-//! what a source literal spells. A runtime `String` has no accidental route
-//! past the escape. Author-controlled ledger prose and scenario ids go
-//! through `text` as well, because a rule with an exemption list is one
-//! nobody can check.
+//! **Every runtime value is escaped, and the type is what enforces that.**
+//! `zs_version` is captured verbatim from `ZS_BIN --version` and deliberately
+//! never format-validated, so upstream's banner shape never becomes a
+//! compatibility contract; `zs_bin_path`, `target` and `judge_file` come off a
+//! filesystem. Markup can therefore reach this module from outside, and a rule
+//! of the form "remember to call `escape`" holds only as long as every future
+//! editor remembers it. So the buffer is private to [`Page`] and there are
+//! exactly two ways into it: [`Page::text`], which escapes, and [`Page::raw`],
+//! which takes `&'static str` and so accepts only what a source literal
+//! spells. A runtime `String` has no accidental route past the escape.
+//! Author-controlled ledger prose and scenario ids go through `text` as well,
+//! because a rule with an exemption list is one nobody can check.
 //!
 //! `Page` is `pub(crate)` rather than private because the results section's
 //! renderer lives in `matrix.rs`, beside the private cell and footer
-//! formatting it has to reuse (design D4). One writer shared by both modules
-//! is what keeps D9's "no exemptions" true of the whole page rather than of
-//! this file only.
+//! formatting it has to reuse. One writer shared by both modules is what keeps
+//! the no-exemptions escaping rule true of the whole page rather than of this
+//! file only.
 //!
-//! **The page is self-contained** (design D7): CSS inline, no script, no
-//! external stylesheet, font or image. A page that fetches at view time
-//! breaks when it is opened from a file path, when the network is absent, and
-//! when whatever it fetched moves, which makes it not a deliverable. The
-//! markup is pushed onto a `String` the way `matrix::render_markdown` pushes
-//! its markdown (design D8); a template crate would buy a separation of
-//! markup from logic that one page does not need.
+//! **The page is self-contained**: CSS inline, no script, no external
+//! stylesheet, font or image. A page that fetches at view time breaks when it
+//! is opened from a file path, when the network is absent, and when whatever
+//! it fetched moves, which makes it not a deliverable. The markup is pushed
+//! onto a `String` the way `matrix::render_markdown` pushes its markdown; a
+//! template crate would buy a separation of markup from logic that one page
+//! does not need.
 //!
-//! Section order is header, results, coverage (owner ruling 2026-08-03,
-//! superseding design D11's coverage-first order): identity first, because
-//! every number under it is only meaningful once you know what produced it;
-//! then the results the reader came for; then coverage as the denominator
-//! that says how much of the surface those results actually touched.
+//! Section order is header, results, coverage: identity first, because every
+//! number under it is only meaningful once you know what produced it; then the
+//! results the reader came for; then coverage as the denominator that says how
+//! much of the surface those results actually touched.
 
 use std::collections::BTreeSet;
 
@@ -46,7 +44,7 @@ use crate::verdict::Report;
 
 /// The page's whole stylesheet, inlined into the document. A `&'static str`,
 /// so it enters the buffer through [`Page::raw`] like every other piece of
-/// markup, and it names no font, image or sheet to fetch (design D7).
+/// markup, and it names no font, image or sheet to fetch.
 const CSS: &str = r#"
 :root { color-scheme: light dark; }
 body {
@@ -92,8 +90,7 @@ summary { cursor: pointer; }
 
 /// The page under construction. The buffer is private and only [`raw`] and
 /// [`text`] reach it, which is what makes an unescaped runtime value
-/// unwritable rather than merely discouraged (design D9, and this module's
-/// header).
+/// unwritable rather than merely discouraged (see this module's header).
 ///
 /// [`raw`]: Page::raw
 /// [`text`]: Page::text
@@ -146,7 +143,7 @@ fn escape(value: &str) -> String {
 
 /// Everything the page states, before any of it is markup: the header's
 /// read-back fields, the coverage rows with their marks, and `matrix`'s own
-/// model of the results (design D2).
+/// model of the results.
 ///
 /// `site --json` emits exactly this value and [`render`] is a view of the same
 /// one, so a machine reading the JSON reads what the page shows rather than a
@@ -169,14 +166,14 @@ pub struct Header<'a> {
     pub zs_bin_sha256: &'a str,
     pub zs_bin_path: &'a str,
     /// `None` is "not provided", never an empty string: an absent fact and an
-    /// empty fact are different claims (design D5).
+    /// empty fact are different claims.
     pub git_sha: Option<&'a str>,
     pub features: Option<&'a [String]>,
     pub model: &'a str,
     pub backend: &'a str,
     /// The report's own `""` when no target file was named, kept raw here: a
     /// machine reads what the report holds, and the absence wording is the
-    /// page's reading for a human ([`render_absent_or`], design D5).
+    /// page's reading for a human (see [`render_absent_or`]).
     pub target: &'a str,
     pub timestamp: &'a str,
     pub trials: usize,
@@ -194,10 +191,9 @@ pub struct Header<'a> {
 }
 
 /// The ledger's `audited_against` beside whether this run's banner names it.
-/// Disclosed, never fatal (design D3): a `--backend mock` report records
-/// `mock` and so mismatches by construction, and `coverage-ledger` requires
-/// the worst outcome of the comparison to be a spurious mismatch notice rather
-/// than a blocked publish.
+/// Disclosed, never fatal: a `--backend mock` report records `mock` and so
+/// mismatches by construction, so the worst outcome of the comparison has to
+/// be a spurious mismatch notice rather than a blocked publish.
 #[derive(Serialize)]
 pub struct Audit<'a> {
     /// The zerostack version the ledger's judgments were made against.
@@ -213,7 +209,7 @@ pub struct Audit<'a> {
 #[derive(Serialize)]
 pub struct Coverage<'a> {
     /// The headline figure, and the total it is counted out of. A count, never
-    /// a ratio (design D12).
+    /// a ratio.
     pub areas_with_no_scenario: usize,
     pub areas_total: usize,
     pub areas: Vec<AreaRow<'a>>,
@@ -262,8 +258,8 @@ pub enum Evidence<'a> {
 pub struct CitedId<'a> {
     pub id: &'a str,
     /// The report's results hold this id. Derived per render from the report
-    /// and never written back to the ledger (design D6): `covered` is an
-    /// existence claim, and run membership is a fact about one report.
+    /// and never written back to the ledger: `covered` is an existence claim,
+    /// and run membership is a fact about one report.
     pub exercised: bool,
 }
 
@@ -302,7 +298,7 @@ pub fn build<'a>(report: &'a Report, ledger: &'a Ledger) -> PageModel<'a> {
 
 /// The ledger's rows, in the ledger's order, with the one derivation the
 /// coverage section makes: which of a `covered` claim's cited ids this run did
-/// not exercise (design D6).
+/// not exercise.
 fn build_coverage<'a>(report: &'a Report, ledger: &'a Ledger) -> Coverage<'a> {
     let exercised: BTreeSet<&str> = report.scenarios.iter().map(|s| s.id.as_str()).collect();
     // File order is presentation order: nothing here sorts.
@@ -401,10 +397,10 @@ fn field(page: &mut Page, label: &'static str, value: &str) {
 }
 
 /// The run's identity, read back field by field with no inference, no
-/// defaulting, and no computed substitute (spec: "The header reads report
-/// fields back without deriving them"; design D5). Every value here is the
-/// report's own, verbatim; the only choice this function makes is how to
-/// spell an absent or empty one so the two are never confused.
+/// defaulting, and no computed substitute — the header reads report fields
+/// back, it never derives them. Every value here is the report's own,
+/// verbatim; the only choice this function makes is how to spell an absent or
+/// empty one so the two are never confused.
 ///
 /// The one exception is a field whose schema documents `""` as "none was
 /// named" ([`render_absent_or`]): that sentinel is read as the absence it
@@ -413,8 +409,8 @@ fn field(page: &mut Page, label: &'static str, value: &str) {
 ///
 /// The audit rows are the one thing here that is not the report's: they are
 /// the ledger's `audited_against` beside the version this run measured, and
-/// they sit next to `zerostack` so the two strings are read together
-/// ([`render_audit`], design D3).
+/// they sit next to `zerostack` so the two strings are read together (see
+/// [`render_audit`]).
 fn render_header(page: &mut Page, header: &Header) {
     page.raw(
         r#"<section id="header">
@@ -465,9 +461,9 @@ fn render_header(page: &mut Page, header: &Header) {
         r#"</dd>
 <dt>configured</dt><dd>"#,
     );
-    // The judge is two facts, never collapsed into one (design D5): what the
-    // run was told to grade with (`judge_file`, `judge_hash`), labelled apart
-    // from what actually graded (`judge_model`) below.
+    // The judge is two facts, never collapsed into one: what the run was told
+    // to grade with (`judge_file`, `judge_hash`), labelled apart from what
+    // actually graded (`judge_model`) below.
     //
     // The hash fingerprints the file that was named, so it goes where the file
     // goes: a run that named none has no hash to report, and `(hash: not
@@ -490,10 +486,10 @@ fn render_header(page: &mut Page, header: &Header) {
     );
 }
 
-/// The ledger's age against this run, disclosed on the page and never fatal
-/// (spec: "An `audited_against` mismatch is disclosed, never fatal"; design
-/// D3). Both strings appear, each labelled as what it is: the version the
-/// ledger's judgments were made against, and the version this run measured.
+/// The ledger's age against this run: an `audited_against` mismatch is
+/// disclosed on the page, never fatal. Both strings appear, each labelled as
+/// what it is: the version the ledger's judgments were made against, and the
+/// version this run measured.
 ///
 /// The agreeing sentence is scoped to the version deliberately. The comparison
 /// behind it is containment with a boundary rule, so the strongest thing it
@@ -521,13 +517,13 @@ fn render_audit(page: &mut Page, header: &Header) {
 }
 
 /// A field whose schema documents `""` as "none was named" reads as that
-/// absence, `absent`, rather than verbatim (design D5's sentinel exemption).
-/// `judge_file` and `target` are today's two: the schema spells one absence
-/// two ways, so reading the sentinel back verbatim leaves a blank `<dd>` that
-/// states a file was named while withholding its name. `--json` keeps emitting
-/// the raw field; this wording is the page's reading for a human. The
-/// exemption, and this function with it, ends when both fields become `Option`
-/// in the report schema.
+/// absence, `absent`, rather than verbatim — the one exemption to reading a
+/// field back verbatim. `judge_file` and `target` are today's two: the schema
+/// spells one absence two ways, so reading the sentinel back verbatim leaves a
+/// blank `<dd>` that states a file was named while withholding its name.
+/// `--json` keeps emitting the raw field; this wording is the page's reading
+/// for a human. The exemption, and this function with it, ends when both
+/// fields become `Option` in the report schema.
 ///
 /// Returns whether a value was named, which is the question the judge row asks
 /// again for the hash that fingerprints it.
@@ -541,8 +537,7 @@ fn render_absent_or(page: &mut Page, value: &str, absent: &'static str) -> bool 
 }
 
 /// A `null` field reads as "not provided", distinct from a value that is
-/// present and empty (design D5): an absent fact and an empty fact are
-/// different claims.
+/// present and empty: an absent fact and an empty fact are different claims.
 fn render_opt_str(page: &mut Page, value: Option<&str>) {
     match value {
         Some(v) => page.text(v),
@@ -561,11 +556,11 @@ fn render_opt_list(page: &mut Page, value: Option<&[String]>) {
     }
 }
 
-/// `judge_model`'s three states, each with its own reading (design D5):
-/// `None` is unknown, `Some([])` is nothing graded, `Some([m, ..])` names the
-/// rulers that did. `Some([])` must read as "nothing was graded" rather than
-/// falling through to whatever the caller configured — that fallthrough is
-/// exactly the computed substitute this function exists to refuse.
+/// `judge_model`'s three states, each with its own reading: `None` is unknown,
+/// `Some([])` is nothing graded, `Some([m, ..])` names the rulers that did.
+/// `Some([])` must read as "nothing was graded" rather than falling through to
+/// whatever the caller configured — that fallthrough is exactly the computed
+/// substitute this function exists to refuse.
 fn render_judge_model(page: &mut Page, value: Option<&[String]>) {
     match value {
         None => page.raw("unknown"),
@@ -575,8 +570,8 @@ fn render_judge_model(page: &mut Page, value: Option<&[String]>) {
 }
 
 /// The ledger, as the ledger has it: every area it declares, in file order,
-/// and every claim under the status it carries (spec: "The coverage section
-/// shows every area and no percentage").
+/// and every claim under the status it carries — every area, and no
+/// percentage.
 ///
 /// Nothing is derived here: the marks and the headline count came off
 /// [`build_coverage`], so the page and `--json` state one set of facts. Every
@@ -625,9 +620,9 @@ fn render_coverage(page: &mut Page, coverage: &Coverage) {
 
 /// A count of the areas holding no scenario at all, with the number of areas
 /// it is counted out of. Never a ratio and never a percentage, here or
-/// anywhere else on the page (design D12): fine-grained `covered` claims sit
-/// beside coarse `uncovered` ones, so a rate over them moves when the author
-/// re-slices a claim, while this count does not.
+/// anywhere else on the page: fine-grained `covered` claims sit beside coarse
+/// `uncovered` ones, so a rate over them moves when the author re-slices a
+/// claim, while this count does not.
 fn render_headline(page: &mut Page, coverage: &Coverage) {
     page.raw(r#"<p class="headline">Areas with no scenario at all: "#);
     page.text(&coverage.areas_with_no_scenario.to_string());
@@ -675,10 +670,10 @@ fn render_evidence(page: &mut Page, evidence: &Evidence) {
                 page.raw("<li><code>");
                 page.text(cited.id);
                 page.raw("</code>");
-                // Derived from this report, never recorded in the ledger
-                // (design D6). The drift gate has already established that
-                // every cited id exists in the tree, so "exists, and this run
-                // did not exercise it" is the only reading left.
+                // Derived from this report, never recorded in the ledger. The
+                // drift gate has already established that every cited id
+                // exists in the tree, so "exists, and this run did not
+                // exercise it" is the only reading left.
                 if !cited.exercised {
                     page.raw(r#" <span class="mark">not exercised by this run</span>"#);
                 }
@@ -713,17 +708,17 @@ fn render_evidence(page: &mut Page, evidence: &Evidence) {
 
 /// This run's results: `matrix`'s own model, built over the one report the
 /// page describes, rendered by the HTML renderer that lives beside `matrix`'s
-/// other two (design D4, spec: "The results section reuses the matrix model
-/// and its meanings"). That renderer leads with the summary figures and folds
-/// the per-scenario rows into a collapsed `<details>`, nested there one table
-/// per subsystem (owner ruling 2026-08-03); the fold is native markup, so the
-/// page still carries no script (design D7).
+/// other two — the results section reuses the matrix model and its meanings.
+/// That renderer leads with the summary figures and folds the per-scenario
+/// rows into a collapsed `<details>`, nested there one table per subsystem;
+/// the fold is native markup, so the page still carries no script.
 ///
 /// The page contributes the section container and nothing else. Cells, holes,
 /// the per-kind grouping, the footer over the common gradable set, the marks
-/// and the footer-excluded disclosure all keep the meanings `matrix-render`
-/// defines for them, because this computes none of them: a second, differently
-/// defined pass rate is exactly what going through `matrix::build` refuses.
+/// and the footer-excluded disclosure all keep the meanings `matrix`'s own
+/// renderers give them, because this computes none of them: a second,
+/// differently defined pass rate is exactly what going through `matrix::build`
+/// refuses.
 fn render_results(page: &mut Page, results: &Matrix) {
     page.raw(
         r#"<section id="results">
@@ -781,7 +776,7 @@ mod tests {
     }
 
     /// A report whose results hold exactly these scenario ids — the input the
-    /// covered-but-not-exercised derivation reads (design D6).
+    /// covered-but-not-exercised derivation reads.
     fn report_running(ids: &[&str]) -> Report {
         Report::build(
             ReportMeta {
@@ -981,7 +976,7 @@ mod tests {
     #[test]
     fn an_unavailable_build_fact_is_not_shown_as_empty() {
         // `report("...")`'s `ZsIdentity` defaults `git_sha` and `features` to
-        // `None`, the same as today's real binary (design D5).
+        // `None`, the same as today's real binary.
         let page = page_of(&report("zerostack 1.7.2"), &ledger("that measures the OS."));
         assert!(
             page.contains("<dt>git sha</dt><dd>not provided</dd>"),
@@ -1060,10 +1055,10 @@ mod tests {
         );
     }
 
-    // 7.1 — `judge_file` documents `""` as "no judge file was named"
-    // (verdict.rs), so reading it back verbatim puts a blank filename and a
-    // dangling `(hash: not provided)` on the page of a run that configured no
-    // judge: a claim the report does not make.
+    // `judge_file` documents `""` as "no judge file was named" (verdict.rs),
+    // so reading it back verbatim puts a blank filename and a dangling `(hash:
+    // not provided)` on the page of a run that configured no judge: a claim
+    // the report does not make.
     #[test]
     fn a_run_that_configured_no_judge_says_so_instead_of_rendering_a_blank() {
         let report = Report::build(
@@ -1095,9 +1090,9 @@ mod tests {
         );
     }
 
-    // 7.1 — the same sentinel in `target`, which the canonical `--backend
-    // mock` flow records: a targetless run must not render a blank row that
-    // reads as an unnamed target file.
+    // The same sentinel in `target`, which the canonical `--backend mock` flow
+    // records: a targetless run must not render a blank row that reads as an
+    // unnamed target file.
     #[test]
     fn a_run_with_no_target_file_says_so_instead_of_rendering_a_blank() {
         let report = Report::build(
@@ -1119,8 +1114,8 @@ mod tests {
         );
     }
 
-    // 7.1 — the amendment reads `""` and nothing else: a run that did name a
-    // judge file and a target still gets both back verbatim.
+    // The amendment reads `""` and nothing else: a run that did name a judge
+    // file and a target still gets both back verbatim.
     #[test]
     fn a_named_judge_file_and_target_are_still_read_back_verbatim() {
         let report = Report::build(
@@ -1149,10 +1144,10 @@ mod tests {
         );
     }
 
-    // 5.1 — a `--backend mock` report records `mock` as its banner, so it
-    // mismatches the ledger's `audited_against` by construction (design D3).
-    // The page discloses it instead of refusing to render: both strings
-    // appear, each labelled as what it is.
+    // A `--backend mock` report records `mock` as its banner, so it mismatches
+    // the ledger's `audited_against` by construction. The page discloses it
+    // instead of refusing to render: both strings appear, each labelled as
+    // what it is.
     #[test]
     fn a_version_mismatch_states_both_strings_and_which_is_which() {
         let page = page_of(&report("mock"), &ledger("that measures the OS."));
@@ -1177,11 +1172,10 @@ mod tests {
         );
     }
 
-    // 5.1 — the other side of the same disclosure: the comparison is
-    // containment (`Ledger::audit_matches`), so agreement is stated about the
-    // version and nothing more. "The ledger is up to date" is the claim
-    // containment cannot support — the audit's prose can be stale against a
-    // build it was made on.
+    // The other side of the same disclosure: the comparison is containment
+    // (`Ledger::audit_matches`), so agreement is stated about the version and
+    // nothing more. "The ledger is up to date" is the claim containment cannot
+    // support — the audit's prose can be stale against a build it was made on.
     #[test]
     fn a_matching_version_is_shown_as_agreeing_and_claims_nothing_more() {
         let page = page_of(&report("zerostack 1.7.2"), &ledger("that measures the OS."));
@@ -1221,9 +1215,9 @@ mod tests {
         );
     }
 
-    // 3.1 — the area a suite-derived count structurally cannot state: it has
-    // no scenario at all, so it is listed like every other area and is what
-    // the headline figure counts.
+    // The area a suite-derived count structurally cannot state: it has no
+    // scenario at all, so it is listed like every other area and is what the
+    // headline figure counts.
     #[test]
     fn an_area_with_no_covered_claim_is_listed_and_counted_in_the_headline() {
         let ledger = ledger_of(vec![
@@ -1262,9 +1256,9 @@ mod tests {
         );
     }
 
-    // 3.1 — file order is presentation order (the ledger's own rule), so the
-    // section follows the ledger and sorts nothing. Titles are deliberately
-    // not in alphabetical order, in either direction, so a sort would show.
+    // File order is presentation order (the ledger's own rule), so the section
+    // follows the ledger and sorts nothing. Titles are deliberately not in
+    // alphabetical order, in either direction, so a sort would show.
     #[test]
     fn the_coverage_section_follows_file_order_with_no_sorting() {
         let areas = vec![
@@ -1303,11 +1297,10 @@ mod tests {
         );
     }
 
-    // 3.1 — no ratio and no percentage, anywhere the page states something
-    // (design D12): fine-grained covered claims sit beside coarse uncovered
-    // ones, so a ratio over them is manipulable by re-slicing. The stylesheet
-    // is excluded because a `%` there is a length unit and states nothing
-    // about coverage.
+    // No ratio and no percentage, anywhere the page states something:
+    // fine-grained covered claims sit beside coarse uncovered ones, so a ratio
+    // over them is manipulable by re-slicing. The stylesheet is excluded
+    // because a `%` there is a length unit and states nothing about coverage.
     #[test]
     fn no_ratio_or_percentage_appears_in_the_page() {
         let ledger = ledger_of(vec![
@@ -1336,8 +1329,8 @@ mod tests {
 
     // 3.1 / 3.3 — the derivation is per cited id, not per claim: the ids this
     // run exercised are unmarked, the one it did not is marked, and the claim
-    // itself stays covered (design D6 — covered is an existence claim, and
-    // run membership is a fact about the report).
+    // itself stays covered: covered is an existence claim, and run membership
+    // is a fact about the report.
     #[test]
     fn a_partially_exercised_covered_claim_marks_only_the_missing_ids() {
         let ledger = ledger_of(vec![area(
@@ -1369,10 +1362,10 @@ mod tests {
         );
     }
 
-    // 3.2 — each status carries the evidence it owes, and no more: the cited
-    // ids for `covered`, the `blocked_by` sentence when an `uncovered` claim
-    // has one, the `reason` for `product-blocked` and `excluded`, the `zs`
-    // pointer where there is one, and any `note`.
+    // Each status carries the evidence it owes, and no more: the cited ids for
+    // `covered`, the `blocked_by` sentence when an `uncovered` claim has one,
+    // the `reason` for `product-blocked` and `excluded`, the `zs` pointer
+    // where there is one, and any `note`.
     #[test]
     fn each_status_carries_the_evidence_it_owes() {
         let ledger = ledger_of(vec![area(

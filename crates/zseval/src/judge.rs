@@ -1,36 +1,35 @@
 //! LLM judge: binary Yes/No with an Unknown escape hatch, over a swappable
 //! judge file.
 //!
-//! Which model grades, and at what price, is a `JudgeConfig` — a "ruler
-//! card" read from a judge file (`--judge judges/opus.toml`). There is no
-//! built-in default: a card is loaded from a file or not at all (see
-//! `resolve_judge` in `main.rs`). **Changing the judge should be paired with
-//! re-checking a batch against human labels**: the judge is the ruler, and a
-//! run graded by a different model is not comparable to one graded by the
-//! old one just because both say "pass". Every report records the judge file
-//! it was configured with and, read back from the judge's own responses, the
-//! model that actually graded, so a score can always be traced to the ruler
-//! that really produced it (see `verdict::Report`).
+//! Which model grades, and at what price, is a `JudgeConfig` — a "ruler card"
+//! read from a judge file (`--judge judges/opus.toml`). There is no built-in
+//! default: a card is loaded from a file or not at all (see `resolve_judge` in
+//! `main.rs`). **Changing the judge should be paired with re-checking a batch
+//! against human labels**: the judge is the ruler, and a run graded by a
+//! different model is not comparable to one graded by the old one just because
+//! both say "pass". Every report records the judge file it was configured with
+//! and, read back from the judge's own responses, the model that actually
+//! graded, so a score can always be traced to the ruler that really produced
+//! it (see `verdict::Report`).
 //!
 //! Keys never live in a judge file. A card names a `provider` (one of the
 //! closed set on `JudgeProvider`); which env var holds that provider's key,
 //! and which endpoint it's sent to, are decided by matching on the enum **in
-//! code**, never by a field the file supplies (see `JudgeProvider::key_env`
-//! and design.md decision 2 of the `judge-provider-card` change). This is a
-//! structural fix, not a validation fence: an earlier design let a judge file
-//! name an arbitrary `api_url` plus the *name* of an env var (`api_key_env`)
-//! to send to it — a verified exfiltration vector, since any PR-introduced
-//! file could point an existing secret at an arbitrary host. Those two
-//! fields are now rejected outright (`reject_removed_routing_fields`) rather
-//! than merely validated, so the vulnerable shape cannot be expressed at
-//! all: a card can select *which* provider's key is used, never *where* it
-//! goes.
+//! code**, never by a field the file supplies (see `JudgeProvider::key_env`).
+//! This is a structural fix, not a validation fence: an earlier design let a
+//! judge file name an arbitrary `api_url` plus the *name* of an env var
+//! (`api_key_env`) to send to it — a verified exfiltration vector, since any
+//! PR-introduced file could point an existing secret at an arbitrary host.
+//! Those two fields are now rejected outright
+//! (`reject_removed_routing_fields`) rather than merely validated, so the
+//! vulnerable shape cannot be expressed at all: a card can select *which*
+//! provider's key is used, never *where* it goes.
 //!
 //! Transport (which HTTP client, which per-provider request/response shape)
-//! runs on rig-core's thin completion path — no Agent machinery, no
-//! streaming, just `completion_model(model).completion_request(prompt)
+//! runs on rig-core's thin completion path — no Agent machinery, no streaming,
+//! just `completion_model(model).completion_request(prompt)
 //! .temperature(0.0).max_tokens(1024).send()` per provider (see `judge()`
-//! below and design.md decision 3 of the `judge-provider-card` change).
+//! below).
 
 use std::path::Path;
 use std::sync::OnceLock;
@@ -42,28 +41,27 @@ use rig_core::completion::{AssistantContent, CompletionError, CompletionModel};
 use rig_core::providers::{anthropic, gemini, openai, openrouter};
 use serde::{Deserialize, Serialize};
 
-/// Fixed request shape for every judge call, on every provider (design.md
-/// decisions 5 and 6): temperature 0 for greedy, near-deterministic grading,
-/// and a token budget sized so thinking models (OpenAI Responses reasoning
-/// tokens, Gemini 2.5 thoughts) don't silently eat the whole visible answer.
-/// Neither is a card field: swappable inputs are `provider`/`model`/prices
-/// only, matching the ruler-card's closed shape.
+/// Fixed request shape for every judge call, on every provider: temperature 0
+/// for greedy, near-deterministic grading, and a token budget sized so
+/// thinking models (OpenAI Responses reasoning tokens, Gemini 2.5 thoughts)
+/// don't silently eat the whole visible answer. Neither is a card field:
+/// swappable inputs are `provider`/`model`/prices only, matching the
+/// ruler-card's closed shape.
 const JUDGE_TEMPERATURE: f64 = 0.0;
 const JUDGE_MAX_TOKENS: u64 = 1024;
-/// How long to wait before the single transient retry (design.md decision
-/// 8). Short and fixed, not exponential: this is a one-shot second chance
-/// for a rate limit or 5xx blip, not a durable retry policy — a persistent
-/// failure is meant to surface quickly as Indeterminate, not be masked by a
-/// long backoff loop.
+/// How long to wait before the single transient retry. Short and fixed, not
+/// exponential: this is a one-shot second chance for a rate limit or 5xx blip,
+/// not a durable retry policy — a persistent failure is meant to surface
+/// quickly as Indeterminate, not be masked by a long backoff loop.
 const RETRY_BACKOFF: Duration = Duration::from_millis(200);
 
-/// The fixed self-calibration question `LlmJudge::preflight` asks (design.md
-/// decision 7, spec `judge-preflight`): a question with a definite, knowable
-/// answer, run through the exact same prompt template, `max_tokens`, and
-/// temperature-fallback path as a real judge call. It exists purely to prove
-/// the chain works end to end (auth, model name, response shape, output
-/// budget) — nobody reads *which* answer comes back, only whether it's a
-/// parseable Yes/No at all (see `LlmJudge::preflight_with_base_url`).
+/// The fixed self-calibration question `LlmJudge::preflight` asks: a question
+/// with a definite, knowable answer, run through the exact same prompt
+/// template, `max_tokens`, and temperature-fallback path as a real judge call.
+/// It exists purely to prove the chain works end to end (auth, model name,
+/// response shape, output budget) — nobody reads *which* answer comes back,
+/// only whether it's a parseable Yes/No at all (see
+/// `LlmJudge::preflight_with_base_url`).
 const PREFLIGHT_RUBRIC: &str =
     "This is a pre-flight self-check, not a real evaluation. Is one plus one equal to two? \
      Answer only Yes or No.";
@@ -94,15 +92,14 @@ fn shared_runtime() -> &'static tokio::runtime::Runtime {
 }
 
 /// The closed set of judge providers rig can reach. This is the structural
-/// half of the security fix (see design decision 2): a judge file selects
-/// *which* provider's key is used by naming one of these four variants, but
-/// routing — the base URL and the env var a key is read from — is decided by
-/// matching on this enum **in code**, never by a field a committed file can
-/// supply. A card can therefore at most send a provider's own key to that
-/// provider; cross-pairing (provider X's key to provider Y's endpoint, or any
-/// key to an arbitrary host) is not representable. Adding a fifth provider
-/// means adding a variant and a `match` arm here, in reviewed code — not
-/// adding a string a file can set.
+/// half of the security fix: a judge file selects *which* provider's key is
+/// used by naming one of these four variants, but routing — the base URL and
+/// the env var a key is read from — is decided by matching on this enum **in
+/// code**, never by a field a committed file can supply. A card can therefore
+/// at most send a provider's own key to that provider; cross-pairing (provider
+/// X's key to provider Y's endpoint, or any key to an arbitrary host) is not
+/// representable. Adding a fifth provider means adding a variant and a `match`
+/// arm here, in reviewed code — not adding a string a file can set.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum JudgeProvider {
@@ -234,10 +231,10 @@ fn reject_key_shaped_fields(table: &toml::Table) -> Result<()> {
     Ok(())
 }
 
-/// Fields removed for security: naming either one used to let a committed
-/// file select a network destination (`api_url`) or the env var a secret is
-/// read from (`api_key_env`) — the verified exfiltration vector this change
-/// closes (see design.md). Checked ahead of `deny_unknown_fields` (which
+/// Fields removed for security: naming either one used to let a committed file
+/// select a network destination (`api_url`) or the env var a secret is read
+/// from (`api_key_env`) — the verified exfiltration vector this crate's closed
+/// provider set exists to close. Checked ahead of `deny_unknown_fields` (which
 /// would otherwise just say "unknown field", reading as a typo rather than a
 /// removed, unsafe capability) so the error states the real reason and the
 /// fix. This is the regression guard for the structural invariant on
@@ -331,11 +328,10 @@ impl LlmJudge {
         LlmJudge { cfg }
     }
 
-    /// Fail-fast checks run once before any trial spends money on grading
-    /// (design.md decision 7, spec `judge-preflight`): (a) the configured
-    /// provider's key env var must be set, naming the exact variable and the
-    /// `--no-judge` escape when it isn't; (b) a live dry-run, in the exact
-    /// judge shape (same prompt template, `JUDGE_MAX_TOKENS`, and
+    /// Fail-fast checks run once before any trial spends money on grading: (a)
+    /// the configured provider's key env var must be set, naming the exact
+    /// variable and the `--no-judge` escape when it isn't; (b) a live dry-run,
+    /// in the exact judge shape (same prompt template, `JUDGE_MAX_TOKENS`, and
     /// temperature-fallback path as a real judge call — see
     /// `preflight_with_base_url`), must come back with a parseable Yes/No
     /// verdict. This catches bad auth, a mistyped model, temperature
@@ -424,8 +420,8 @@ fn have_api_key(api_key_env: &str) -> bool {
 
 /// The public entry point: grade once, against the provider's real default
 /// endpoint. The only difference from `judge_with_base_url` is `base_url:
-/// None` — every provider then routes to its own official default, per
-/// `design.md` decision 3. There is no config path to anything else.
+/// None` — every provider then routes to its own official default. There is no
+/// config path to anything else.
 pub fn judge(
     cfg: &JudgeConfig,
     rubric: &str,
@@ -593,18 +589,18 @@ where
 }
 
 /// Which field of a provider's raw response names the model that actually
-/// served the request (design.md decision 9). Confirmed by reading rig
-/// 0.40's response types directly, not guessed: Anthropic
+/// served the request. Confirmed by reading rig 0.40's response types
+/// directly, not guessed: Anthropic
 /// (`providers::anthropic::completion::CompletionResponse::model`), OpenAI's
-/// Responses API (`providers::openai::responses_api::CompletionResponse::model`),
-/// and OpenRouter (`providers::openrouter::completion::CompletionResponse::model`)
+/// Responses API
+/// (`providers::openai::responses_api::CompletionResponse::model`), and
+/// OpenRouter (`providers::openrouter::completion::CompletionResponse::model`)
 /// all expose a top-level `model` field. Gemini's `GenerateContentResponse`
-/// instead has `model_version: Option<String>` under
-/// `#[serde(rename_all = "camelCase")]`, so its wire field is `modelVersion`
-/// — and it really is optional there, unlike the other three, which is why
-/// the absent-field fallback (`run_model` above defaulting to `None`, the
-/// same unknown-ruler tri-state as a missing `model`) matters most for
-/// Gemini.
+/// instead has `model_version: Option<String>` under `#[serde(rename_all =
+/// "camelCase")]`, so its wire field is `modelVersion` — and it really is
+/// optional there, unlike the other three, which is why the absent-field
+/// fallback (`run_model` above defaulting to `None`, the same unknown-ruler
+/// tri-state as a missing `model`) matters most for Gemini.
 fn served_model_field(provider: JudgeProvider) -> &'static str {
     match provider {
         JudgeProvider::Anthropic | JudgeProvider::OpenAI | JudgeProvider::OpenRouter => "model",
@@ -615,8 +611,8 @@ fn served_model_field(provider: JudgeProvider) -> &'static str {
 /// Builds the provider's rig client (explicit key, default base URL unless
 /// `base_url` overrides it for a test) and runs one completion call. This is
 /// the only function that names a provider's rig client type — the routing
-/// invariant (design.md decision 2) lives here and in `JudgeProvider::key_env`
-/// alone.
+/// invariant, that a destination and a key var derive from `provider` alone,
+/// lives here and in `JudgeProvider::key_env` alone.
 async fn send_completion(
     cfg: &JudgeConfig,
     key: &str,
@@ -636,9 +632,9 @@ async fn send_completion(
             run_model(model, prompt, temperature, served_field).await
         }
         JudgeProvider::OpenAI => {
-            // The Responses API client is OpenAI's default (`openai::Client`,
-            // see design.md decision 3) — Chat Completions is a deferred,
-            // OpenAI-compatible future, not this path.
+            // The Responses API client is OpenAI's default (`openai::Client`)
+            // — Chat Completions is a deferred, OpenAI-compatible future, not
+            // this path.
             let mut builder = openai::Client::builder().api_key(key);
             if let Some(u) = base_url {
                 builder = builder.base_url(u);
@@ -669,10 +665,9 @@ async fn send_completion(
 }
 
 /// Whether a completion error is the provider rejecting the temperature
-/// parameter (design.md decision 5): a 400 whose body mentions "temperature".
-/// Error-driven, not a model-name list — reasoning models across providers
-/// reject the param in different ways, but all as a 400 naming the offending
-/// field.
+/// parameter: a 400 whose body mentions "temperature". Error-driven, not a
+/// model-name list — reasoning models across providers reject the param in
+/// different ways, but all as a 400 naming the offending field.
 fn is_temperature_rejected(err: &CompletionError) -> bool {
     let is_400 = err.provider_response_status().map(|s| s.as_u16()) == Some(400);
     let mentions_temperature = err
@@ -682,13 +677,13 @@ fn is_temperature_rejected(err: &CompletionError) -> bool {
     is_400 && mentions_temperature
 }
 
-/// Whether a completion error is clearly transient (design.md decision 8):
-/// a rate limit (429), a server error (5xx), or a transport-level failure
-/// with no HTTP status at all (connection refused, reset, timeout — rig
-/// surfaces these as `CompletionError::HttpError` wrapping a non-status
-/// variant). Everything else — including a status this doesn't recognize —
-/// is treated as not transient: unclassifiable errors are not retried, per
-/// the conservative classification the design calls for.
+/// Whether a completion error is clearly transient: a rate limit (429), a
+/// server error (5xx), or a transport-level failure with no HTTP status at all
+/// (connection refused, reset, timeout — rig surfaces these as
+/// `CompletionError::HttpError` wrapping a non-status variant). Everything
+/// else — including a status this doesn't recognize — is treated as not
+/// transient: the classification is deliberately conservative, so an
+/// unclassifiable error is never retried.
 fn is_transient(err: &CompletionError) -> bool {
     match err.provider_response_status() {
         Some(status) => {
@@ -757,11 +752,11 @@ fn next_url(s: &str, schemes: &[&str]) -> Option<(usize, usize)> {
         .min_by_key(|(i, _)| *i)
 }
 
-/// The reconstructed request record written to `judge-request.json`
-/// (design.md decision 9) — not the literal bytes sent to the provider (rig
-/// doesn't expose those), but enough to know what was asked for: which
-/// provider and model, whether temperature 0 was sent or omitted (and why),
-/// the fixed token budget, and the exact prompt.
+/// The reconstructed request record written to `judge-request.json` — not the
+/// literal bytes sent to the provider (rig doesn't expose those), but enough
+/// to know what was asked for: which provider and model, whether temperature 0
+/// was sent or omitted (and why), the fixed token budget, and the exact
+/// prompt.
 #[derive(Serialize)]
 struct RequestRecord {
     provider: JudgeProvider,
@@ -775,12 +770,11 @@ struct RequestRecord {
 }
 
 /// Orchestrates one judge call end to end: temperature-0 attempt, a
-/// temperature-fallback retry if the provider rejects the parameter
-/// (design.md decision 5), then a single transient retry with a short fixed
-/// backoff if whatever attempt is left standing failed with a clearly
-/// transient error (design.md decision 8). Returns the final result
-/// alongside the request record describing what was actually sent, so the
-/// caller can write `judge-request.json` even when every attempt failed.
+/// temperature-fallback retry if the provider rejects the parameter, then a
+/// single transient retry with a short fixed backoff if whatever attempt is
+/// left standing failed with a clearly transient error. Returns the final
+/// result alongside the request record describing what was actually sent, so
+/// the caller can write `judge-request.json` even when every attempt failed.
 async fn run_judge_call(
     cfg: &JudgeConfig,
     key: &str,
@@ -1035,12 +1029,12 @@ mod judge_config_tests {
         assert_eq!(cfg.price_out_usd_per_mtok, 25.0);
     }
 
-    /// The harness's actual regression guard for `judge-provider-card`
-    /// section 5: every card shipped in `judges/` must load under the
-    /// current four-field schema. Iterates the real directory (not an
-    /// inline fixture) so a card left on the old `api_url`/`api_key_env`
-    /// shape, or missing a required field, fails this test rather than only
-    /// being caught the first time someone runs `zseval` with `--judge`.
+    /// The harness's actual regression guard on the shipped ruler cards: every
+    /// card in `judges/` must load under the current four-field schema.
+    /// Iterates the real directory (not an inline fixture) so a card left on
+    /// the old `api_url`/`api_key_env` shape, or missing a required field,
+    /// fails this test rather than only being caught the first time someone
+    /// runs `zseval` with `--judge`.
     #[test]
     fn every_shipped_judge_card_loads_under_the_current_schema() {
         let judges_dir = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../judges"));
@@ -1288,16 +1282,15 @@ mod shared_runtime_tests {
     }
 }
 
-/// A minimal hand-rolled HTTP/1.1 responder for offline judge-transport
-/// tests (`judge-provider-card` design.md: "test-only rig `base_url` seam
-/// ... local mock server"). Not a general HTTP server: reads one full
-/// request (headers, then exactly `Content-Length` more body bytes) per
-/// accepted connection and replies with the next canned `(status, body)` in
-/// order, closing the connection afterward so the next call opens a fresh
-/// one — no keep-alive bookkeeping needed. No new dev-dependency:
-/// `std::net::TcpListener` is enough for canned status/body responses, and
-/// rig's client only needs plain HTTP (no TLS) once `base_url` points at
-/// `http://127.0.0.1:<port>`.
+/// A minimal hand-rolled HTTP/1.1 responder for offline judge-transport tests:
+/// the local mock server the test-only rig `base_url` seam points at. Not a
+/// general HTTP server: reads one full request (headers, then exactly
+/// `Content-Length` more body bytes) per accepted connection and replies with
+/// the next canned `(status, body)` in order, closing the connection afterward
+/// so the next call opens a fresh one — no keep-alive bookkeeping needed. No
+/// new dev-dependency: `std::net::TcpListener` is enough for canned
+/// status/body responses, and rig's client only needs plain HTTP (no TLS) once
+/// `base_url` points at `http://127.0.0.1:<port>`.
 #[cfg(test)]
 mod mock_server {
     use std::io::{Read, Write};
@@ -1391,16 +1384,15 @@ mod mock_server {
     }
 }
 
-/// Offline tests for the full `judge_with_base_url` seam (design.md:
-/// "test-only rig `base_url` pointing at a local mock server ... covers
-/// probe success/failure, temperature fallback, and retry"). Anthropic is
-/// used as the representative provider throughout — its rig raw response
-/// shape is a direct, well-understood JSON structure, which keeps these
-/// tests focused on the transport/retry/artifact behavior under test rather
-/// than on hand-rolling four providers' distinct wire shapes; the other
-/// three providers' client-construction and served-model-field code paths
-/// are exercised by `served_model_field_tests` (pure) and by compiling
-/// against rig's own types.
+/// Offline tests for the full `judge_with_base_url` seam: the test-only rig
+/// `base_url` points at a local mock server, covering probe success/failure,
+/// temperature fallback, and retry. Anthropic is used as the representative
+/// provider throughout — its rig raw response shape is a direct,
+/// well-understood JSON structure, which keeps these tests focused on the
+/// transport/retry/artifact behavior under test rather than on hand-rolling
+/// four providers' distinct wire shapes; the other three providers'
+/// client-construction and served-model-field code paths are exercised by
+/// `served_model_field_tests` (pure) and by compiling against rig's own types.
 #[cfg(test)]
 mod judge_transport_tests {
     use super::mock_server::MockServer;
@@ -1499,9 +1491,8 @@ mod judge_transport_tests {
         .to_string()
     }
 
-    /// 3.1: the seam's offline success path — a verdict comes back from the
-    /// mock server and cost math prices usage at the card's rates into
-    /// `cost_usd`.
+    /// The seam's offline success path — a verdict comes back from the mock
+    /// server and cost math prices usage at the card's rates into `cost_usd`.
     #[test]
     fn success_path_through_the_seam_returns_a_verdict_and_prices_cost_at_the_cards_rates() {
         let _lock = ENV_LOCK.lock().unwrap();
@@ -1532,8 +1523,8 @@ mod judge_transport_tests {
         std::fs::remove_dir_all(&run_dir).ok();
     }
 
-    /// 3.3: a provider 400 naming `temperature` is retried once without it,
-    /// and the omission is recorded in `judge-request.json`.
+    /// A provider 400 naming `temperature` is retried once without it, and the
+    /// omission is recorded in `judge-request.json`.
     #[test]
     fn a_provider_rejecting_temperature_is_retried_without_it_and_the_omission_is_recorded() {
         let _lock = ENV_LOCK.lock().unwrap();
@@ -1568,8 +1559,8 @@ mod judge_transport_tests {
         std::fs::remove_dir_all(&run_dir).ok();
     }
 
-    /// 3.4: a single transient (429) blip does not cost a verdict — the
-    /// retry succeeds and the trial records it normally.
+    /// A single transient (429) blip does not cost a verdict — the retry
+    /// succeeds and the trial records it normally.
     #[test]
     fn a_rate_limit_is_retried_once_and_succeeds() {
         let _lock = ENV_LOCK.lock().unwrap();
@@ -1592,7 +1583,7 @@ mod judge_transport_tests {
         std::fs::remove_dir_all(&run_dir).ok();
     }
 
-    /// 3.4: persistent failure (both the attempt and its single retry fail)
+    /// Persistent failure (both the attempt and its single retry fail)
     /// surfaces the error rather than retrying again.
     #[test]
     fn a_persistent_rate_limit_surfaces_as_an_error_after_exactly_one_retry() {
@@ -1617,7 +1608,7 @@ mod judge_transport_tests {
         std::fs::remove_dir_all(&run_dir).ok();
     }
 
-    /// 3.4: a non-retryable error (401) is not retried at all — exactly one
+    /// A non-retryable error (401) is not retried at all — exactly one
     /// response is queued, so a second attempt would hit a closed listener.
     #[test]
     fn a_non_retryable_error_is_not_retried() {
@@ -1642,9 +1633,9 @@ mod judge_transport_tests {
         std::fs::remove_dir_all(&run_dir).ok();
     }
 
-    /// 3.5: `judge-request.json` and `judge-response.json` record the
-    /// reconstructed request and the served model read from the raw
-    /// response — a fact, not an echo of the card's configured model.
+    /// `judge-request.json` and `judge-response.json` record the reconstructed
+    /// request and the served model read from the raw response — a fact, not
+    /// an echo of the card's configured model.
     #[test]
     fn artifacts_record_the_request_and_the_served_model_from_the_raw_response() {
         let _lock = ENV_LOCK.lock().unwrap();
@@ -1696,13 +1687,13 @@ mod judge_transport_tests {
     }
 
     // -----------------------------------------------------------------
-    // 4.3: `LlmJudge::preflight()` — same mock-server seam, no run_dir (a
-    // probe is not a trial: it writes no artifacts, see `preflight`'s doc).
+    // `LlmJudge::preflight()` — same mock-server seam, no run_dir (a probe is
+    // not a trial: it writes no artifacts, see `preflight`'s doc).
     // -----------------------------------------------------------------
 
     /// The key-presence check runs before any network call, so it needs no
     /// mock server at all — an unset var must fail, naming the exact
-    /// configured provider's env var (spec `judge-preflight`).
+    /// configured provider's env var.
     #[test]
     fn preflight_fails_before_any_call_when_the_key_is_unset_naming_the_exact_var() {
         let _lock = ENV_LOCK.lock().unwrap();
@@ -1771,13 +1762,12 @@ mod judge_transport_tests {
         );
     }
 
-    /// 4.4: probe cost must never land in the report (design.md decision 7:
-    /// "probe cost is not recorded in the report"). `preflight_with_base_url`
+    /// Probe cost must never land in the report. `preflight_with_base_url`
     /// returns `Result<()>` — there is no cost or token field to hand back to
     /// the caller even with exaggerated usage counts — and, unlike a real
     /// `judge()` call, it takes no `run_dir`, so it never writes
-    /// `judge-request.json` / `judge-response.json` for anything downstream
-    /// to read a cost from. This is the concrete guard for that property.
+    /// `judge-request.json` / `judge-response.json` for anything downstream to
+    /// read a cost from. This is the concrete guard for that property.
     #[test]
     fn a_successful_preflight_probe_returns_no_cost_and_writes_no_artifacts() {
         let _lock = ENV_LOCK.lock().unwrap();

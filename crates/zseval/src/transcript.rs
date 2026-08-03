@@ -55,9 +55,9 @@ struct RawSession {
     /// in headless mode today (see `Transcript::total_tokens`).
     #[serde(default)]
     total_estimated_tokens: u64,
-    /// The prompt active when the session was last saved (upstream's PR
-    /// #228, `session::Session::prompt`). Absent on sessions predating that
-    /// field, which must parse as `None`, not an error (design D3).
+    /// The prompt active when the session was last saved (upstream's PR #228,
+    /// `session::Session::prompt`). Absent on sessions predating that field,
+    /// which must parse as `None`, not an error.
     #[serde(default)]
     prompt: Option<RawPromptRef>,
 }
@@ -98,9 +98,9 @@ struct RawToolRecord {
 
 /// Mirror of upstream's `session::PromptRef`. `source` stays a raw `String`
 /// here rather than upstream's `PromptSource` enum, so an unrecognized value
-/// can be its own schema-`Err` step in `parse_str` (naming the session
-/// file), instead of the whole session failing to deserialize with a bare
-/// serde message (design D3).
+/// can be its own schema-`Err` step in `parse_str` (naming the session file),
+/// instead of the whole session failing to deserialize with a bare serde
+/// message.
 #[derive(Debug, Clone, Deserialize)]
 struct RawPromptRef {
     name: String,
@@ -145,13 +145,13 @@ pub struct ToolCall {
 }
 
 /// The session's recorded prompt provenance (mirrors upstream's
-/// `session::PromptRef`, design D3): which prompt shaped the trial, and
-/// whether its content was the compiled-in default or a user file.
-/// `source` is upstream's own two-value vocabulary, `"built_in"` or
-/// `"user_file"`, already validated by `parse_str` — deliberately not this
-/// crate's four-value `verdict::PromptSource` report field. Vocabulary note
-/// (tasks.md): the bare word "source" never stands in for either on its
-/// own, so this type spells out that it is the readback, not the mapping.
+/// `session::PromptRef`): which prompt shaped the trial, and whether its
+/// content was the compiled-in default or a user file. `source` is upstream's
+/// own two-value vocabulary, `"built_in"` or `"user_file"`, already validated
+/// by `parse_str` — deliberately not this crate's four-value
+/// `verdict::PromptSource` report field. On vocabulary: the bare word "source"
+/// never stands in for either on its own, so this type spells out that it is
+/// the readback, not the mapping.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordedPrompt {
     pub name: String,
@@ -169,10 +169,10 @@ pub struct Transcript {
     /// zerostack's rough estimate, summed across sessions — see
     /// `total_tokens`'s fallback.
     pub estimated_tokens: u64,
-    /// The session's recorded prompt readback (design D3). `None` when the
-    /// session predates zerostack's PR #228, or the trial recorded no
-    /// prompt at all. `absorb` applies last-wins, matching both upstream's
-    /// own last-write-wins rule and `final_assistant`'s existing one.
+    /// The session's recorded prompt readback. `None` when the session
+    /// predates zerostack's PR #228, or the trial recorded no prompt at all.
+    /// `absorb` applies last-wins, matching both upstream's own
+    /// last-write-wins rule and `final_assistant`'s existing one.
     pub prompt: Option<RecordedPrompt>,
 }
 
@@ -357,9 +357,9 @@ pub fn parse_file(path: &Path) -> Result<Transcript> {
 
 pub fn parse_str(text: &str) -> Result<Transcript> {
     let raw: RawSession = serde_json::from_str(text).context("session schema mismatch")?;
-    // Readback is the value (design D3): an absent `prompt` is `None`, but a
-    // present one with an unrecognized `source` is a schema `Err` — upstream
-    // vocabulary drift stops the run rather than being guessed around.
+    // Readback is the value: an absent `prompt` is `None`, but a present one
+    // with an unrecognized `source` is a schema `Err` — upstream vocabulary
+    // drift stops the run rather than being guessed around.
     let prompt = raw
         .prompt
         .map(|p| match p.source.as_str() {
@@ -394,9 +394,9 @@ pub fn parse_str(text: &str) -> Result<Transcript> {
                         m.role
                     )
                 })?;
-                // The name is the record's, never the content's leading
-                // token (design D1); the summary stays the content minus
-                // that token, which is what `tool_arg_contains` matches.
+                // The name is the record's, never the content's leading token;
+                // the summary stays the content minus that token, which is
+                // what `tool_arg_contains` matches.
                 let summary = m
                     .content
                     .split_once(char::is_whitespace)
@@ -424,8 +424,7 @@ pub fn parse_str(text: &str) -> Result<Transcript> {
 mod tool_record_tests {
     use super::*;
 
-    /// spec `session-evidence`, "A structured tool record becomes a tool
-    /// call".
+    /// A structured tool record becomes a tool call.
     #[test]
     fn a_structured_record_becomes_a_tool_call() {
         let t = parse_str(
@@ -445,7 +444,7 @@ mod tool_record_tests {
     /// Upstream always renders `content` as `"{name} {summary}"`, so a real
     /// session never diverges — the divergence here is synthetic, and it is
     /// what pins that `name` is read from `tool.name` rather than tokenized
-    /// off `content` (design D1).
+    /// off `content`.
     #[test]
     fn the_name_comes_from_the_record_not_the_content_token() {
         let t = parse_str(
@@ -462,7 +461,7 @@ mod tool_record_tests {
         );
     }
 
-    /// spec `session-evidence`, "A subagent record is a subagent call".
+    /// A subagent record is a subagent call.
     #[test]
     fn a_subagent_record_is_a_subagent_call() {
         let t = parse_str(
@@ -479,7 +478,7 @@ mod tool_record_tests {
     }
 
     /// A `tool_result`-role message carries a record too, but it is a
-    /// message, not a call (design D1).
+    /// message, not a call: only the two call roles add to `tool_calls`.
     #[test]
     fn a_tool_result_record_is_not_a_call() {
         let t = parse_str(
@@ -493,9 +492,9 @@ mod tool_record_tests {
         assert_eq!(t.messages.len(), 2);
     }
 
-    /// spec `session-evidence`, "A tool-call-role message without a tool
-    /// record is a schema error" — the rule that makes a pre-#230 `ZS_BIN`
-    /// visible instead of silently gradable.
+    /// A tool-call-role message without a tool record is a schema error — the
+    /// rule that makes a pre-#230 `ZS_BIN` visible instead of silently
+    /// gradable.
     #[test]
     fn a_tool_call_role_message_without_a_record_is_a_schema_error() {
         for role in ["tool_call", "subagent_tool_call"] {
@@ -532,7 +531,7 @@ mod tool_record_tests {
 mod prompt_readback_tests {
     use super::*;
 
-    /// spec `session-evidence`, "A recorded prompt is exposed".
+    /// A recorded prompt is exposed.
     #[test]
     fn a_recorded_prompt_is_exposed() {
         let t =
@@ -543,15 +542,15 @@ mod prompt_readback_tests {
         assert_eq!(prompt.source, "built_in");
     }
 
-    /// spec `session-evidence`, "An absent prompt field is exposed as
-    /// absent" — a session predating PR #228 must parse, not error.
+    /// An absent prompt field is exposed as absent: a session predating PR
+    /// #228 must parse, not error.
     #[test]
     fn an_absent_prompt_field_is_exposed_as_absent() {
         let t = parse_str(r#"{"id":"s","messages":[]}"#).unwrap();
         assert!(t.prompt.is_none());
     }
 
-    /// spec `session-evidence`, "An unrecognized source is a schema error".
+    /// An unrecognized source is a schema error.
     #[test]
     fn an_unrecognized_source_is_a_schema_error() {
         let dir = std::env::temp_dir().join(format!("zseval-badsource-{}", std::process::id()));
@@ -571,10 +570,9 @@ mod prompt_readback_tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// design D3: `absorb` applies last-wins, matching `final_assistant`'s
-    /// existing rule — a later session with no `prompt` field must not
-    /// erase an earlier session's readback, but a later session that does
-    /// carry one overrides.
+    /// `absorb` applies last-wins, matching `final_assistant`'s existing rule
+    /// — a later session with no `prompt` field must not erase an earlier
+    /// session's readback, but a later session that does carry one overrides.
     #[test]
     fn absorb_applies_last_wins_but_keeps_earlier_when_later_has_none() {
         let mut t =
@@ -637,8 +635,9 @@ mod from_run_tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// spec `session-evidence`, "Stdout markers are not evidence" — the
-    /// test that makes D1's deletion observable rather than assumed.
+    /// Stdout markers are not evidence: the per-turn stdout log is a
+    /// diagnostic artifact, so nothing is scraped out of it — tool calls come
+    /// only from the session's structured records.
     #[test]
     fn stdout_markers_are_not_evidence() {
         let dir = std::env::temp_dir().join(format!("zseval-nomarkers-{}", std::process::id()));

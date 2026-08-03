@@ -1146,8 +1146,8 @@ status = "uncovered"
 
     #[test]
     fn a_duplicate_area_name_fails_naming_it() {
-        // Two rows under one name, which the pinned area-set test cannot catch:
-        // sorting the names still yields every name the spec expects.
+        // Two rows under one name, which the pinned area-set test cannot
+        // catch: sorting the names still yields every name that test expects.
         let text = ledger(
             r#"[[areas]]
 name = "permission"

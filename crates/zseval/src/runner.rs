@@ -53,13 +53,12 @@ pub struct RunOptions {
     /// naming a ruler, that is the ruler.
     pub judge_file: Option<PathBuf>,
     /// Whether this `run_suite` call is one of several targets evaluated by
-    /// one `zseval run` invocation (target-matrix section 3/4). `false` (the
-    /// default single-target shape) keeps today's flat `results/<tag>/`
-    /// layout; `true` nests this target's report and trial dirs one level
-    /// deeper, under `results/<tag>/<stem>/` (`stem` = `target`'s filename
-    /// without extension — see `target::stem`), so N targets sharing one
-    /// `--tag` don't collide on `sc.id`. Requires `target` to be `Some`: the
-    /// stem has nothing to derive from otherwise.
+    /// one `zseval run` invocation. `false` (the default single-target shape)
+    /// keeps today's flat `results/<tag>/` layout; `true` nests this target's
+    /// report and trial dirs one level deeper, under `results/<tag>/<stem>/`
+    /// (`stem` = `target`'s filename without extension — see `target::stem`),
+    /// so N targets sharing one `--tag` don't collide on `sc.id`. Requires
+    /// `target` to be `Some`: the stem has nothing to derive from otherwise.
     pub multi_target: bool,
 }
 
@@ -85,9 +84,8 @@ struct Grading<'a> {
 /// `results/<tag>/<stem>/` when `multi_target` (so N targets sharing one
 /// `--tag` don't collide on `sc.id`). Derived in exactly one place and
 /// reused by both `run_suite` and the end-of-run summary printer, rather
-/// than re-deriving the same formula at each site (design.md: compute once,
-/// reuse). Requires `target` to be `Some` when `multi_target`: the stem has
-/// nothing to derive from otherwise.
+/// than re-deriving the same formula at each site. Requires `target` to be
+/// `Some` when `multi_target`: the stem has nothing to derive from otherwise.
 pub fn run_root(
     results_root: &Path,
     tag: &str,
@@ -162,8 +160,8 @@ fn scenario_seeds_prompt(sc: &Scenario, name: &str) -> bool {
 /// providing that same name therefore replaces what the pin watches, and
 /// grading it would report the harness's own seeding as a product regression.
 /// That is the same defect that made the tool-side pin stop naming a tool, so
-/// the scenario is skipped instead (spec `session-evidence`, "Regression
-/// scenarios pin both channels").
+/// the scenario is skipped instead: a regression pin is only evidence while it
+/// watches a channel the harness itself did not supply.
 ///
 /// Narrow on purpose: only a `built_in` pin, only against a name the pack
 /// actually supplies, and only when this scenario *resolves* that same name —
@@ -212,8 +210,9 @@ fn shadowed_built_in_pin(
 /// report itself says so — `prompts_pack` is populated either way. Decided
 /// once, over every scenario the run actually produced, rather than per
 /// scenario: a partial hit (some `pack`, some not) is real signal and stays
-/// visible only in each scenario's own `prompt_source` (design.md, "Record
-/// which prompt each scenario loaded, not merely which names intersect").
+/// visible only in each scenario's own `prompt_source`, which records the
+/// prompt that scenario actually loaded rather than merely which names the
+/// pack and the scenarios have in common.
 ///
 /// Read off what the scenarios *observed*, which is exactly the set with a
 /// recorded `prompt_source`: a scenario skipped for pinning a built-in this
@@ -278,9 +277,9 @@ struct PromptRecord {
 ///
 /// Inferring from seeds is not observing, so this is no longer what a
 /// session-backed scenario records (`record_prompt` reads that back off the
-/// session, design D3): here it is the cross-check that warns when the two
-/// disagree. It is still the recorded value for a `mode = "loop"` scenario,
-/// which upstream's `run_headless_loop` leaves no session file for.
+/// session): here it is the cross-check that warns when the two disagree. It
+/// is still the recorded value for a `mode = "loop"` scenario, which
+/// upstream's `run_headless_loop` leaves no session file for.
 ///
 /// The prompt *name* comes first: a scenario's own `prompt` field if set,
 /// otherwise the config's `default_prompt`, otherwise zerostack's `code`
@@ -321,12 +320,12 @@ fn derive_prompt(
     (name, source)
 }
 
-/// What one trial's session had to say about which prompt it loaded (design
-/// D3). Three states, not two: a trial that produced no readable session
-/// observed nothing, which is not the same evidence as a session that was read
-/// and recorded no prompt. Conflating them makes a trial that timed out or
-/// failed its schema check look like a binary too old to record prompts, and
-/// makes it outvote the trials that did read one back.
+/// What one trial's session had to say about which prompt it loaded. Three
+/// states, not two: a trial that produced no readable session observed
+/// nothing, which is not the same evidence as a session that was read and
+/// recorded no prompt. Conflating them makes a trial that timed out or failed
+/// its schema check look like a binary too old to record prompts, and makes it
+/// outvote the trials that did read one back.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum PromptReadback {
     /// The trial's session recorded which prompt it loaded.
@@ -340,7 +339,7 @@ enum PromptReadback {
     Unobserved,
 }
 
-/// What one scenario's trials agreed their sessions recorded (design D4).
+/// What one scenario's trials agreed their sessions recorded.
 /// `prompt_name`/`prompt_source` are scenario-level facts, so the trials have
 /// to produce one answer between them; the ways they can fail to are kept
 /// apart here because they have different fixes.
@@ -418,7 +417,7 @@ fn describe_readbacks(readbacks: &[PromptReadback]) -> String {
 }
 
 /// What one scenario records for its prompt identity, given every trial's
-/// session readback (design D3/D4).
+/// session readback.
 ///
 /// The readback is the value: which prompt zerostack loaded is something the
 /// session observed, not something the harness can infer from what it seeded.
@@ -558,7 +557,7 @@ pub fn run_suite(
     // its per-trial artifacts, so results/ never fills with loose files.
     // Derived once here and threaded down (rather than re-derived at the
     // trial-dir site) so the report and its trial dirs can never split
-    // across two different roots — see design.md's "implementation trap".
+    // across two different roots.
     let run_root = run_root(
         &opts.results_root,
         &opts.tag,
@@ -635,8 +634,9 @@ pub fn run_suite(
         for tr in &trial_results {
             spent += tr.cost_usd;
         }
-        // Record the scenario's kind verbatim on the result, so matrix and the
-        // Day-2 site group from report JSON alone (scenario-kind spec / D4).
+        // Record the scenario's kind verbatim on the result, so `matrix` and
+        // the site renderer can group by kind from report JSON alone, without
+        // re-reading the scenario files.
         let mut sr = ScenarioResult::from_trials_with_hash(
             sc.id.clone(),
             sc.kind,
@@ -645,7 +645,7 @@ pub fn run_suite(
         );
         // Which prompt this scenario loaded is read back off its trials'
         // sessions and reconciled here, because it is one fact per scenario,
-        // not per trial (design D4).
+        // not per trial.
         let prompt = record_prompt(sc, pack, config_default_prompt.as_deref(), &readbacks);
         for warning in &prompt.warnings {
             eprintln!("{warning}");
@@ -697,10 +697,10 @@ pub fn run_suite(
     let report = Report::build(
         ReportMeta {
             tag: opts.tag.clone(),
-            // `--target` is mandatory for `zs` and rejected for `mock`
-            // (target-matrix section 2), so a mock run never has a target to
-            // describe: its model is the fixed `"mock"` label, set here
-            // rather than derived from an absent target.
+            // `--target` is mandatory for `zs` and rejected for `mock`, so a
+            // mock run never has a target to describe: its model is the fixed
+            // `"mock"` label, set here rather than derived from an absent
+            // target.
             model: if backend.name() == "mock" {
                 "mock".to_string()
             } else {
@@ -1126,8 +1126,8 @@ fn grade_trial(
         cost_usd: transcript.cost_usd + judge_cost_usd,
         wall_secs: artifacts.wall_secs,
         tool_call_count: transcript.tool_calls.len(),
-        // report-paths: recorded working-directory-relative, forward-slashed,
-        // never absolute — see `verdict::record_path`.
+        // Recorded working-directory-relative, forward-slashed and never
+        // absolute — see `verdict::record_path`.
         run_dir: crate::verdict::record_path(run_dir),
     };
     GradedTrial { result, prompt }
@@ -1158,7 +1158,7 @@ fn indeterminate(grading: &Grading, trial: usize, run_dir: &Path, reason: String
         cost_usd: recover_cost_usd(run_dir),
         wall_secs: 0.0,
         tool_call_count: 0,
-        // report-paths: same treatment as the success path above.
+        // Same `verdict::record_path` treatment as the success path above.
         run_dir: crate::verdict::record_path(run_dir),
     }
 }
@@ -1240,7 +1240,7 @@ mod prompt_resolution_tests {
     }
 
     /// `mode = "loop"`: upstream's `run_headless_loop` writes no session, so
-    /// this is the one shape with nothing to read back (design D3).
+    /// this is the one shape with nothing to read back.
     fn loop_scenario(prompt: Option<&str>, dests: &[&str]) -> Scenario {
         scenario_in(Mode::Loop, prompt, dests)
     }
@@ -1279,7 +1279,7 @@ mod prompt_resolution_tests {
         PromptPack::load(&dir).unwrap()
     }
 
-    // 6.1: the four-value derivation order — now the cross-check for a
+    // The four-value derivation order — now the cross-check for a
     // session-backed scenario, and still the recorded value for a loop one.
 
     #[test]
@@ -1314,7 +1314,7 @@ mod prompt_resolution_tests {
         );
     }
 
-    // 6.2: the default-prompt derivation.
+    // The default-prompt derivation.
 
     #[test]
     fn no_prompt_and_no_config_default_derives_code() {
@@ -1337,10 +1337,10 @@ mod prompt_resolution_tests {
         );
     }
 
-    // 6.3: the config-seeding guard abandons derivation — for a loop
-    // scenario, whose derivation is still the recorded value. A session-backed
-    // scenario has a readback that is the last word regardless of who wrote
-    // the config, so the guard is gone there (design D3).
+    // The config-seeding guard abandons derivation — for a loop scenario,
+    // whose derivation is still the recorded value. A session-backed scenario
+    // has a readback that is the last word regardless of who wrote the config,
+    // so the guard does not apply there.
 
     #[test]
     fn a_loop_scenario_seeding_the_config_directory_derives_unknown() {
@@ -1385,9 +1385,9 @@ mod prompt_resolution_tests {
 
     #[test]
     fn a_session_backed_scenario_seeding_the_config_still_derives() {
-        // The deleted branch (design D3): the harness's seeded config is no
-        // longer the last word, but the readback is, so derivation has no
-        // reason to abandon itself here — it is only the cross-check now.
+        // The harness's seeded config is no longer the last word here, but the
+        // readback is, so derivation has no reason to abandon itself — it is
+        // only the cross-check.
         let sc = scenario(None, &["config:config.toml"]);
         assert_eq!(
             derive_prompt(&sc, None, Some("review")),
@@ -1395,10 +1395,10 @@ mod prompt_resolution_tests {
         );
     }
 
-    // D3's four mapping arms: what the readback records, per scenario.
+    // The four mapping arms: what the readback records, per scenario.
 
-    /// prompts-pack-identity mapping 1, and "A scenario naming a prompt the
-    /// pack does not provide".
+    /// A scenario naming a prompt the pack does not provide loads the built-in
+    /// and records `stock`.
     #[test]
     fn a_built_in_readback_records_stock() {
         let sc = scenario(Some("ask"), &[]);
@@ -1411,9 +1411,9 @@ mod prompt_resolution_tests {
         assert!(got.warnings.is_empty(), "{:?}", got.warnings);
     }
 
-    /// prompts-pack-identity mapping 2, "A scenario that seeds its own
-    /// prompt": the scenario's placement lands last, so it is the content
-    /// that loaded.
+    /// A scenario that seeds its own prompt records `scenario`, even when the
+    /// pack supplies the same name: the scenario's placement lands last, so
+    /// its content is what loaded.
     #[test]
     fn a_user_file_readback_the_scenario_seeded_records_scenario() {
         let sc = scenario(Some("code"), &["work:.zerostack/prompts/code.md"]);
@@ -1426,8 +1426,9 @@ mod prompt_resolution_tests {
         assert!(got.warnings.is_empty(), "{:?}", got.warnings);
     }
 
-    /// prompts-pack-identity mapping 3, "A scenario naming a prompt the pack
-    /// provides".
+    /// A scenario naming a prompt the pack provides, and seeding none of its
+    /// own, records `pack`: the pack is the only layer that could have put the
+    /// user file the session read there.
     #[test]
     fn a_user_file_readback_the_pack_provides_records_pack() {
         let sc = scenario(Some("code"), &[]);
@@ -1440,8 +1441,8 @@ mod prompt_resolution_tests {
         assert!(got.warnings.is_empty(), "{:?}", got.warnings);
     }
 
-    /// prompts-pack-identity mapping 4: a user file the harness never planted
-    /// means the trial environment is not what the harness thinks it is.
+    /// A user file neither the scenario nor the pack planted records `unknown`
+    /// and warns: the trial environment is not what the harness thinks it is.
     #[test]
     fn a_user_file_readback_nobody_planted_records_unknown_and_warns() {
         let sc = scenario(Some("code"), &[]);
@@ -1458,10 +1459,10 @@ mod prompt_resolution_tests {
         );
     }
 
-    /// prompts-pack-identity, "Derivation disagreement warns but does not
-    /// override": upstream classifies a pack prompt whose bytes equal the
-    /// built-in as `built_in` (its `source_of` compares content), so the
-    /// derivation's `pack` and the readback's `stock` disagree benignly.
+    /// A derivation that disagrees with the readback warns but never overrides
+    /// it: upstream classifies a pack prompt whose bytes equal the built-in as
+    /// `built_in` (its `source_of` compares content), so the derivation's
+    /// `pack` and the readback's `stock` disagree benignly.
     #[test]
     fn a_pack_prompt_identical_to_the_built_in_records_stock_and_warns() {
         let sc = scenario(Some("code"), &[]);
@@ -1479,7 +1480,7 @@ mod prompt_resolution_tests {
         );
     }
 
-    // D4: the two trials-to-scenario reconciliations, which carry different
+    // The two trials-to-scenario reconciliations, which carry different
     // messages because they have different fixes.
 
     #[test]
@@ -1540,9 +1541,8 @@ mod prompt_resolution_tests {
         );
     }
 
-    /// prompts-pack-identity mapping 5, "A session without a recorded prompt
-    /// records unknown, loudly" — the warning names the rebuild because that
-    /// is the actual fix.
+    /// A session without a recorded prompt records `unknown`, loudly — and the
+    /// warning names the rebuild, because that is the actual fix.
     #[test]
     fn every_session_lacking_the_prompt_records_unknown_and_names_the_rebuild() {
         let sc = scenario(Some("code"), &[]);
@@ -1631,7 +1631,7 @@ mod prompt_resolution_tests {
 
     // A loop scenario has no session to read back, so it keeps the whole
     // derivation — including the config-seeding branch — and its silence is
-    // not a missing-record alarm (design D3, Non-Goals).
+    // not a missing-record alarm.
 
     #[test]
     fn a_loop_scenario_records_its_derivation_not_the_absent_readback() {
@@ -1660,8 +1660,8 @@ mod prompt_resolution_tests {
 
     #[test]
     fn a_config_seeding_session_backed_scenario_records_its_readback() {
-        // The branch this change deletes: the readback is the last word on
-        // which prompt loaded, whoever wrote the config.
+        // No config-seeding guard applies here: the readback is the last word
+        // on which prompt loaded, whoever wrote the config.
         let sc = scenario(None, &["work:.zerostack/config.toml"]);
         let got = record_prompt(&sc, None, Some("review"), &[readback("review", "built_in")]);
         assert_eq!(
@@ -1672,8 +1672,7 @@ mod prompt_resolution_tests {
     }
 }
 
-/// Spec `session-evidence`, "Regression scenarios pin both channels": what a
-/// run does with a `prompt_recorded <name> built_in` pin when its own
+/// What a run does with a `prompt_recorded <name> built_in` pin when its own
 /// `--prompts` pack provides that same `<name>`. Driven through `run_suite`
 /// rather than a helper, because the claim is about what the run *spends* —
 /// the collision has to be caught before a trial runs, and only the whole

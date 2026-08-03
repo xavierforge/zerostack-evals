@@ -13,9 +13,9 @@ struct Peek {
     model: Option<String>,
     /// zerostack's `default_prompt` config key: the prompt a session loads
     /// when a scenario names none. Read here so the harness can derive which
-    /// prompt those scenarios actually loaded (prompts-pack section 6), rather
-    /// than leaving them blank — the group most exposed to a `code.md`
-    /// override is exactly the one that declares no prompt.
+    /// prompt those scenarios actually loaded, rather than leaving them blank
+    /// — the group most exposed to a `code.md` override is exactly the one
+    /// that declares no prompt.
     default_prompt: Option<String>,
 }
 
@@ -43,10 +43,10 @@ pub fn default_prompt(path: &Path) -> Option<String> {
 
 /// Human-identifiable label for what a run evaluates against:
 /// `"<provider>/<model>"`, or just one of the two when only it is known.
-/// `target` is mandatory for the `zs` backend (target-matrix section 2), so
-/// this is only ever called with `Some` in production; the `None` arm
-/// (peek's own unreadable/unparseable-file fallback) still degrades to
-/// whichever half is known rather than panicking.
+/// `target` is mandatory for the `zs` backend, so this is only ever called
+/// with `Some` in production; the `None` arm (peek's own
+/// unreadable/unparseable-file fallback) still degrades to whichever half is
+/// known rather than panicking.
 pub fn describe(target: Option<&Path>) -> String {
     let (provider, model) = target.map(peek).unwrap_or((None, None));
     match (provider, model) {
@@ -57,13 +57,12 @@ pub fn describe(target: Option<&Path>) -> String {
     }
 }
 
-/// The stem a multi-target run nests this target's results under
-/// (target-matrix section 3): the target file's name without its extension.
-/// Chosen over provider/model because a config's ~30 fields can differ
-/// (e.g. only temperature) while provider+model collide; a filename is
-/// unique by construction. A path with no filename (e.g. `/`) falls back to
-/// `"target"` rather than panicking — an unlikely input the caller's own
-/// file-not-found error will already have surfaced.
+/// The stem a multi-target run nests this target's results under: the target
+/// file's name without its extension. Chosen over provider/model because a
+/// config's ~30 fields can differ (e.g. only temperature) while provider+model
+/// collide; a filename is unique by construction. A path with no filename
+/// (e.g. `/`) falls back to `"target"` rather than panicking — an unlikely
+/// input the caller's own file-not-found error will already have surfaced.
 pub fn stem(target: &Path) -> String {
     target
         .file_stem()
@@ -148,9 +147,9 @@ mod tests {
 
     #[test]
     fn check_stem_collision_errors_on_two_targets_sharing_a_stem() {
-        // target-matrix 3.5: `a/opus.toml` and `b/opus.toml` differ in
-        // directory but collide on stem, which is what the results layout
-        // keys on — must be a hard error before any trial runs.
+        // `a/opus.toml` and `b/opus.toml` differ in directory but collide on
+        // stem, which is what the results layout keys on — must be a hard
+        // error before any trial runs.
         let a = Path::new("a/opus.toml");
         let b = Path::new("b/opus.toml");
         let err = check_stem_collision(&[a, b]).unwrap_err();

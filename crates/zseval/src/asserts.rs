@@ -4,7 +4,7 @@
 //! rest of the line verbatim, so needles may contain spaces.
 //!
 //!   tool_called <name>
-//!   tool_called_any                            # any tool call recorded, name-agnostic (design D6, section 10);
+//!   tool_called_any                            # any tool call recorded, name-agnostic;
 //!                                                 # no argument, and fails rather than passing vacuously
 //!   tool_not_called <name>
 //!   tool_called_after <later> <earlier>       # order in the transcript
@@ -17,7 +17,7 @@
 //!   transcript_contains <needle...>
 //!   transcript_not_contains <needle...>
 //!   tokens_under <n>
-//!   prompt_recorded <name> <built_in|user_file>  # session's raw readback (design D6);
+//!   prompt_recorded <name> <built_in|user_file>  # session's raw readback;
 //!                                                 # not this crate's four-way prompt_source, and
 //!                                                 # fails rather than passing when nothing was recorded
 //!   file_contains <path> <needle...>       # supports one *; fails if nothing matches
@@ -45,10 +45,10 @@ use crate::transcript::Transcript;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Assert {
     ToolCalled(String),
-    /// Any tool call, whatever its name (design D6, section 10): a
-    /// name-agnostic evidence-channel pin, deliberately not `tool_count *
-    /// >= 1`, since `*` in a name slot would then have to mean something
-    /// for `tool_not_called`/`tool_arg_contains` too, and it does not.
+    /// Any tool call, whatever its name: a name-agnostic evidence-channel pin,
+    /// deliberately not `tool_count * >= 1`, since `*` in a name slot would
+    /// then have to mean something for `tool_not_called`/`tool_arg_contains`
+    /// too, and it does not.
     ToolCalledAny,
     ToolNotCalled(String),
     ToolCalledAfter {
@@ -138,8 +138,9 @@ fn split1(rest: &str) -> Result<(String, String)> {
 /// exactly one `*` path segment (module doc, "Paths allow a single `*` path
 /// segment"), so a second star is matched literally and can only ever produce
 /// zero hits. Rejecting it here makes a mistyped path a load error naming the
-/// op and the path, the `scenario-strict-load` posture, instead of a
-/// grade-time "nothing matches" that reads as a real finding about the run.
+/// op and the path — a suite that cannot mean what it says refuses to load —
+/// instead of a grade-time "nothing matches" that reads as a real finding
+/// about the run.
 fn single_star_path(op: &str, path: String) -> Result<String> {
     let stars = path.matches('*').count();
     if stars > 1 {
@@ -320,10 +321,9 @@ impl Assert {
                 (total < *limit, format!("total tokens {total} < {limit}"))
             }
             // Grades the session's raw readback, not this crate's four-way
-            // `verdict::PromptSource` (design D6). `None` fails rather than
-            // passing vacuously: a trial whose transcript recorded no
-            // prompt has no evidence to grade, which is not the same as
-            // agreement (this repo's `absence-asserts` posture).
+            // `verdict::PromptSource`. `None` fails rather than passing
+            // vacuously: a trial whose transcript recorded no prompt has no
+            // evidence to grade, which is not the same as agreement.
             Assert::PromptRecorded { name, source } => match &t.prompt {
                 Some(p) => {
                     let hit = &p.name == name && &p.source == source;
@@ -623,12 +623,13 @@ mod tests {
         assert!(Assert::parse("file_not_contains projects/*/NOTES.md needle").is_ok());
     }
 
-    // spec `session-evidence`, "A scenario can assert the recorded prompt"
-    // (design D6): `prompt_recorded <name> <built_in|user_file>` grades
-    // against the transcript's raw readback, upstream's own two-value
-    // vocabulary, not this crate's four-way `prompt_source`.
+    // A scenario can assert the recorded prompt: `prompt_recorded <name>
+    // <built_in|user_file>` grades against the transcript's raw readback,
+    // upstream's own two-value vocabulary, not this crate's four-way
+    // `prompt_source`.
 
-    /// spec scenario "Asserting the stock prompt on a bare run".
+    /// The stock prompt on a bare run: name and source both match the
+    /// readback, so the assert passes.
     #[test]
     fn prompt_recorded_passes_when_the_readback_matches() {
         let dir = tmp("prompt-recorded-match");
@@ -687,9 +688,8 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// spec scenario "A missing prompt record fails the assert": a
-    /// transcript carrying no readback must fail, never pass vacuously
-    /// (this repo's `absence-asserts` posture).
+    /// A missing prompt record fails the assert: a transcript carrying no
+    /// readback must fail, never pass vacuously.
     #[test]
     fn prompt_recorded_fails_rather_than_passing_vacuously_when_no_prompt_was_recorded() {
         let dir = tmp("prompt-recorded-absent");
@@ -721,11 +721,10 @@ mod tests {
         Assert::parse("prompt_recorded code user_file").unwrap();
     }
 
-    // spec `session-evidence`, "Regression scenarios pin both channels"
-    // (section 10, opened from 9.2's first live run): `tool_called_any`
-    // proves a headless session carries tool records without naming which
-    // tool the model picked, since which tool it picks is not itself a
-    // claim any fixture here makes.
+    // Regression scenarios pin both evidence channels: `tool_called_any`
+    // proves a headless session carries tool records without naming which tool
+    // the model picked, since which tool it picks is not itself a claim any
+    // fixture here makes.
 
     fn tool_call(name: &str) -> ToolCall {
         ToolCall {
@@ -763,8 +762,7 @@ mod tests {
     }
 
     /// A transcript with no tool calls must fail this assert, never pass
-    /// vacuously (this repo's `absence-asserts` posture, matching
-    /// `prompt_recorded`'s rule above).
+    /// vacuously — the same rule `prompt_recorded` follows above.
     #[test]
     fn tool_called_any_fails_rather_than_passing_vacuously_on_no_tool_calls() {
         let dir = tmp("tool-called-any-empty");

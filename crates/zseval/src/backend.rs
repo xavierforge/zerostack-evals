@@ -415,9 +415,9 @@ impl AgentBackend for ZsCli {
         }
 
         // Seed the pack before the scenario's own placements, so a scenario
-        // that seeds a same-named `work:.zerostack/prompts/*.md` overrides
-        // it (`prompts-pack-run` spec, "A scenario's own prompt seed wins
-        // over the pack") rather than the pack silently winning last.
+        // that seeds a same-named `work:.zerostack/prompts/*.md` overrides it
+        // — a scenario's own prompt seed wins over the pack, rather than the
+        // pack silently winning last.
         if let Some(pack) = &self.prompts {
             let prompts_dir = work.join(".zerostack").join("prompts");
             std::fs::create_dir_all(&prompts_dir)?;
@@ -973,9 +973,9 @@ mod identity_tests {
         }
     }
 
-    /// 3.2: the first line of `--version` stdout is recorded verbatim — no
-    /// format validation (a non-standard string is kept as-is), extra lines
-    /// tolerated and ignored. The binary is also hashed (64 hex chars), and
+    /// The first line of `--version` stdout is recorded verbatim — no format
+    /// validation (a non-standard string is kept as-is), extra lines tolerated
+    /// and ignored. The binary is also hashed (64 hex chars), and
     /// git_sha/features are `None` (not captured from today's binary).
     #[test]
     fn version_first_line_is_captured_verbatim() {
@@ -991,8 +991,8 @@ mod identity_tests {
         std::fs::remove_dir_all(bin.parent().unwrap()).ok();
     }
 
-    /// 3.2: a non-zero exit aborts, even when the binary printed a version
-    /// line — exit 0 is required. The error names the binary.
+    /// A non-zero exit aborts, even when the binary printed a version line —
+    /// exit 0 is required. The error names the binary.
     #[test]
     fn a_nonzero_exit_aborts_naming_the_binary() {
         let bin = stub("nonzero", "#!/bin/sh\necho 'zerostack 1.0.0'\nexit 3\n");
@@ -1004,8 +1004,8 @@ mod identity_tests {
         std::fs::remove_dir_all(bin.parent().unwrap()).ok();
     }
 
-    /// 3.2: empty stdout (exit 0 but nothing printed) aborts, naming the
-    /// binary — there is no version to record.
+    /// Empty stdout (exit 0 but nothing printed) aborts, naming the binary —
+    /// there is no version to record.
     #[test]
     fn empty_output_aborts_naming_the_binary() {
         let bin = stub("empty", "#!/bin/sh\nexit 0\n");
@@ -1017,7 +1017,7 @@ mod identity_tests {
         std::fs::remove_dir_all(bin.parent().unwrap()).ok();
     }
 
-    /// 3.2: an unrunnable binary (path does not exist) aborts, naming it.
+    /// An unrunnable binary (path does not exist) aborts, naming it.
     #[test]
     fn a_missing_binary_aborts_naming_it() {
         let bin = std::env::temp_dir().join(format!(
@@ -1036,9 +1036,9 @@ mod identity_tests {
         std::fs::write(path, bytes).unwrap();
     }
 
-    /// 3.4: a single-file mock fixture records `"mock"` and a content
-    /// fingerprint of the file's bytes — identical bytes at two different paths
-    /// hash the same (the path is not the identity), different bytes differ.
+    /// A single-file mock fixture records `"mock"` and a content fingerprint
+    /// of the file's bytes — identical bytes at two different paths hash the
+    /// same (the path is not the identity), different bytes differ.
     #[test]
     fn mock_single_file_fixture_hashes_bytes_path_independently() {
         let root = std::env::temp_dir().join(format!("zseval-mockid-file-{}", std::process::id()));
@@ -1065,7 +1065,7 @@ mod identity_tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// 3.4: a directory mock fixture folds its files (sorted by relative path,
+    /// A directory mock fixture folds its files (sorted by relative path,
     /// length-prefixed) — identical contents at two different roots hash the
     /// same, and changing one byte changes the hash. Length-prefixing is what
     /// keeps this off `PromptPack::fingerprint`'s NUL-separated flaw.

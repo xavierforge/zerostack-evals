@@ -22,8 +22,8 @@ use crate::util::round4;
 
 /// Frozen at `1`: nothing reads this value (verified — only set at build and
 /// asserted in tests), so bumping it is decorative. Every field on
-/// `Report`/`ScenarioResult`/`TrialResult` is required on load (S7 removed
-/// the last `#[serde(default)]` read-tolerance hatches): there is no
+/// `Report`/`ScenarioResult`/`TrialResult` is required on load — not one
+/// `#[serde(default)]` read-tolerance hatch survives: there is no
 /// backward-compat default path, so a report missing a field fails to load
 /// naming it rather than silently reading as an older shape.
 pub const REPORT_SCHEMA_VERSION: u32 = 1;
@@ -49,10 +49,10 @@ pub enum Final {
 /// same fact as a run that observably used zerostack's built-in prompts.
 ///
 /// A value on the wire that is not one of these four names is a
-/// deserialization error, not a silent `Unknown` — same as a missing field
-/// now that `ScenarioResult::prompt_source` has no read-tolerance default
-/// either (S7): an unrecognized value fails loudly rather than being
-/// misread as "we don't know".
+/// deserialization error, not a silent `Unknown` — same as a missing field,
+/// since `ScenarioResult::prompt_source` carries no read-tolerance default
+/// either: an unrecognized value fails loudly rather than being misread as
+/// "we don't know".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum PromptSource {
@@ -123,11 +123,11 @@ pub struct TrialResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioResult {
     pub id: String,
-    /// The scenario's `kind`, recorded verbatim: matrix and the Day-2 site
-    /// group from report JSON alone, never by re-reading scenario.toml
-    /// (scenario-kind spec / design D4). Required, with no read-tolerance
-    /// default (S7): the run path always sets it from the scenario (see
-    /// `runner.rs`), so a report missing it is not a real report.
+    /// The scenario's `kind`, recorded verbatim: matrix and the site renderer
+    /// group from report JSON alone, never by re-reading scenario.toml.
+    /// Required, with no read-tolerance default: the run path always sets it
+    /// from the scenario (see `runner.rs`), so a report missing it is not a
+    /// real report.
     pub kind: Kind,
     pub trials: Vec<TrialResult>,
     pub pass_at_k: f64,
@@ -263,7 +263,7 @@ pub struct Report {
     ///
     /// - `None` — unknown: some trial's own ruler was unknown, which leaves
     ///   the run's rulers unlistable. (A report predating this field no
-    ///   longer loads at all: required, no default, per S7.)
+    ///   longer loads at all: required, no default.)
     /// - `Some([])` — nothing was graded: `--no-judge`, no scenario carried a
     ///   rubric, or every call failed. The honest answer, where echoing the
     ///   configured model back would report an intention as a fact.
@@ -315,7 +315,7 @@ pub struct Report {
     /// validated: the machine-comparable identity is `zs_bin_sha256`, so
     /// upstream's version-string shape never becomes a compatibility contract.
     ///
-    /// Required since it was added (design D3/D7), unlike the fields above:
+    /// Required since it was added, unlike the fields above:
     /// those have a legitimate empty/default *value* (no judge file named, no
     /// pack given); this one does not — a report that cannot name the
     /// zerostack that produced it must fail to load, never read as an empty
@@ -373,7 +373,7 @@ pub struct ZsIdentity {
 
 /// A `Summary`'s per-kind view: the same `n_scenarios`/`n_gradable`/
 /// `pass_at_k`/`pass_hat_k` shape as the overall summary, computed over one
-/// kind's scenarios only (design D5). `Summary` carries exactly two of these,
+/// kind's scenarios only. `Summary` carries exactly two of these,
 /// named `regression` and `capability` — not a map keyed by kind: the kind
 /// enum is closed and two-valued, so adding a third kind must be a loud
 /// schema decision (a new named field), never a quiet new map key.
@@ -401,7 +401,7 @@ pub struct Summary {
     pub avg_wall_secs: f64,
     /// The same four numbers above, computed over regression scenarios only.
     /// The fields above stay the historical blended yardstick, unmoved by
-    /// this — see design D5.
+    /// this — see `kind_summary`.
     pub regression: KindSummary,
     /// The same four numbers above, computed over capability scenarios only.
     pub capability: KindSummary,
@@ -442,8 +442,8 @@ impl JudgeFileRef {
 
 /// See `JudgeFileRef::path` for the rules this enforces. `pub(crate)` so
 /// `runner.rs` can apply the same working-directory-relative, forward-slashed,
-/// basename-fallback treatment to `TrialResult.run_dir` (report-paths) instead
-/// of duplicating the logic.
+/// basename-fallback treatment to `TrialResult.run_dir` instead of
+/// duplicating the logic.
 pub(crate) fn record_path(path: &Path) -> String {
     let rel = match std::fs::canonicalize(path) {
         Ok(abs) => relative_to_cwd(&abs).unwrap_or_else(|| file_name_of(path)),
@@ -600,9 +600,9 @@ impl Report {
 
 /// `Summary::regression`/`Summary::capability`'s computation: the same
 /// gradable-scenarios-only averaging `Report::build` does for the overall
-/// numbers (design D5), filtered to one kind first. `n_gradable == 0` divides
-/// by the same `.max(1)` guard as the overall computation, so an empty kind's
-/// rates are `0.0` on the wire — the display-only `n/a` is
+/// numbers, filtered to one kind first. `n_gradable == 0` divides by the same
+/// `.max(1)` guard as the overall computation, so an empty kind's rates are
+/// `0.0` on the wire — the display-only `n/a` is
 /// `print_run_report_summaries`'s job, not this function's.
 fn kind_summary(scenarios: &[ScenarioResult], kind: Kind) -> KindSummary {
     let n_scenarios = scenarios.iter().filter(|s| s.kind == kind).count();
@@ -780,10 +780,10 @@ mod exit_code_tests {
         assert_eq!(report.schema_version, 1);
     }
 
-    /// S7: report-family JSON is read as strictly as it is written. The
-    /// read-tolerance default that used to let a pre-field baseline load is
-    /// gone — a report missing a judge field now fails `load_report` with an
-    /// error naming it, same as the zerostack identity fields already did
+    /// Report-family JSON is read as strictly as it is written: there is no
+    /// read-tolerance default to let a pre-field baseline through, so a report
+    /// missing a judge field fails `load_report` with an error naming it, the
+    /// same way the zerostack identity fields do
     /// (`a_report_json_lacking_zs_version_fails_to_load`).
     #[test]
     fn a_report_json_missing_a_judge_field_fails_to_load_naming_it() {
@@ -815,7 +815,7 @@ mod exit_code_tests {
         );
     }
 
-    /// S7, one level down: a trial.json missing a judge field fails to load
+    /// One level down: a trial.json missing a judge field fails to load
     /// naming it, same strictness as the report-level fields above.
     #[test]
     fn a_trial_json_missing_a_judge_field_fails_to_load_naming_it() {
@@ -937,7 +937,7 @@ mod target_field_tests {
         assert!(!reloaded.target.is_empty());
     }
 
-    /// S7: same strictness as the judge fields — a report missing `target`
+    /// Same strictness as the judge fields — a report missing `target`
     /// fails to load naming it, rather than reading in as an empty target.
     /// (Identity fields are required, so the fixture carries them — see
     /// `a_report_json_lacking_zs_version_fails_to_load`.)
@@ -993,7 +993,7 @@ mod prompts_pack_field_tests {
         }
     }
 
-    /// prompts-pack 4.4: a run given a pack records its identity on the report.
+    /// A run given a pack records that pack's identity on the report.
     /// Path normalisation is `record_path`'s job (already covered by the
     /// target and judge-file tests); this pins that `Report::build` carries the
     /// three fields through from `ReportMeta`.
@@ -1013,8 +1013,8 @@ mod prompts_pack_field_tests {
         assert_eq!(report.prompts_names, vec!["code", "review"]);
     }
 
-    /// prompts-pack 4.2: a run with no pack records the three fields empty,
-    /// never absent-but-guessed.
+    /// A run with no pack records the three fields empty, never
+    /// absent-but-guessed.
     #[test]
     fn a_run_without_a_pack_records_empty_fields() {
         let report = Report::build(meta(), vec![]);
@@ -1023,7 +1023,7 @@ mod prompts_pack_field_tests {
         assert!(report.prompts_names.is_empty());
     }
 
-    /// S7: same strictness reaches the pack-identity fields — a report
+    /// The same strictness reaches the pack-identity fields — a report
     /// missing them fails to load naming the first one absent, rather than
     /// reading in as an empty pack. (Identity fields are required, so the
     /// fixture carries them — see `a_report_json_lacking_zs_version_fails_to_load`.)
@@ -1078,9 +1078,9 @@ mod zs_identity_field_tests {
         }
     }
 
-    /// trustworthy-numbers 3.1: `Report::build` flattens the captured identity
-    /// onto the report's own fields, and every field survives a JSON round trip
-    /// — including `git_sha`/`features` as `null`.
+    /// `Report::build` flattens the captured identity onto the report's own
+    /// fields, and every one of them survives a JSON round trip — including
+    /// `git_sha`/`features` as `null`.
     #[test]
     fn build_flattens_the_identity_and_it_round_trips() {
         let report = Report::build(
@@ -1107,11 +1107,11 @@ mod zs_identity_field_tests {
         assert_eq!(back.features, None);
     }
 
-    /// trustworthy-numbers 3.1 (required, no default): a report JSON missing an
-    /// identity field must fail to load, not deserialize to an empty string.
-    /// This is the strictness the whole feature rests on — an identity-less
-    /// report may not exist. (S7 extends this stance to the rest of the report
-    /// family; here it is proven for the identity fields alone.)
+    /// Required, no default: a report JSON missing an identity field must fail
+    /// to load, not deserialize to an empty string. This is the strictness the
+    /// whole feature rests on — an identity-less report may not exist. (The
+    /// rest of the report family is read just as strictly; here it is proven
+    /// for the identity fields alone.)
     #[test]
     fn a_report_json_lacking_zs_version_fails_to_load() {
         let missing_version = r#"{
@@ -1154,8 +1154,8 @@ mod zs_identity_field_tests {
 mod prompt_field_tests {
     use super::*;
 
-    /// prompts-pack 5.1: `PromptSource` round-trips all four spec values
-    /// through serde exactly.
+    /// `PromptSource` round-trips all four of its wire names through serde
+    /// exactly.
     #[test]
     fn prompt_source_round_trips_all_four_values() {
         let round_trip = |s: PromptSource| {
@@ -1168,7 +1168,8 @@ mod prompt_field_tests {
         assert_eq!(round_trip(PromptSource::Unknown), PromptSource::Unknown);
     }
 
-    /// The wire values are exactly the spec's four names, lowercase.
+    /// The four wire values are exactly `pack`/`stock`/`scenario`/`unknown` —
+    /// the variant names lowercased, and nothing else.
     #[test]
     fn prompt_source_serializes_to_the_spec_named_lowercase_strings() {
         assert_eq!(
@@ -1189,11 +1190,10 @@ mod prompt_field_tests {
         );
     }
 
-    /// prompts-pack 5.1: an unrecognized value must fail to deserialize
-    /// rather than silently reading as `unknown` — a missing value and a
-    /// garbled one both fail now (S7 removed the field's read-tolerance
-    /// default too), but this pins down the enum's own strictness
-    /// independent of that.
+    /// An unrecognized value must fail to deserialize rather than silently
+    /// reading as `unknown`. A missing value fails too, since
+    /// `ScenarioResult::prompt_source` carries no read-tolerance default, but
+    /// this pins down the enum's own strictness independent of that.
     #[test]
     fn an_unrecognized_prompt_source_value_is_a_deserialization_error() {
         let err = serde_json::from_str::<PromptSource>("\"bogus\"");
@@ -1203,11 +1203,10 @@ mod prompt_field_tests {
         );
     }
 
-    /// S7: same strictness reaches `ScenarioResult` — the fixture that used
-    /// to stand in for "a report predating `kind`/`prompt_name`/
-    /// `prompt_source`" (prompts-pack 5.2) now fails to load naming the first
-    /// field it lacks, rather than reading in as `Kind::Regression` /
-    /// `PromptSource::Unknown`.
+    /// The same strictness reaches `ScenarioResult` — the fixture that used
+    /// to stand in for "a scenario result predating `kind`/`prompt_name`/
+    /// `prompt_source`" fails to load naming the first field it lacks, rather
+    /// than reading in as `Kind::Regression` / `PromptSource::Unknown`.
     #[test]
     fn a_scenario_result_json_missing_kind_fails_to_load_naming_it() {
         let missing_kind = r#"{
@@ -1342,9 +1341,9 @@ mod kind_summary_tests {
         ScenarioResult::from_trials(id.into(), kind, trials)
     }
 
-    /// trustworthy-numbers 5.1: `Summary::regression`/`Summary::capability`
-    /// are computed over that kind's own scenarios only, independent of the
-    /// other kind and of the unchanged, blended overall.
+    /// `Summary::regression`/`Summary::capability` are computed over that
+    /// kind's own scenarios only, independent of the other kind and of the
+    /// unchanged, blended overall.
     #[test]
     fn per_kind_numbers_are_independent_of_each_other_and_of_overall() {
         let report = Report::build(
@@ -1377,9 +1376,9 @@ mod kind_summary_tests {
         assert_eq!(report.summary.pass_hat_k, round4((1.0 + 0.0 + 1.0) / 3.0));
     }
 
-    /// trustworthy-numbers 5.1: a fully-indeterminate scenario is excluded
-    /// from its own kind's gradable count and rate — the same "never counted
-    /// as a 0" rule `ScenarioResult::is_gradable` already enforces overall.
+    /// A fully-indeterminate scenario is excluded from its own kind's
+    /// gradable count and rate — the same "never counted as a 0" rule
+    /// `ScenarioResult::is_gradable` already enforces overall.
     #[test]
     fn a_fully_indeterminate_scenario_is_excluded_from_its_kinds_rate() {
         let report = Report::build(
@@ -1398,10 +1397,10 @@ mod kind_summary_tests {
         assert_eq!(report.summary.capability.pass_at_k, 1.0);
     }
 
-    /// trustworthy-numbers 5.1 / design D5: a kind with `n_gradable == 0`
-    /// serializes its rates as `0.0` on the wire — matching the current
-    /// overall behavior, never a third representation. (The `n/a` rendering
-    /// is `print_run_report_summaries`'s display-only convention, not this
+    /// A kind with `n_gradable == 0` serializes its rates as `0.0` on the
+    /// wire — matching what the overall summary already does for an empty
+    /// report, never a third representation. (The `n/a` rendering is
+    /// `print_run_report_summaries`'s display-only convention, not this
     /// struct's.)
     #[test]
     fn an_empty_kind_serializes_its_rates_as_zero() {
@@ -1423,9 +1422,9 @@ mod kind_summary_tests {
         assert_eq!(json["pass_hat_k"], serde_json::json!(0.0));
     }
 
-    /// trustworthy-numbers 5.1: grouping by kind is a render-time concern
-    /// only — the `scenarios` array on the report itself keeps discovery
-    /// order regardless of how kinds interleave.
+    /// Grouping by kind is a render-time concern only — the `scenarios` array
+    /// on the report itself keeps discovery order regardless of how kinds
+    /// interleave.
     #[test]
     fn scenarios_array_order_is_unchanged_by_kind() {
         let report = Report::build(

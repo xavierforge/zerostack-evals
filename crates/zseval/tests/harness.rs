@@ -107,11 +107,10 @@ fn no_rubric_scenario_dir(name: &str) -> PathBuf {
     dir
 }
 
-/// judge-selection: a rubric suite with neither `--judge` nor `--no-judge`
-/// must fail fast (exit 2) before any trial, naming both flags — see
-/// `openspec/changes/judge-provider-card/specs/judge-selection/spec.md`.
-/// No `--backend`/`--zs-bin` is given: the gate must fire before backend
-/// setup, so this would fail for an unrelated reason if the gate came later.
+/// A rubric suite with neither `--judge` nor `--no-judge` must fail fast (exit
+/// 2) before any trial, naming both flags. No `--backend`/`--zs-bin` is given:
+/// the gate must fire before backend setup, so this would fail for an
+/// unrelated reason if the gate came later.
 #[test]
 fn run_on_a_rubric_suite_with_neither_judge_flag_exits_2_naming_both_flags() {
     let dir = rubric_scenario_dir("run-neither");
@@ -126,9 +125,8 @@ fn run_on_a_rubric_suite_with_neither_judge_flag_exits_2_naming_both_flags() {
     assert!(stderr.contains("--no-judge"), "stderr: {stderr}");
 }
 
-/// judge-selection: a suite with no rubric scenarios needs no judge
-/// decision at all — `Unspecified` runs normally, same as if `--no-judge`
-/// had been passed.
+/// A suite with no rubric scenarios needs no judge decision at all —
+/// `Unspecified` runs normally, same as if `--no-judge` had been passed.
 #[test]
 fn run_on_a_no_rubric_suite_with_neither_judge_flag_runs_normally() {
     let dir = no_rubric_scenario_dir("run-neither");
@@ -153,8 +151,8 @@ fn run_on_a_no_rubric_suite_with_neither_judge_flag_runs_normally() {
     assert_ne!(out.status.code(), Some(2), "stderr: {stderr}");
 }
 
-/// judge-selection: explicit `--no-judge` on a rubric suite is honored — the
-/// run proceeds and the skip is recorded, no judge key required.
+/// Explicit `--no-judge` on a rubric suite is honored — the run proceeds and
+/// the skip is recorded, no judge key required.
 #[test]
 fn run_on_a_rubric_suite_with_explicit_no_judge_runs_with_skip_recorded() {
     let dir = rubric_scenario_dir("run-explicit-no-judge");
@@ -185,9 +183,9 @@ fn run_on_a_rubric_suite_with_explicit_no_judge_runs_with_skip_recorded() {
     );
 }
 
-/// judge-preflight / judge-selection: `regrade` mirrors the same mandatory
-/// choice gate for a rubric scenario. The trial dir need not exist: the
-/// gate must fire before `regrade` ever reads it.
+/// `regrade` mirrors the same mandatory-choice gate for a rubric scenario. The
+/// trial dir need not exist: the gate must fire before `regrade` ever reads
+/// it.
 #[test]
 fn regrade_on_a_rubric_scenario_with_neither_judge_flag_exits_2_naming_both_flags() {
     let dir = rubric_scenario_dir("regrade-neither");
@@ -221,13 +219,13 @@ fn unreachable_judge_card(name: &str) -> PathBuf {
     path
 }
 
-/// A local "proxy" that accepts each TCP connection and immediately drops
-/// it. Pointing the child's HTTP(S)_PROXY at this makes any outbound
-/// request — here the judge's preflight dry-run — fail deterministically
-/// offline, without giving the binary a routing override (the rig
-/// `base_url` seam is deliberately code-only; see judge-provider-card
-/// design.md). The counter proves the dry-run really died at this proxy
-/// and not at the real provider endpoint with a garbage key.
+/// A local "proxy" that accepts each TCP connection and immediately drops it.
+/// Pointing the child's HTTP(S)_PROXY at this makes any outbound request —
+/// here the judge's preflight dry-run — fail deterministically offline,
+/// without giving the binary a routing override (the rig `base_url` seam is
+/// deliberately code-only, reachable from unit tests alone). The counter
+/// proves the dry-run really died at this proxy and not at the real provider
+/// endpoint with a garbage key.
 fn refusing_proxy() -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
@@ -242,10 +240,10 @@ fn refusing_proxy() -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) 
     (format!("http://{addr}"), counter)
 }
 
-/// judge-preflight: a rubric suite's judge whose key is unset must fail
-/// preflight (naming `GEMINI_API_KEY`, the card's provider) before any
-/// trial runs — checked concretely by asserting the results dir was never
-/// created, not merely that the process exited 2.
+/// A rubric suite's judge whose key is unset must fail preflight (naming
+/// `GEMINI_API_KEY`, the card's provider) before any trial runs — checked
+/// concretely by asserting the results dir was never created, not merely that
+/// the process exited 2.
 #[test]
 fn run_with_a_judge_whose_key_is_unset_fails_preflight_before_any_trial() {
     let dir = rubric_scenario_dir("preflight-run");
@@ -284,11 +282,11 @@ fn run_with_a_judge_whose_key_is_unset_fails_preflight_before_any_trial() {
     );
 }
 
-/// judge-preflight: `regrade` runs the same presence check before touching
-/// the trial dir. The trial dir doesn't exist at all — if `regrade` reached
-/// it before preflight, the error would be about the missing trial dir, not
-/// the missing key, so asserting the exact var name in stderr distinguishes
-/// "preflight fired first" from "regrade failed for an unrelated reason".
+/// `regrade` runs the same presence check before touching the trial dir. The
+/// trial dir doesn't exist at all — if `regrade` reached it before preflight,
+/// the error would be about the missing trial dir, not the missing key, so
+/// asserting the exact var name in stderr distinguishes "preflight fired
+/// first" from "regrade failed for an unrelated reason".
 #[test]
 fn regrade_with_a_judge_whose_key_is_unset_fails_preflight_before_touching_the_trial() {
     let dir = rubric_scenario_dir("preflight-regrade");
@@ -314,12 +312,12 @@ fn regrade_with_a_judge_whose_key_is_unset_fails_preflight_before_touching_the_t
     assert!(stderr.contains("GEMINI_API_KEY"), "stderr: {stderr}");
 }
 
-/// judge-preflight: the *dry-run* half of preflight, at the CLI boundary.
-/// The key is present (a dummy), so the presence check passes; the child's
-/// proxy env routes the dry-run into a proxy that drops every connection,
-/// so the probe itself fails — exit 2, before any trial creates the
-/// results dir. Asserting the proxy saw ≥1 connection proves the failure
-/// happened at our proxy, offline, not at the real endpoint.
+/// The *dry-run* half of preflight, at the CLI boundary. The key is present (a
+/// dummy), so the presence check passes; the child's proxy env routes the
+/// dry-run into a proxy that drops every connection, so the probe itself fails
+/// — exit 2, before any trial creates the results dir. Asserting the proxy saw
+/// ≥1 connection proves the failure happened at our proxy, offline, not at the
+/// real endpoint.
 #[test]
 fn run_with_a_judge_whose_dry_run_fails_exits_2_before_any_trial() {
     let dir = rubric_scenario_dir("preflight-dryrun-run");
@@ -375,9 +373,9 @@ fn run_with_a_judge_whose_dry_run_fails_exits_2_before_any_trial() {
     );
 }
 
-/// judge-preflight: `regrade` runs the same dry-run probe before touching
-/// the trial dir. The trial dir doesn't exist at all, so a dry-run failure
-/// (not a missing-trial-dir error) proves preflight fired first.
+/// `regrade` runs the same dry-run probe before touching the trial dir. The
+/// trial dir doesn't exist at all, so a dry-run failure (not a
+/// missing-trial-dir error) proves preflight fired first.
 #[test]
 fn regrade_with_a_judge_whose_dry_run_fails_exits_2_before_touching_the_trial() {
     let dir = rubric_scenario_dir("preflight-dryrun-regrade");
@@ -952,7 +950,8 @@ fn loop_mode_rejects_every_tool_and_token_assert() {
 #[test]
 fn unknown_top_level_key_fails_to_load() {
     // A typo'd top-level key (e.g. `trails` for `trials`) must fail loudly at
-    // load, not be silently dropped — see scenario-strict-load spec.
+    // load, not be silently dropped: a suite that cannot mean what it says
+    // refuses to load.
     let sc_dir = write_scenario(
         "unknown-top-level",
         "id = \"x\"\nkind = \"regression\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\ntrails = 3\n",
@@ -1037,8 +1036,7 @@ fn typod_turn_field_fails_instead_of_silently_defaulting() {
 fn scenario_without_kind_fails_to_load_naming_the_field() {
     // `kind` is required with no default: a scenario that never answers "is a
     // low score a problem or a measurement?" must fail loudly at load, naming
-    // the missing field, not deserialize to a silent default (scenario-kind
-    // spec / design D4).
+    // the missing field, not deserialize to a silent default.
     let sc_dir = write_scenario(
         "no-kind",
         "id = \"x\"\ntask = \"hello\"\nexpect = [\"final_contains x\"]\n",
@@ -1259,10 +1257,9 @@ fn discover_follows_a_symlink_to_a_scenario_outside_the_walked_root() {
 
 #[test]
 fn the_committed_suite_is_31_regression_and_13_capability() {
-    // The adjudicated in-tree classification (scenario-kind spec table): the
-    // whole 44-scenario suite, the 43 under `scenarios/` plus the
-    // `examples/prompt-pack` coverage marker, labels to exactly 31 regression
-    // and 13 capability.
+    // The adjudicated in-tree classification: the whole 44-scenario suite, the
+    // 43 under `scenarios/` plus the `examples/prompt-pack` coverage marker,
+    // labels to exactly 31 regression and 13 capability.
     let mut all = discover(&scenarios_root()).unwrap();
     let marker = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/prompt-pack/scenario");
     all.push(Scenario::load(&marker).unwrap());
@@ -1467,9 +1464,8 @@ fn end_to_end_mock_run_produces_pass_and_report() {
     std::fs::remove_dir_all(&results_root).ok();
 }
 
-/// target-matrix 3.2/3.3: `multi_target: false` (today's single-target
-/// shape) keeps the flat `results/<tag>/` layout — no stem level, even
-/// though a `target` is set.
+/// `multi_target: false` (today's single-target shape) keeps the flat
+/// `results/<tag>/` layout — no stem level, even though a `target` is set.
 #[test]
 fn single_target_run_stays_flat_under_the_tag() {
     let sc = Scenario::load(&scenarios_root().join("prompts/ask-readonly")).unwrap();
@@ -1514,9 +1510,9 @@ fn single_target_run_stays_flat_under_the_tag() {
     std::fs::remove_dir_all(&target_dir).ok();
 }
 
-/// target-matrix 3.2/3.3: two targets sharing one tag (`multi_target: true`)
-/// each nest their report, run-level target copy, and trial dirs under
-/// `results/<tag>/<stem>/`, so they don't collide on `sc.id`.
+/// Two targets sharing one tag (`multi_target: true`) each nest their report,
+/// run-level target copy, and trial dirs under `results/<tag>/<stem>/`, so
+/// they don't collide on `sc.id`.
 #[test]
 fn multi_target_run_nests_results_under_the_target_stem() {
     let make_sc = || Scenario::load(&scenarios_root().join("prompts/ask-readonly")).unwrap();
@@ -1625,11 +1621,10 @@ fn jobs_greater_than_one_grades_every_trial_and_keeps_them_in_order() {
     // Every trial got its own isolated run_dir with a persisted trial.json —
     // the concurrent path must not let two workers collide on one directory.
     // `results_root` here is outside the working directory (a temp dir), so
-    // report-paths' basename fallback applies: the recorded `run_dir` is only
-    // `trial-N`, not enough on its own to find the file back on disk. The
-    // actual on-disk directory is reconstructed from what we know the run
-    // layout to be (see `run_trials_for_scenario`), independent of the
-    // recorded string.
+    // the basename fallback applies: the recorded `run_dir` is only `trial-N`,
+    // not enough on its own to find the file back on disk. The actual on-disk
+    // directory is reconstructed from what we know the run layout to be (see
+    // `run_trials_for_scenario`), independent of the recorded string.
     for trial in &s.trials {
         let actual_dir = results_root
             .join("jobs")
@@ -1646,10 +1641,10 @@ fn jobs_greater_than_one_grades_every_trial_and_keeps_them_in_order() {
     std::fs::remove_dir_all(&results_root).ok();
 }
 
-/// report-paths: a run under the working directory must record `run_dir`
-/// relative to it, forward-slashed, never absolute — an artifact meant for
-/// `baselines/` (i.e. git) must not leak the local filesystem layout the way
-/// an absolute path would.
+/// A run under the working directory must record `run_dir` relative to it,
+/// forward-slashed, never absolute — an artifact meant for `baselines/` (i.e.
+/// git) must not leak the local filesystem layout the way an absolute path
+/// would.
 #[test]
 fn success_path_run_dir_is_recorded_relative_to_the_working_directory() {
     let sc = Scenario::load(&scenarios_root().join("prompts/ask-readonly")).unwrap();
@@ -1699,9 +1694,9 @@ fn success_path_run_dir_is_recorded_relative_to_the_working_directory() {
     std::fs::remove_dir_all(&results_root).ok();
 }
 
-/// report-paths: `regrade` must be able to take the exact (relative) string a
-/// prior run recorded in `run_dir` and locate the trial from the working
-/// directory, the same way a caller copying it out of a `report.json` would.
+/// `regrade` must be able to take the exact (relative) string a prior run
+/// recorded in `run_dir` and locate the trial from the working directory, the
+/// same way a caller copying it out of a `report.json` would.
 #[test]
 fn regrade_locates_a_run_dir_from_a_relative_run_dir() {
     let sc = Scenario::load(&scenarios_root().join("prompts/ask-readonly")).unwrap();
@@ -2103,9 +2098,9 @@ fn a_run_stopped_by_the_budget_cap_records_budget_truncated() {
     std::fs::remove_dir_all(&results_root).ok();
 }
 
-/// report-paths applies to the indeterminate write site too (a backend error
-/// takes a different code path to build `TrialResult`, but the same rule
-/// governs what it records for `run_dir`).
+/// The same relative-`run_dir` rule governs the indeterminate write site: a
+/// backend error takes a different code path to build `TrialResult`, and it
+/// must record `run_dir` the same way.
 #[test]
 fn indeterminate_trial_run_dir_is_also_recorded_relative_to_the_working_directory() {
     let sc_dir =
@@ -2866,10 +2861,9 @@ fn generic_seed_resolves_roots_without_domain_knowledge() {
     assert!(resolve_dest("no-prefix", &ctx).is_err());
 }
 
-/// target-matrix section 2: `--target` becomes mandatory for the `zs`
-/// backend — a missing target is a usage error (exit 2), fired before any
-/// trial runs (no `--zs-bin`/`ZS_BIN` is given, so a later failure would be
-/// for the wrong reason).
+/// `--target` is mandatory for the `zs` backend — a missing target is a usage
+/// error (exit 2), fired before any trial runs (no `--zs-bin`/`ZS_BIN` is
+/// given, so a later failure would be for the wrong reason).
 #[test]
 fn run_with_zs_backend_and_no_target_exits_2_before_any_trial() {
     let dir = no_rubric_scenario_dir("zs-no-target");
@@ -2884,9 +2878,8 @@ fn run_with_zs_backend_and_no_target_exits_2_before_any_trial() {
     assert!(stderr.contains("--target"), "stderr: {stderr}");
 }
 
-/// target-matrix section 2: `--target` is rejected for the `mock` backend —
-/// mock replays canned artifacts, so naming a target it would never read is
-/// a usage error.
+/// `--target` is rejected for the `mock` backend — mock replays canned
+/// artifacts, so naming a target it would never read is a usage error.
 #[test]
 fn run_with_mock_backend_and_target_exits_2() {
     let dir = no_rubric_scenario_dir("mock-with-target");
@@ -2917,9 +2910,9 @@ fn run_with_mock_backend_and_target_exits_2() {
     assert!(stderr.contains("--target"), "stderr: {stderr}");
 }
 
-/// target-matrix section 2: `--target` is unreachable for `mock`, so a mock
-/// run's model is a fixed `"mock"` label, not derived from an absent target
-/// (the old empty-target fallback label is now unreachable and deleted).
+/// `--target` is unreachable for `mock`, so a mock run's model is a fixed
+/// `"mock"` label, not derived from an absent target (the old empty-target
+/// fallback label is now unreachable and deleted).
 #[test]
 fn a_completed_mock_run_records_model_mock() {
     let dir = no_rubric_scenario_dir("mock-model-label");
@@ -2947,11 +2940,11 @@ fn a_completed_mock_run_records_model_mock() {
     assert_eq!(v["model"], "mock", "stdout: {stdout}");
 }
 
-/// target-matrix 4.5: N>1 `--target` has no single JSON report to print, so
-/// `run --json` is a usage error naming `zseval matrix --json` as the way to
-/// render N reports as one table. This must fire before any backend/budget
-/// setup (no `--zs-bin`/`ZS_BIN`, and the target files need not even exist),
-/// so a later failure for a different reason can't be mistaken for this gate.
+/// N>1 `--target` has no single JSON report to print, so `run --json` is a
+/// usage error naming `zseval matrix --json` as the way to render N reports as
+/// one table. This must fire before any backend/budget setup (no
+/// `--zs-bin`/`ZS_BIN`, and the target files need not even exist), so a later
+/// failure for a different reason can't be mistaken for this gate.
 #[test]
 fn run_json_with_more_than_one_target_exits_2_naming_matrix() {
     let dir = no_rubric_scenario_dir("json-multi-target");
@@ -2974,13 +2967,13 @@ fn run_json_with_more_than_one_target_exits_2_naming_matrix() {
     assert!(stderr.contains("zseval matrix --json"), "stderr: {stderr}");
 }
 
-/// target-matrix 4.5: the N>1 `--json` gate is keyed on target *count*, not
-/// on `--json` plus `--target` together — one `--target` with `--json` must
-/// reach past it to the next check (no `--zs-bin`/`ZS_BIN`), never the
-/// "matrix" usage error. Paired with `a_completed_mock_run_records_model_mock`
-/// (N=1 via `--backend mock`, no `--target` at all) this covers both N=1
-/// shapes; a live N=1 `zs --target --json` run needs a real `zerostack`
-/// binary this harness does not have.
+/// The N>1 `--json` gate is keyed on target *count*, not on `--json` plus
+/// `--target` together — one `--target` with `--json` must reach past it to
+/// the next check (no `--zs-bin`/`ZS_BIN`), never the "matrix" usage error.
+/// Paired with `a_completed_mock_run_records_model_mock` (N=1 via `--backend
+/// mock`, no `--target` at all) this covers both N=1 shapes; a live N=1 `zs
+/// --target --json` run needs a real `zerostack` binary this harness does not
+/// have.
 #[test]
 fn run_json_with_exactly_one_target_does_not_trip_the_multi_target_gate() {
     let dir = no_rubric_scenario_dir("json-single-target");
@@ -3005,10 +2998,10 @@ fn run_json_with_exactly_one_target_does_not_trip_the_multi_target_gate() {
     assert!(stderr.contains("--zs-bin"), "stderr: {stderr}");
 }
 
-/// target-matrix section 7: `matrix --json` is genuine end-to-end coverage
-/// for the CLI wiring at main.rs — it exits 0, its stdout parses as JSON,
-/// and the parsed value carries the matrix model itself (not just any
-/// JSON), by asserting on a real field (`columns`).
+/// `matrix --json` is genuine end-to-end coverage for the CLI wiring at
+/// main.rs — it exits 0, its stdout parses as JSON, and the parsed value
+/// carries the matrix model itself (not just any JSON), by asserting on a real
+/// field (`columns`).
 #[test]
 fn matrix_json_flag_exits_0_and_stdout_parses_as_the_matrix_model() {
     use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
@@ -3067,10 +3060,9 @@ fn matrix_json_flag_exits_0_and_stdout_parses_as_the_matrix_model() {
     assert_eq!(columns.len(), 1, "matrix json: {v}");
 }
 
-/// target-matrix section 7: `matrix --markdown` is genuine end-to-end
-/// coverage for the CLI wiring at main.rs:877-878 — `render_markdown` is
-/// unit-tested in matrix.rs, but the flag itself was never exercised
-/// through the binary until now.
+/// `matrix --markdown` is genuine end-to-end coverage for the CLI wiring at
+/// main.rs:877-878 — `render_markdown` is unit-tested in matrix.rs, but the
+/// flag itself was never exercised through the binary until now.
 #[test]
 fn matrix_markdown_flag_exits_0_and_stdout_is_a_markdown_table() {
     use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
@@ -3127,9 +3119,9 @@ fn matrix_markdown_flag_exits_0_and_stdout_is_a_markdown_table() {
     assert!(stdout.contains("markdown-scenario"), "stdout: {stdout}");
 }
 
-/// target-matrix section 7: with no format flag, `matrix` renders the fixed
-/// -width form, not markdown — the absence of the markdown separator row
-/// distinguishes the two renderers through the actual CLI wiring.
+/// With no format flag, `matrix` renders the fixed-width form, not markdown —
+/// the absence of the markdown separator row distinguishes the two renderers
+/// through the actual CLI wiring.
 #[test]
 fn matrix_with_no_format_flag_renders_fixed_width_not_markdown() {
     use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
@@ -3186,10 +3178,10 @@ fn matrix_with_no_format_flag_renders_fixed_width_not_markdown() {
     assert!(stdout.contains("fixed-width-scenario"), "stdout: {stdout}");
 }
 
-/// target-matrix design decision: `matrix` treats an all-holes / empty column
-/// as ungradable and exits 2. A report with a valid target but *zero*
-/// scenarios yields an empty column that contributes nothing but holes, so the
-/// matrix is ungradable even though the report's own `exit_code` would be 0.
+/// `matrix` treats an all-holes / empty column as ungradable and exits 2. A
+/// report with a valid target but *zero* scenarios yields an empty column that
+/// contributes nothing but holes, so the matrix is ungradable even though the
+/// report's own `exit_code` would be 0.
 #[test]
 fn matrix_over_a_zero_scenario_report_exits_2() {
     use zseval::verdict::{Report, ReportMeta};
@@ -3224,11 +3216,11 @@ fn matrix_over_a_zero_scenario_report_exits_2() {
     );
 }
 
-/// zseval-site 4.3 (spec `matrix-render`, "`matrix` gains no HTML flag"):
-/// the third renderer is reachable only through `site`. `matrix` keeps the
-/// surface it had — fixed-width by default, markdown under `--markdown`, JSON
-/// under `--json` — and `--html` is a usage error like any other unknown flag,
-/// so no combination of `matrix`'s own flags can emit HTML.
+/// `matrix` gains no HTML flag: the third renderer is reachable only through
+/// `site`. `matrix` keeps the surface it had — fixed-width by default,
+/// markdown under `--markdown`, JSON under `--json` — and `--html` is a usage
+/// error like any other unknown flag, so no combination of `matrix`'s own
+/// flags can emit HTML.
 #[test]
 fn matrix_gains_no_html_flag_and_emits_no_html_under_its_own_flags() {
     use zseval::verdict::{Final, Report, ReportMeta, ScenarioResult, TrialResult};
@@ -3318,11 +3310,10 @@ fn prompt_pack_dir(name: &str) -> PathBuf {
     dir
 }
 
-/// prompts-pack 1.4 (spec `prompts-pack-run`, "run accepts a single prompt
-/// pack"): `--prompts` is single-arity, the opposite of `--target`. A run
-/// evaluates exactly one pack; two packs is two runs joined by `matrix`. The
-/// gate fires before anything reads the directories, so the paths given here
-/// need not exist.
+/// A run accepts a single prompt pack: `--prompts` is single-arity, the
+/// opposite of `--target`. A run evaluates exactly one pack; two packs is two
+/// runs joined by `matrix`. The gate fires before anything reads the
+/// directories, so the paths given here need not exist.
 #[test]
 fn run_with_two_prompts_flags_exits_2_naming_the_single_arity_rule() {
     let dir = no_rubric_scenario_dir("two-prompts");
@@ -3346,11 +3337,10 @@ fn run_with_two_prompts_flags_exits_2_naming_the_single_arity_rule() {
     assert!(stderr.contains("matrix"), "stderr: {stderr}");
 }
 
-/// prompts-pack 1.4 (spec `prompts-pack-run`, "--prompts is rejected under
-/// the mock backend"): mock replays canned artifacts and never constructs a
-/// zerostack invocation, so a pack could not possibly be read — accepting the
-/// flag would produce a report advertising a pack nothing loaded. Mirrors the
-/// existing `--target` rejection under mock.
+/// `--prompts` is rejected under the mock backend: mock replays canned
+/// artifacts and never constructs a zerostack invocation, so a pack could not
+/// possibly be read — accepting the flag would produce a report advertising a
+/// pack nothing loaded. Mirrors the existing `--target` rejection under mock.
 #[test]
 fn run_with_mock_backend_and_prompts_exits_2() {
     let dir = no_rubric_scenario_dir("mock-with-prompts");
@@ -3374,11 +3364,10 @@ fn run_with_mock_backend_and_prompts_exits_2() {
     assert!(stderr.contains("mock"), "stderr: {stderr}");
 }
 
-/// prompts-pack 1.4 (spec `prompts-pack-run`, "a pack contains only files
-/// zerostack will read"): a malformed pack is a usage error before any trial
-/// spends money. No `--zs-bin`/`ZS_BIN` is given, so if the pack were
-/// validated after backend setup this would fail for the wrong reason — the
-/// message assertion is what tells the two apart.
+/// A pack contains only files zerostack will read, so a malformed pack is a
+/// usage error before any trial spends money. No `--zs-bin`/`ZS_BIN` is given,
+/// so if the pack were validated after backend setup this would fail for the
+/// wrong reason — the message assertion is what tells the two apart.
 #[test]
 fn run_with_a_pack_containing_a_subdirectory_exits_2_before_any_trial() {
     let dir = no_rubric_scenario_dir("pack-subdir");
@@ -3408,10 +3397,10 @@ fn run_with_a_pack_containing_a_subdirectory_exits_2_before_any_trial() {
     );
 }
 
-/// prompts-pack 1.5, the control for the three rejections above: a *valid*
-/// pack passes validation and the run reaches the next check (no
-/// `--zs-bin`/`ZS_BIN`), so the exit-2s above are the pack gates firing
-/// rather than `--prompts` being rejected out of hand.
+/// The control for the three rejections above: a *valid* pack passes
+/// validation and the run reaches the next check (no `--zs-bin`/`ZS_BIN`), so
+/// the exit-2s above are the pack gates firing rather than `--prompts` being
+/// rejected out of hand.
 #[test]
 fn run_with_a_valid_pack_passes_validation_and_reaches_the_next_check() {
     let dir = no_rubric_scenario_dir("valid-pack");
@@ -3438,9 +3427,9 @@ fn run_with_a_valid_pack_passes_validation_and_reaches_the_next_check() {
     assert!(stderr.contains("--zs-bin"), "stderr: {stderr}");
 }
 
-/// prompts-pack 1.5, the second control: the same suite with no `--prompts`
-/// at all still runs to completion and exits 0, so "exit 2" above means the
-/// flag's own gates and not a suite that could never have passed.
+/// The second control: the same suite with no `--prompts` at all still runs to
+/// completion and exits 0, so "exit 2" above means the flag's own gates and
+/// not a suite that could never have passed.
 #[test]
 fn run_without_prompts_still_exits_0() {
     let dir = no_rubric_scenario_dir("no-prompts-control");
@@ -3466,7 +3455,7 @@ fn run_without_prompts_still_exits_0() {
 }
 
 // ---------------------------------------------------------------------------
-// prompts-pack 2: seeding the pack into every trial
+// Seeding the pack into every trial
 // ---------------------------------------------------------------------------
 
 /// Write an executable stub `--zs-bin` script (`.claude/skills/verify/SKILL.md`)
@@ -3491,9 +3480,9 @@ fn write_stub_zs_bin(bin: &Path, listing_log: &Path) {
 
 /// Write an executable stub `--zs-bin` script that resolves a prompt the way
 /// zerostack does and records what it resolved, so a run driven by it
-/// exercises the session readback (design D3) rather than the harness's own
-/// derivation: the prompt name is `--load-prompt`'s argument (else the `code`
-/// fallback), and its source is `user_file` when a matching
+/// exercises the session readback rather than the harness's own derivation:
+/// the prompt name is `--load-prompt`'s argument (else the `code` fallback),
+/// and its source is `user_file` when a matching
 /// `.zerostack/prompts/<name>.md` exists in the working directory the child
 /// was given, `built_in` otherwise.
 ///
@@ -3545,13 +3534,12 @@ fn scratch_dir(name: &str) -> PathBuf {
     dir
 }
 
-/// prompts-pack 2.1 (spec `prompts-pack-run`, "The pack is seeded into every
-/// trial"): every trial gets its own `ZsCli::run` call with a fresh run_dir
-/// (the trial loop lives in `runner::run_trials_for_scenario`, outside
-/// `ZsCli` itself), so calling `run` twice with two run_dirs stands in for
-/// two trials. The stub records what its own cwd looked like, proving the
-/// pack lands where the child process actually looks, not merely somewhere
-/// under the run_dir.
+/// The pack is seeded into every trial: each one gets its own `ZsCli::run`
+/// call with a fresh run_dir (the trial loop lives in
+/// `runner::run_trials_for_scenario`, outside `ZsCli` itself), so calling
+/// `run` twice with two run_dirs stands in for two trials. The stub records
+/// what its own cwd looked like, proving the pack lands where the child
+/// process actually looks, not merely somewhere under the run_dir.
 #[test]
 fn zscli_seeds_the_pack_into_every_trial() {
     let pack_dir = scratch_dir("seed-pack-src");
@@ -3587,9 +3575,9 @@ fn zscli_seeds_the_pack_into_every_trial() {
     std::fs::remove_dir_all(&sc_dir).ok();
 }
 
-/// prompts-pack 2.2 (spec `prompts-pack-run`, "A scenario's own prompt seed
-/// wins over the pack"): the pack is copied before `seed::apply`, so a
-/// scenario placement with the same destination lands last and wins.
+/// A scenario's own prompt seed wins over the pack: the pack is copied before
+/// `seed::apply`, so a scenario placement with the same destination lands last
+/// and wins.
 #[test]
 fn scenario_seeded_prompt_overrides_the_pack() {
     let pack_dir = scratch_dir("precedence-pack-src");
@@ -3625,10 +3613,9 @@ fn scenario_seeded_prompt_overrides_the_pack() {
     std::fs::remove_dir_all(&sc_dir).ok();
 }
 
-/// prompts-pack 2.3 (spec `prompts-pack-run`, "Without the flag nothing is
-/// seeded"): with no pack, `ZsCli::run` must not create
-/// `work:.zerostack/prompts/` at all — a scenario placing its own file there
-/// still can (that's a scenario concern, not the harness's).
+/// Without the flag nothing is seeded: with no pack, `ZsCli::run` must not
+/// create `work:.zerostack/prompts/` at all — a scenario placing its own file
+/// there still can (that's a scenario concern, not the harness's).
 #[test]
 fn zscli_without_a_pack_creates_no_prompts_dir() {
     let sc_dir = no_rubric_scenario_dir("no-pack-no-dir");
@@ -3653,7 +3640,7 @@ fn zscli_without_a_pack_creates_no_prompts_dir() {
 }
 
 // ---------------------------------------------------------------------------
-// prompts-pack 4: the pack's identity on the report
+// The pack's identity on the report
 // ---------------------------------------------------------------------------
 
 /// A `RunOptions` for a stub-`ZsCli` run: single trial, no judge (the
@@ -3672,12 +3659,11 @@ fn pack_run_opts(tag: &str, results_root: PathBuf) -> RunOptions {
     }
 }
 
-/// prompts-pack 4.1 (spec `prompts-pack-identity`, "Report carries the pack's
-/// identity"): a run with a pack records the working-directory-relative,
-/// forward-slashed path, the fingerprint, and the sorted prompt names. The
-/// identity comes from the backend that actually seeded the pack, derived
-/// inside `run_suite`, so this drives a real `run_suite` against a stub bin
-/// rather than building a `Report` by hand.
+/// The report carries the pack's identity: a run with a pack records the
+/// working-directory-relative, forward-slashed path, the fingerprint, and the
+/// sorted prompt names. The identity comes from the backend that actually
+/// seeded the pack, derived inside `run_suite`, so this drives a real
+/// `run_suite` against a stub bin rather than building a `Report` by hand.
 #[test]
 fn a_pack_run_records_its_relative_path_hash_and_sorted_names() {
     // Under the working directory, so the recorded path is relative.
@@ -3721,10 +3707,9 @@ fn a_pack_run_records_its_relative_path_hash_and_sorted_names() {
     std::fs::remove_dir_all(&results_root).ok();
 }
 
-/// prompts-pack 4.1 (spec `prompts-pack-identity`, the path rule): a pack
-/// outside the working directory records its bare directory name, never an
-/// absolute path — a report is meant to be committed into `baselines/`, so it
-/// must not become a map of someone's filesystem.
+/// The path rule: a pack outside the working directory records its bare
+/// directory name, never an absolute path — a report is meant to be committed
+/// into `baselines/`, so it must not become a map of someone's filesystem.
 #[test]
 fn a_pack_outside_the_working_directory_records_its_bare_name() {
     let pack_dir =
@@ -3763,9 +3748,8 @@ fn a_pack_outside_the_working_directory_records_its_bare_name() {
     std::fs::remove_dir_all(&results_root).ok();
 }
 
-/// prompts-pack 4.2 (spec `prompts-pack-identity`, "A run without a pack
-/// records empties"): a `mock` run (which never carries a pack) records the
-/// three fields empty on its report.
+/// A run without a pack records empties: a `mock` run (which never carries a
+/// pack) records the three fields empty on its report.
 #[test]
 fn a_run_without_a_pack_records_empty_pack_identity() {
     let sc_dir = no_rubric_scenario_dir("no-pack-identity");
@@ -3787,23 +3771,22 @@ fn a_run_without_a_pack_records_empty_pack_identity() {
 }
 
 // ---------------------------------------------------------------------------
-// prompts-pack 6: resolve which prompt each scenario actually loaded
+// Resolving which prompt each scenario actually loaded
 // ---------------------------------------------------------------------------
 
-/// prompts-pack 6.5 (spec `prompts-pack-identity`, "Each scenario records the
-/// prompt it actually loaded"): drive a mixed suite through a stub bin with a
-/// one-prompt pack (`code.md`) and read the per-scenario `prompt_name` /
-/// `prompt_source` back off the emitted report. Five scenarios span three
-/// sources, so the fields are shown to discriminate rather than print one
-/// constant: a declared name the pack provides (`pack`), a declared name it
-/// lacks (`stock`), a scenario seeding its own same-named file (`scenario`),
-/// a no-prompt scenario whose `code` default the pack provides (`pack`), and
-/// a scenario that seeds the effective config, which the harness once
-/// recorded `unknown` for and now reads back like any other (design D3).
+/// Each scenario records the prompt it actually loaded: drive a mixed suite
+/// through a stub bin with a one-prompt pack (`code.md`) and read the
+/// per-scenario `prompt_name` / `prompt_source` back off the emitted report.
+/// Five scenarios span three sources, so the fields are shown to discriminate
+/// rather than print one constant: a declared name the pack provides (`pack`),
+/// a declared name it lacks (`stock`), a scenario seeding its own same-named
+/// file (`scenario`), a no-prompt scenario whose `code` default the pack
+/// provides (`pack`), and a scenario that seeds the effective config, which
+/// the harness once recorded `unknown` for and now reads back like any other.
 ///
 /// The stub reports what it resolved (`write_prompt_reporting_stub_zs_bin`),
-/// so these values come off the session readback rather than off the
-/// harness's own derivation of what it seeded.
+/// so these values come off the session readback rather than off the harness's
+/// own derivation of what it seeded.
 #[test]
 fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
     use zseval::verdict::PromptSource;
@@ -3926,13 +3909,13 @@ fn a_mixed_suite_records_a_distinct_prompt_source_per_scenario() {
 }
 
 // ---------------------------------------------------------------------------
-// prompts-pack 7: warn when a seeded pack was never loaded
+// Warning when a seeded pack was never loaded
 // ---------------------------------------------------------------------------
 
-/// A minimal target config for the section 7 CLI runs: an absolute path so it
-/// resolves regardless of the test binary's own working directory (unlike
-/// `targets/anthropic.toml`, which the section 1 gate tests reference only
-/// because they exit before it is ever read).
+/// A minimal target config for the never-loaded CLI runs below: an absolute
+/// path so it resolves regardless of the test binary's own working directory
+/// (unlike `targets/anthropic.toml`, which the `--prompts` gate tests above
+/// reference only because they exit before it is ever read).
 fn scratch_target_toml(name: &str) -> PathBuf {
     let dir = scratch_dir(&format!("s7-target-{name}"));
     let path = dir.join("target.toml");
@@ -3944,14 +3927,13 @@ fn scratch_target_toml(name: &str) -> PathBuf {
     path
 }
 
-/// prompts-pack 7.1 (spec `prompts-pack-identity`, "A pack that never loads
-/// is reported"): a pack whose only name (`my-code`) no scenario resolves to
-/// leaves every scenario at `stock`/`scenario`/`unknown`, never `pack` — the
-/// run must warn on its own output rather than let the report advertise a
-/// pack the built-in prompts actually answered for. Driven through the real
-/// CLI (not `run_suite` in-process) so the warning can be read off the
-/// child's own captured stderr, the same way every other CLI-level assertion
-/// in this file works.
+/// A pack that never loads is reported: a pack whose only name (`my-code`) no
+/// scenario resolves to leaves every scenario at `stock`/`scenario`/`unknown`,
+/// never `pack` — the run must warn on its own output rather than let the
+/// report advertise a pack the built-in prompts actually answered for. Driven
+/// through the real CLI (not `run_suite` in-process) so the warning can be
+/// read off the child's own captured stderr, the same way every other
+/// CLI-level assertion in this file works.
 #[test]
 fn a_pack_no_scenario_calls_warns_it_was_never_loaded() {
     let dir = scratch_dir("s7-never-loaded-sc");
@@ -4001,11 +3983,10 @@ fn a_pack_no_scenario_calls_warns_it_was_never_loaded() {
     assert!(stderr.contains("never loaded"), "stderr: {stderr}");
 }
 
-/// prompts-pack 7.2 (spec `prompts-pack-identity`, "A partially-used pack is
-/// visible per scenario"): when some scenarios resolve `pack` and others
-/// don't, the pack *was* loaded, so the never-loaded warning must not fire —
-/// the per-scenario `prompt_source` field is what stays honest about the
-/// partial case.
+/// A partially-used pack stays visible per scenario: when some scenarios
+/// resolve `pack` and others don't, the pack *was* loaded, so the never-loaded
+/// warning must not fire — the per-scenario `prompt_source` field is what
+/// stays honest about the partial case.
 #[test]
 fn a_partially_used_pack_emits_no_never_loaded_warning() {
     let suite = scratch_dir("s7-partial-suite");
@@ -4062,13 +4043,13 @@ fn a_partially_used_pack_emits_no_never_loaded_warning() {
     assert!(!stderr.contains("never loaded"), "stderr: {stderr}");
 }
 
-/// coverage-ledger section 4: `scenarios/coverage.toml` must stay in sync
-/// with the real scenario tree in both directions — every id a `covered`
-/// claim cites must exist under `scenario_roots`, and every scenario under
-/// `scenario_roots` (`scenarios/` and `examples/prompt-pack/`) must be
-/// claimed by exactly one of them. `unwrap_or_else` rather than a bare
-/// `assert!` so a failure prints `check_drift`'s message, which names every
-/// offending id, instead of collapsing to "false".
+/// `scenarios/coverage.toml` must stay in sync with the real scenario tree in
+/// both directions — every id a `covered` claim cites must exist under
+/// `scenario_roots`, and every scenario under `scenario_roots` (`scenarios/`
+/// and `examples/prompt-pack/`) must be claimed by exactly one of them.
+/// `unwrap_or_else` rather than a bare `assert!` so a failure prints
+/// `check_drift`'s message, which names every offending id, instead of
+/// collapsing to "false".
 #[test]
 fn the_coverage_ledger_matches_the_real_scenario_tree() {
     let root = repo_root();
@@ -4197,15 +4178,15 @@ fn the_coverage_ledger_declares_exactly_the_specified_areas() {
     );
 }
 
-/// specs/coverage-ledger/spec.md's "A malformed ledger does not break a run"
-/// scenario: no run-path code reads `coverage.toml`, so it is deliberately
-/// invisible there and a syntactically invalid one must change nothing.
+/// A malformed ledger does not break a run: no run-path code reads
+/// `coverage.toml`, so it is deliberately invisible there and a syntactically
+/// invalid one must change nothing.
 ///
 /// Both surfaces, because they fail in different places. `list` proves
-/// discovery walks past the file; `run` is the command the spec scenario and
-/// tasks.md 5.1 actually name, and it reaches suite loading, the trial loop and
-/// report writing, none of which `list` touches. The mock backend replays a
-/// canned session, so covering the real command costs no API key and no spend.
+/// discovery walks past the file; `run` is the command that actually spends,
+/// and it reaches suite loading, the trial loop and report writing, none of
+/// which `list` touches. The mock backend replays a canned session, so
+/// covering the real command costs no API key and no spend.
 #[test]
 fn a_malformed_coverage_ledger_does_not_break_a_run() {
     let dir = std::env::temp_dir().join(format!(
@@ -4268,12 +4249,10 @@ fn a_malformed_coverage_ledger_does_not_break_a_run() {
     assert!(!run_err.contains("coverage"), "stderr: {run_err}");
 }
 
-/// zseval-site tasks.md 6.2: `site` driven as a real subprocess over a real
-/// mock-backend report, checked against the committed ledger and scenario
-/// tree — the ledger's first real reader (proposal.md: "coverage-ledger
-/// shipped a written contract with no caller"). One assertion per section
-/// the page renders: header (section 2), results (section 3), coverage
-/// (section 4).
+/// `site` driven as a real subprocess over a real mock-backend report, checked
+/// against the committed ledger and scenario tree — the ledger's first real
+/// reader, after shipping as a written contract nothing called. One assertion
+/// per section the page renders: header, results, coverage.
 #[test]
 fn site_renders_a_mock_run_against_the_real_ledger() {
     let root = repo_root();
@@ -4366,16 +4345,14 @@ fn site_renders_a_mock_run_against_the_real_ledger() {
     );
 }
 
-/// zseval-site tasks.md 8.1, covering spec.md's "Rendering spends nothing"
-/// scenario, which had no test: `site` must write its page with no API key
+/// Rendering spends nothing: `site` must write its page with no API key
 /// present and no network reachable. The report comes from a real `run`
-/// against the mock backend (that half is not the scenario under test, so
-/// its environment is left alone); only the `site` invocation has its
-/// environment scrubbed, both the four provider keys and `ZS_BIN` (`site`
-/// reads a report, never the binary), plus a proxy that refuses every
-/// connection. A zero connection count is the real assertion: surviving
-/// without a key only shows nothing demanded one, a zero counter shows
-/// nothing was dialled.
+/// against the mock backend (that half is not the scenario under test, so its
+/// environment is left alone); only the `site` invocation has its environment
+/// scrubbed, both the four provider keys and `ZS_BIN` (`site` reads a report,
+/// never the binary), plus a proxy that refuses every connection. A zero
+/// connection count is the real assertion: surviving without a key only shows
+/// nothing demanded one, a zero counter shows nothing was dialled.
 #[test]
 fn site_renders_with_no_api_key_and_no_network() {
     let root = repo_root();

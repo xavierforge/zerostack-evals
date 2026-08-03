@@ -213,9 +213,8 @@ impl Flags {
     }
     /// Every occurrence of `k`, in the order given on the command line —
     /// unlike `get`, which only surfaces the last one. `--target` is
-    /// repeatable (design.md: "Repeatable `--target`"), so `cmd_run` reaches
-    /// for this to build the N-target loop (`run_over_targets`) instead of
-    /// `get`'s last-wins single value.
+    /// repeatable, so `cmd_run` reaches for this to build the N-target loop
+    /// (`run_over_targets`) instead of `get`'s last-wins single value.
     fn get_all(&self, k: &str) -> Vec<&str> {
         self.kv
             .iter()
@@ -225,15 +224,15 @@ impl Flags {
     }
 }
 
-/// The three ways `--judge` / `--no-judge` can resolve (design.md decision
-/// 4, spec `judge-selection`): an explicit file (with the card already
-/// loaded and validated), an explicit opt-out, or neither flag given at all.
+/// The three ways `--judge` / `--no-judge` can resolve: an explicit file (with
+/// the card already loaded and validated), an explicit opt-out, or neither
+/// flag given at all.
 ///
 /// `Unspecified` is deliberately not folded into `NoJudge`: whether it's
 /// treated as "no judge" or as a loud mandatory-choice error depends on
-/// whether the suite actually has rubric scenarios to grade — a decision
-/// only the caller (`cmd_run`/`cmd_regrade`, after `discover`/`Scenario::load`)
-/// can make, since `resolve_judge` itself never looks at scenarios.
+/// whether the suite actually has rubric scenarios to grade — a decision only
+/// the caller (`cmd_run`/`cmd_regrade`, after `discover`/`Scenario::load`) can
+/// make, since `resolve_judge` itself never looks at scenarios.
 #[derive(Debug)]
 enum JudgeChoice {
     File(PathBuf, zseval::judge::JudgeConfig),
@@ -244,14 +243,14 @@ enum JudgeChoice {
 /// Resolve `--judge` / `--no-judge` into a `JudgeChoice`.
 ///
 /// `--judge` is single-arity on purpose — the opposite of `--target`. A
-/// matrix's premise is that everything except the target is held fixed, so
-/// the ruler must not vary with the column: two `--judge` flags is a usage
-/// error, not a last-one-wins pick.
+/// matrix's premise is that everything except the target is held fixed, so the
+/// ruler must not vary with the column: two `--judge` flags is a usage error,
+/// not a last-one-wins pick.
 ///
-/// `JudgeConfig` has no built-in default (see `judge-provider-card` section
-/// 2: no committed card, no ruler) — when neither flag is given this returns
-/// `Unspecified` rather than a pinned stand-in; it is the caller's job to
-/// turn that into a mandatory-choice error for a rubric suite (section 4.2).
+/// `JudgeConfig` has no built-in default — no committed card, no ruler — so
+/// when neither flag is given this returns `Unspecified` rather than a pinned
+/// stand-in; it is the caller's job to turn that into a mandatory-choice error
+/// for a rubric suite (see `require_judge_decision`).
 fn resolve_judge(f: &Flags) -> anyhow::Result<JudgeChoice> {
     if f.count("judge") > 1 {
         anyhow::bail!(
@@ -283,12 +282,12 @@ fn resolve_judge(f: &Flags) -> anyhow::Result<JudgeChoice> {
 
 /// Stand-in used whenever no real judge will grade: `--no-judge`, or
 /// `Unspecified` on a suite with no rubric scenarios (see
-/// `require_judge_decision`). `JudgeConfig` has no built-in default (section
-/// 2 of `judge-provider-card` removed it deliberately: no committed card, no
-/// ruler), so there is nothing to build a real `LlmJudge` from in either
-/// case. This reports itself unavailable and errors loudly if ever actually
-/// asked to grade — which should never happen, since both cases above are
-/// only reached when no scenario has a rubric, or `--no-judge` was explicit.
+/// `require_judge_decision`). `JudgeConfig` has no built-in default —
+/// deliberately, since no committed card means no ruler — so there is nothing
+/// to build a real `LlmJudge` from in either case. This reports itself
+/// unavailable and errors loudly if ever actually asked to grade — which
+/// should never happen, since both cases above are only reached when no
+/// scenario has a rubric, or `--no-judge` was explicit.
 struct NoJudgeConfigured;
 
 impl zseval::judge::Judge for NoJudgeConfigured {
@@ -310,12 +309,12 @@ impl zseval::judge::Judge for NoJudgeConfigured {
     }
 }
 
-/// The mandatory-choice gate (spec `judge-selection`): a suite with at least
-/// one rubric scenario must have an explicit judge decision. `Unspecified` is
-/// fine when nothing needs grading (`has_rubric` false) — there is nothing to
-/// decide — but is a loud, exit-2 usage error the moment a rubric exists,
-/// naming both flags so the fix is obvious. Runs right after
-/// discovery/loading and before any trial, backend setup, or preflight probe.
+/// The mandatory-choice gate: a suite with at least one rubric scenario must
+/// have an explicit judge decision. `Unspecified` is fine when nothing needs
+/// grading (`has_rubric` false) — there is nothing to decide — but is a loud,
+/// exit-2 usage error the moment a rubric exists, naming both flags so the fix
+/// is obvious. Runs right after discovery/loading and before any trial,
+/// backend setup, or preflight probe.
 fn require_judge_decision(has_rubric: bool, choice: &JudgeChoice) -> anyhow::Result<()> {
     if has_rubric && matches!(choice, JudgeChoice::Unspecified) {
         anyhow::bail!(
@@ -327,17 +326,17 @@ fn require_judge_decision(has_rubric: bool, choice: &JudgeChoice) -> anyhow::Res
 }
 
 /// Turns a resolved `JudgeChoice` into what the rest of `cmd_run`/
-/// `cmd_regrade` need: the file to record, whether grading should be
-/// skipped, and the `Judge` to grade with. Only ever called after
-/// `require_judge_decision` has passed, so `Unspecified` here is only ever
-/// the no-rubric case and is handled exactly like `NoJudge`.
+/// `cmd_regrade` need: the file to record, whether grading should be skipped,
+/// and the `Judge` to grade with. Only ever called after
+/// `require_judge_decision` has passed, so `Unspecified` here is only ever the
+/// no-rubric case and is handled exactly like `NoJudge`.
 ///
-/// When a real judge is resolved AND the suite actually has a rubric to
-/// grade, this runs `LlmJudge::preflight()` before returning — before any
-/// trial, per spec `judge-preflight` — so a broken judge (bad key, wrong
-/// model, truncated output) fails loudly here rather than mid-suite. A
-/// `--judge` given for a suite with no rubric at all skips the probe: there
-/// is nothing to preflight when the judge will never actually be called.
+/// When a real judge is resolved AND the suite actually has a rubric to grade,
+/// this runs `LlmJudge::preflight()` before returning — before any trial — so
+/// a broken judge (bad key, wrong model, truncated output) fails loudly here
+/// rather than mid-suite. A `--judge` given for a suite with no rubric at all
+/// skips the probe: there is nothing to preflight when the judge will never
+/// actually be called.
 fn judge_for(
     choice: JudgeChoice,
     has_rubric: bool,
@@ -435,9 +434,9 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         None => None,
     };
 
-    // N reports have no single JSON form (design.md: "`run --json` at N>1 is
-    // a usage error"). Checked before backend/budget setup, so this is a
-    // pure usage error rather than a partial run.
+    // N reports have no single JSON form, so `run --json` at N>1 is a usage
+    // error. Checked before backend/budget setup, so this stays a pure usage
+    // error rather than a partial run.
     if f.has("json") && multi {
         anyhow::bail!(
             "run --json accepts at most one --target ({} given): N reports have no single \
@@ -541,22 +540,21 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     }
 
     // Most severe across columns, via each report's own `exit_code`. Note this
-    // scores an *empty* (budget-truncated-to-zero) column 0, not 2: a budget cut
-    // is a recorded fact (`budget_truncated`), not a harness error, so it must
-    // not fail the run. `matrix` deliberately differs (an all-holes column exits
-    // 2 there) — see design.md, "`run` and `matrix` diverge on a zero-scenario
-    // column, deliberately".
+    // scores an *empty* (budget-truncated-to-zero) column 0, not 2: a budget
+    // cut is a recorded fact (`budget_truncated`), not a harness error, so it
+    // must not fail the run. `matrix` deliberately differs (an all-holes
+    // column exits 2 there): the two commands diverge on a zero-scenario
+    // column on purpose.
     Ok(ExitCode::from(
         reports.iter().map(Report::exit_code).max().unwrap_or(0),
     ))
 }
 
-/// The non-`--json` end-of-run output: per-target summary lines, each
-/// report's path, and — at N>1 — the scenario x target table built by the
-/// same renderer `matrix` uses (target-matrix section 8). Everything here
-/// writes only to `err`; the caller passes `stderr()` in production and a
-/// `Vec<u8>` buffer in tests, which is how target-matrix 8.1 ("the table
-/// lands on stderr while stdout stays clean") is verified without a
+/// The non-`--json` end-of-run output: per-target summary lines, each report's
+/// path, and — at N>1 — the scenario x target table built by the same renderer
+/// `matrix` uses. Everything here writes only to `err`; the caller passes
+/// `stderr()` in production and a `Vec<u8>` buffer in tests, which is how "the
+/// table lands on stderr while stdout stays clean" is verified without a
 /// subprocess: this function has no way to reach stdout at all, by
 /// construction, since it only ever receives one writer.
 fn print_run_report_summaries(
@@ -567,10 +565,9 @@ fn print_run_report_summaries(
     err: &mut impl std::io::Write,
 ) -> anyhow::Result<()> {
     for (i, report) in reports.iter().enumerate() {
-        // Rates are undefined when nothing was gradable — show n/a rather
-        // than 0, per line: an empty kind must not borrow the overall
-        // report's gradable count to decide its own n/a (trustworthy-numbers
-        // design D5).
+        // Rates are undefined when nothing was gradable — show n/a rather than
+        // 0, per line: an empty kind must not borrow the overall report's
+        // gradable count to decide its own n/a.
         let rate = |v: f64, n_gradable: usize| {
             if n_gradable == 0 {
                 "  n/a".to_string()
@@ -581,7 +578,7 @@ fn print_run_report_summaries(
         // Three lines, in this fixed order: the historical blended overall
         // renders last, since a number that averages expected-low capability
         // probes into contract regressions is the least interpretable of the
-        // three (design D5).
+        // three.
         for (i, (label, kind_summary)) in [
             ("regression", &report.summary.regression),
             ("capability", &report.summary.capability),
@@ -655,20 +652,19 @@ struct MultiTargetConfig {
 }
 
 /// Evaluate `scenarios` against every target in `targets`, sequentially, each
-/// against a fresh backend from `make_backend`, under one shared budget
-/// (target-matrix 4.3, design.md "Budget is one shared total; truncation is
-/// marked"): a target's own cap is `max_total_usd - spent_so_far`, so what an
-/// earlier target already spent comes out of what is left for the next one,
-/// rather than every target getting its own full `--max-total-usd`.
-/// `run_suite`'s existing per-scenario break (it stops before a scenario once
-/// `spent >= cap`) needs no change for this: a cap clamped to `0.0` (spend
-/// can overrun a cap that is only checked between scenarios, so the naive
-/// subtraction can go negative) just makes that break fire before the
-/// target's very first scenario, shutting a fully-out-of-budget target out
-/// entirely.
+/// against a fresh backend from `make_backend`, under one shared budget — one
+/// total across every target, with truncation marked: a target's own cap is
+/// `max_total_usd - spent_so_far`, so what an earlier target already spent
+/// comes out of what is left for the next one, rather than every target
+/// getting its own full `--max-total-usd`. `run_suite`'s existing per-scenario
+/// break (it stops before a scenario once `spent >= cap`) needs no change for
+/// this: a cap clamped to `0.0` (spend can overrun a cap that is only checked
+/// between scenarios, so the naive subtraction can go negative) just makes
+/// that break fire before the target's very first scenario, shutting a
+/// fully-out-of-budget target out entirely.
 ///
-/// `targets.len() > 1` decides `multi_target` on every `RunOptions` built
-/// here — including the `targets.len() == 1` case, which is the ordinary
+/// `targets.len() > 1` decides `multi_target` on every `RunOptions` built here
+/// — including the `targets.len() == 1` case, which is the ordinary
 /// single-target `zs` run (only `--backend mock=` never reaches this
 /// function).
 fn run_over_targets(
@@ -931,11 +927,11 @@ fn cmd_list(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// `matrix <report.json>...`: a pure renderer over existing reports
-/// (target-matrix section 7). Makes no API calls and writes nothing to
-/// disk — `matrix::build` (section 5) does the modelling; this command only
-/// does the identity/overlap validation `build` deliberately leaves to its
-/// caller (it has no file path to name in an error), and picks a renderer.
+/// `matrix <report.json>...`: a pure renderer over existing reports. Makes no
+/// API calls and writes nothing to disk — `matrix::build` does the modelling;
+/// this command only does the identity/overlap validation `build` deliberately
+/// leaves to its caller (it has no file path to name in an error), and picks a
+/// renderer.
 fn cmd_matrix(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     let f = parse_flags(rest, &[], &["json", "markdown"])?;
     if f.has("json") && f.has("markdown") {
@@ -952,8 +948,8 @@ fn cmd_matrix(rest: Vec<String>) -> anyhow::Result<ExitCode> {
         .collect::<anyhow::Result<_>>()?;
 
     // A target-less report has no column identity — rejected on that field
-    // alone, per design.md ("Incomparability is layered, and content-based"),
-    // never by gating on `schema_version`.
+    // alone, because incomparability is layered and content-based, never by
+    // gating on `schema_version`.
     for (path, r) in &reports {
         if r.target.is_empty() {
             anyhow::bail!(
@@ -1018,11 +1014,10 @@ fn cmd_site(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     site_to(rest, &mut std::io::stdout())
 }
 
-/// The ledger the page is read against, relative to the repository root
-/// (design D10). `--ledger` overrides it for tests; it is not a general
-/// option, and the repo root the drift check walks is derived from whichever
-/// of the two is in play, so a fixture ledger is checked against the fixture
-/// tree beside it.
+/// The ledger the page is read against, relative to the repository root.
+/// `--ledger` overrides it for tests; it is not a general option, and the repo
+/// root the drift check walks is derived from whichever of the two is in play,
+/// so a fixture ledger is checked against the fixture tree beside it.
 const COVERAGE_LEDGER: &str = "scenarios/coverage.toml";
 
 /// Writes `page` at `out_path` without ever leaving a truncated file there.
@@ -1050,17 +1045,17 @@ fn write_page_atomically(out_path: &str, page: &str) -> anyhow::Result<()> {
 /// gives `stdout()` in production and a `Vec<u8>` in tests, which is how the
 /// emitted model is asserted on without a subprocess.
 ///
-/// The order below is the contract, not an implementation detail (spec: "The
-/// drift check gates generation"): load the report, load the ledger, run the
-/// drift check, build the model, render it, write it, and only then emit the
+/// The order below is the contract, not an implementation detail — the drift
+/// check gates generation: load the report, load the ledger, run the drift
+/// check, build the model, render it, write it, and only then emit the
 /// `--json` model. A ledger that disagrees with the tree would make the
 /// coverage section describe scenarios that do not exist, and a false page is
 /// worse than no page — so `--out` must still hold whatever it held before a
 /// failed run, including nothing.
 ///
 /// Every failure here leaves the command with anyhow's exit 2, and there is no
-/// path to exit 1: `site` is a view, not a gate (design D1). Low pass rates, a
-/// fully ungradable report and a stale `audited_against` are things the page
+/// path to exit 1: `site` is a view, not a gate. Low pass rates, a fully
+/// ungradable report and a stale `audited_against` are things the page
 /// reports, never things that fail the command.
 fn site_to(rest: Vec<String>, out: &mut impl std::io::Write) -> anyhow::Result<ExitCode> {
     let f = parse_flags(rest, &["out", "ledger"], &["json"])?;
@@ -1100,10 +1095,10 @@ fn site_to(rest: Vec<String>, out: &mut impl std::io::Write) -> anyhow::Result<E
 
     let model = zseval::site::build(&report, &ledger);
     // The page is written first, and its writing is not gated on the health of
-    // stdout: writing the page is what the subcommand is for (design D2), so a
-    // downstream reader that stops reading the `--json` model (`| head`) must
-    // not be able to leave `--out` empty. Still strictly after the drift gate
-    // above — nothing reaches `--out` before that passes.
+    // stdout: writing the page is what the subcommand is for, so a downstream
+    // reader that stops reading the `--json` model (`| head`) must not be able
+    // to leave `--out` empty. Still strictly after the drift gate above —
+    // nothing reaches `--out` before that passes.
     //
     // Written to a sibling temp path and renamed over `--out` rather than
     // written in place: plain `std::fs::write` truncates the destination
@@ -1113,19 +1108,18 @@ fn site_to(rest: Vec<String>, out: &mut impl std::io::Write) -> anyhow::Result<E
     // ever holds a whole page or whatever it held before this run.
     write_page_atomically(out_path, &zseval::site::render(&model))?;
     // `--json` emits the model, never the rendered form — the same meaning it
-    // carries for `matrix` — and it does not stand in for `--out` (design D2).
+    // carries for `matrix` — and it does not stand in for `--out`.
     //
     // A failed emission is exit 2 even though the page now exists on disk.
-    // With `--json` the command owes two things (spec: "prints the page model
-    // as JSON to stdout, and still writes the HTML to `--out`"), and a machine
-    // handed a truncated model must not read exit 0 as "this model is
-    // complete". The exit contract's own reason for existing is that what the
-    // page *says* never decides the exit — a low pass rate, a fully ungradable
-    // report and a stale ledger are all exit 0 — and this is an I/O failure on
-    // a promised channel, the same category as "the output path cannot be
-    // written". 2 is the only nonzero code `site` has; there is still no
-    // exit 1. The error names the page as written so the operator knows the
-    // artifact survived the failure.
+    // With `--json` the command owes two things, the page model on stdout and
+    // the HTML at `--out`, and a machine handed a truncated model must not
+    // read exit 0 as "this model is complete". The exit contract's own reason
+    // for existing is that what the page *says* never decides the exit — a low
+    // pass rate, a fully ungradable report and a stale ledger are all exit 0 —
+    // and this is an I/O failure on a promised channel, the same category as
+    // "the output path cannot be written". 2 is the only nonzero code `site`
+    // has; there is still no exit 1. The error names the page as written so
+    // the operator knows the artifact survived the failure.
     if f.has("json") {
         writeln!(out, "{}", serde_json::to_string_pretty(&model)?).with_context(|| {
             format!("site: emit the page model to stdout (the page at {out_path} was written)")
@@ -1174,11 +1168,11 @@ mod judge_flag_tests {
         assert!(msg.contains("--no-judge"), "{msg}");
     }
 
-    /// Neither flag given resolves to `Unspecified` — distinct from
-    /// `NoJudge` (design.md decision 4): a rubric suite must reject this
-    /// state with a mandatory-choice error (section 4.2's gate in
-    /// `cmd_run`/`cmd_regrade`), whereas a no-rubric suite treats it the
-    /// same as `NoJudge`. This test only checks resolution, not the gate.
+    /// Neither flag given resolves to `Unspecified` — distinct from `NoJudge`:
+    /// a rubric suite must reject this state with a mandatory-choice error
+    /// (`require_judge_decision`, called from `cmd_run`/`cmd_regrade`),
+    /// whereas a no-rubric suite treats it the same as `NoJudge`. This test
+    /// only checks resolution, not the gate.
     #[test]
     fn omitting_both_flags_resolves_to_unspecified() {
         let f = flags(&[]);
@@ -1186,12 +1180,12 @@ mod judge_flag_tests {
         assert!(matches!(choice, JudgeChoice::Unspecified));
     }
 
-    /// `--judge` resolves relative to the caller's cwd, which under
-    /// `cargo test` is the crate dir, not the repo root. `judges/opus.toml`
-    /// still carries the OLD (`api_url`/`api_key_env`) schema as of this
-    /// section — updating the shipped cards is section 5's job — so this
-    /// points `--judge` at an inline fixture written in the new four-field
-    /// schema instead of the real shipped file.
+    /// `--judge` resolves relative to the caller's cwd, which under `cargo
+    /// test` is the crate dir, not the repo root, so the repo's
+    /// `judges/opus.toml` is not reachable by that path here. This points
+    /// `--judge` at an inline four-field fixture under an absolute temp path
+    /// instead; the shipped cards get their own guard in
+    /// `judge::tests::every_shipped_judge_card_loads_under_the_current_schema`.
     #[test]
     fn a_judge_file_resolves_to_the_file_state_with_its_own_values() {
         let dir = std::env::temp_dir().join(format!(
@@ -1227,8 +1221,8 @@ mod judge_flag_tests {
         assert!(matches!(choice, JudgeChoice::NoJudge));
     }
 
-    /// `--target` is repeatable (design.md); `get_all` must surface every
-    /// occurrence in order, unlike `get`'s last-wins lookup.
+    /// `--target` is repeatable, so `get_all` must surface every occurrence in
+    /// order, unlike `get`'s last-wins lookup.
     #[test]
     fn get_all_returns_every_occurrence_in_order() {
         let f = parse_flags(
@@ -1243,10 +1237,10 @@ mod judge_flag_tests {
         assert_eq!(f.get_all("target"), vec!["a", "b"]);
     }
 
-    /// target-matrix 3.6: an N>1 run shares one tag across targets (the
-    /// results layout tells them apart by stem), so the provider-model
-    /// segment must not appear in the tag at all — otherwise it would show
-    /// up once in the tag and once more as the nested stem.
+    /// An N>1 run shares one tag across targets (the results layout tells them
+    /// apart by stem), so the provider-model segment must not appear in the
+    /// tag at all — otherwise it would show up once in the tag and once more
+    /// as the nested stem.
     #[test]
     fn auto_tag_drops_the_provider_model_segment_when_multi() {
         let dir =
@@ -1272,10 +1266,10 @@ mod judge_flag_tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// prompts-pack 3.1: with a pack and no explicit `--tag`, the auto tag
-    /// carries the pack directory's name alongside the existing suite and
-    /// provider/model segments — two runs differing only by pack must be
-    /// distinguishable by results directory name, not only by timestamp.
+    /// With a pack and no explicit `--tag`, the auto tag carries the pack
+    /// directory's name alongside the existing suite and provider/model
+    /// segments — two runs differing only by pack must be distinguishable by
+    /// results directory name, not only by timestamp.
     #[test]
     fn auto_tag_includes_the_pack_directory_name() {
         let dir =
@@ -1327,11 +1321,11 @@ mod judge_flag_tests {
         assert_eq!(tag, "stock");
     }
 
-    /// prompts-pack 3.2: `multi` already drops the provider/model segment
-    /// (target-matrix 3.6) since the results layout tells targets apart by
-    /// stem instead. The pack segment must survive that drop: it is held
-    /// fixed across every target in a multi-target run and is exactly what
-    /// distinguishes one multi-target run from the next.
+    /// `multi` already drops the provider/model segment, since the results
+    /// layout tells targets apart by stem instead. The pack segment must
+    /// survive that drop: it is held fixed across every target in a
+    /// multi-target run and is exactly what distinguishes one multi-target run
+    /// from the next.
     #[test]
     fn auto_tag_keeps_the_pack_segment_when_multi() {
         let dir = std::env::temp_dir().join(format!(
@@ -1408,8 +1402,8 @@ mod multi_target_tests {
     }
 
     /// A minimal on-disk target config.toml — `run_suite` copies whatever
-    /// `RunOptions::target` names into the run-level `target.toml` (section
-    /// 3.4), so a placeholder path with nothing behind it won't do.
+    /// `RunOptions::target` names into the run-level `target.toml`, so a
+    /// placeholder path with nothing behind it won't do.
     fn target_file(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
             "zseval-multitarget-target-{name}-{}",
@@ -1440,8 +1434,8 @@ mod multi_target_tests {
         }
     }
 
-    /// target-matrix 4.2: looping `run_over_targets` over two `--target`
-    /// values produces two reports, one per target, in target order.
+    /// Looping `run_over_targets` over two `--target` values produces two
+    /// reports, one per target, in target order.
     #[test]
     fn run_over_targets_produces_one_report_per_target() {
         let sc_dir = scenario_dir("count");
@@ -1475,14 +1469,13 @@ mod multi_target_tests {
         }
     }
 
-    /// target-matrix 4.3: `--max-total-usd` is one shared total across
-    /// targets, not a cap handed to each target independently. Target 1
-    /// alone spends past the whole budget; target 2's shrunk cap
-    /// (`total - spent`, clamped to 0) then shuts it out before its own
-    /// first scenario — which an independent per-target cap of the same
-    /// size would *not* do, since the per-scenario check only ever compares
-    /// against what that one run has spent so far (target 2 would start at
-    /// 0 < 5 and run its scenario too).
+    /// `--max-total-usd` is one shared total across targets, not a cap handed
+    /// to each target independently. Target 1 alone spends past the whole
+    /// budget; target 2's shrunk cap (`total - spent`, clamped to 0) then
+    /// shuts it out before its own first scenario — which an independent
+    /// per-target cap of the same size would *not* do, since the per-scenario
+    /// check only ever compares against what that one run has spent so far
+    /// (target 2 would start at 0 < 5 and run its scenario too).
     #[test]
     fn budget_is_shared_across_targets_not_per_target() {
         let sc_dir = scenario_dir("budget");
@@ -1523,11 +1516,10 @@ mod multi_target_tests {
         }
     }
 
-    /// target-matrix 4.4: the exit code `cmd_run` reports across N targets is
-    /// the most severe of the N reports' own `exit_code()` — here, one
-    /// target's trial fails its deterministic assert (1) while the other
-    /// passes (0), and the aggregate must surface the 1, never silently
-    /// average or ignore it.
+    /// The exit code `cmd_run` reports across N targets is the most severe of
+    /// the N reports' own `exit_code()` — here, one target's trial fails its
+    /// deterministic assert (1) while the other passes (0), and the aggregate
+    /// must surface the 1, never silently average or ignore it.
     #[test]
     fn aggregate_exit_code_is_1_when_any_target_has_a_failing_trial() {
         let sc_dir = scenario_dir("aggregate-fail");
@@ -1573,12 +1565,12 @@ mod multi_target_tests {
         }
     }
 
-    /// target-matrix 4.4: a target whose backend can't even produce a
-    /// gradable transcript (here, a `Mock` fixture pointed at a file that
-    /// does not exist — `backend.run` errors, which `run_trial` grades
-    /// Indeterminate, never Fail) leaves that whole column with nothing
-    /// gradable. The aggregate exit code must escalate to 2 (harness error),
-    /// outranking a same-run target that passed cleanly.
+    /// A target whose backend can't even produce a gradable transcript (here,
+    /// a `Mock` fixture pointed at a file that does not exist — `backend.run`
+    /// errors, which `run_trial` grades Indeterminate, never Fail) leaves that
+    /// whole column with nothing gradable. The aggregate exit code must
+    /// escalate to 2 (harness error), outranking a same-run target that passed
+    /// cleanly.
     #[test]
     fn aggregate_exit_code_is_2_when_any_target_is_fully_ungradable() {
         let sc_dir = scenario_dir("aggregate-ungradable");
@@ -1629,11 +1621,11 @@ mod multi_target_tests {
         }
     }
 
-    /// target-matrix 8.1/8.2: an N>1 run's end-of-run table lands on the
-    /// `err` writer (stderr in production) built by the same renderer
-    /// `matrix` uses (`matrix::build` + `render_fixed_width`), never on
-    /// stdout — `print_run_report_summaries` only ever receives one writer,
-    /// so it has no way to reach a separate stdout buffer at all.
+    /// An N>1 run's end-of-run table lands on the `err` writer (stderr in
+    /// production) built by the same renderer `matrix` uses (`matrix::build` +
+    /// `render_fixed_width`), never on stdout — `print_run_report_summaries`
+    /// only ever receives one writer, so it has no way to reach a separate
+    /// stdout buffer at all.
     #[test]
     fn multi_target_summary_renders_the_table_on_err_only() {
         let sc_dir = scenario_dir("table");
@@ -1739,9 +1731,9 @@ mod run_summary_tests {
         }
     }
 
-    /// trustworthy-numbers 5.3: the human run summary prints three lines, in
-    /// order: regression, capability, then the historical blended overall —
-    /// each carrying that line's own scenario/gradable counts and rates.
+    /// The human run summary prints three lines, in order: regression,
+    /// capability, then the historical blended overall — each carrying that
+    /// line's own scenario/gradable counts and rates.
     #[test]
     fn run_summary_prints_regression_capability_overall_in_order() {
         let r = report(vec![
@@ -1767,9 +1759,9 @@ mod run_summary_tests {
         assert!(text.contains("1 scenarios (1 gradable)"), "{text}");
     }
 
-    /// trustworthy-numbers 5.3 / D5: a kind with nothing gradable renders its
-    /// rates as `n/a` on that kind's own line — the existing `rate()`
-    /// convention, now applied per line instead of only to the overall one.
+    /// A kind with nothing gradable renders its rates as `n/a` on that kind's
+    /// own line — the existing `rate()` convention, now applied per line
+    /// instead of only to the overall one.
     #[test]
     fn an_empty_kinds_line_renders_n_a() {
         let r = report(vec![scenario(
@@ -1861,7 +1853,7 @@ mod matrix_cmd_tests {
         }
     }
 
-    // 7.1 — matrix over report files renders and creates no files.
+    // Matrix over report files renders and creates no files.
     #[test]
     fn matrix_renders_and_creates_no_files() {
         let fx = Fixtures::new("no-side-effects");
@@ -1884,7 +1876,7 @@ mod matrix_cmd_tests {
         assert_eq!(before.len(), after.len(), "matrix must write no files");
     }
 
-    // 7.1 — a report with no target identity exits 2 naming it.
+    // A report with no target identity exits 2 naming it.
     #[test]
     fn targetless_report_exits_2_naming_the_file() {
         let fx = Fixtures::new("targetless");
@@ -1904,7 +1896,7 @@ mod matrix_cmd_tests {
         assert!(msg.contains(&path_a), "{msg}");
     }
 
-    // 7.1 — a report sharing no scenario id exits 2 naming it.
+    // A report sharing no scenario id exits 2 naming it.
     #[test]
     fn zero_overlap_report_exits_2_naming_the_file() {
         let fx = Fixtures::new("zero-overlap");
@@ -1934,7 +1926,7 @@ mod matrix_cmd_tests {
         assert!(msg.contains(&path_a), "{msg}");
     }
 
-    // 7.1 — partial overlap renders holes without erroring.
+    // Partial overlap renders holes without erroring.
     #[test]
     fn partial_overlap_renders_holes_without_erroring() {
         let fx = Fixtures::new("partial-overlap");
@@ -1970,7 +1962,7 @@ mod matrix_cmd_tests {
         assert_eq!(code, ExitCode::from(0));
     }
 
-    // 7.5 — a low-scoring but rendered table still exits 0.
+    // A low-scoring but rendered table still exits 0.
     #[test]
     fn low_scoring_table_still_exits_0() {
         let fx = Fixtures::new("low-scoring");
@@ -1989,7 +1981,7 @@ mod matrix_cmd_tests {
         assert_eq!(code, ExitCode::from(0));
     }
 
-    // 7.5 — a fully-ungradable column exits 2.
+    // A fully-ungradable column exits 2.
     #[test]
     fn fully_ungradable_column_exits_2() {
         let fx = Fixtures::new("fully-ungradable");
@@ -2157,10 +2149,9 @@ mod site_cmd_tests {
         cmd_site(args)
     }
 
-    // 5.1 — the ledger cites an id no scenario declares: the coverage section
-    // would describe a scenario that does not exist, so the page is refused
-    // before anything is written (spec: "A dead reference aborts before any
-    // output").
+    // The ledger cites an id no scenario declares: the coverage section would
+    // describe a scenario that does not exist, so the page is refused before
+    // anything is written.
     #[test]
     fn a_dead_reference_aborts_naming_the_id_and_writes_nothing() {
         let fx = Fixture::new("dead-ref", &["only"], &["only", "ghost"]);
@@ -2176,9 +2167,8 @@ mod site_cmd_tests {
         );
     }
 
-    // 5.1 — the other direction of the same gate: a scenario in the tree that
-    // no covered claim cites (spec: "An unclaimed scenario aborts before any
-    // output").
+    // The other direction of the same gate: a scenario in the tree that no
+    // covered claim cites also aborts before any output.
     #[test]
     fn an_unclaimed_scenario_aborts_naming_the_id_and_writes_nothing() {
         let fx = Fixture::new("unclaimed", &["only", "extra"], &["only"]);
@@ -2194,10 +2184,9 @@ mod site_cmd_tests {
         );
     }
 
-    // 5.1 — a `--backend mock` report records `mock`, so it mismatches the
-    // ledger's `audited_against` by construction. That is disclosed on the
-    // page and is never fatal (spec: "A mock report renders with the mismatch
-    // shown"; design D3).
+    // A `--backend mock` report records `mock`, so it mismatches the ledger's
+    // `audited_against` by construction. That is disclosed on the page and is
+    // never fatal.
     #[test]
     fn a_mock_report_renders_with_the_mismatch_shown_and_exits_0() {
         let fx = Fixture::new("mock-mismatch", &["only"], &["only"]);
@@ -2218,8 +2207,7 @@ mod site_cmd_tests {
         );
     }
 
-    // 5.1 — and the agreeing case, which claims only what containment
-    // supports (spec: "A matching version is shown as agreeing").
+    // And the agreeing case, which claims only what containment supports.
     #[test]
     fn a_matching_version_is_shown_as_agreeing() {
         let fx = Fixture::new("version-match", &["only"], &["only"]);
@@ -2236,10 +2224,9 @@ mod site_cmd_tests {
         );
     }
 
-    // 5.1 — a page missing its denominator is what this capability exists to
-    // stop shipping, so an unreadable ledger is an error naming the path, not
-    // a page with the coverage section left out (spec: "A missing ledger is
-    // an error").
+    // A page missing its denominator is what this capability exists to stop
+    // shipping, so an unreadable ledger is an error naming the path, not a
+    // page with the coverage section left out.
     #[test]
     fn a_missing_ledger_is_an_error_naming_the_path_and_writes_nothing() {
         let fx = Fixture::new("missing-ledger", &["only"], &["only"]);
@@ -2260,11 +2247,10 @@ mod site_cmd_tests {
         assert!(!fx.out().exists(), "a file was written at --out");
     }
 
-    // 5.1 — the report is the first thing read, and an unreadable one is the
-    // same "could not be written" family as a missing ledger or an
-    // unwritable `--out` (spec: "A page that could not be written exits 2"):
-    // `load_report` already names the path in its own error, so `site` need
-    // not add anything beyond propagating it.
+    // The report is the first thing read, and an unreadable one is the same
+    // "could not be written" family as a missing ledger or an unwritable
+    // `--out` — all exit 2. `load_report` already names the path in its own
+    // error, so `site` need not add anything beyond propagating it.
     #[test]
     fn a_missing_report_is_an_error_naming_the_path_and_writes_nothing() {
         let fx = Fixture::new("missing-report", &["only"], &["only"]);
@@ -2285,10 +2271,9 @@ mod site_cmd_tests {
         assert!(!fx.out().exists(), "a file was written at --out");
     }
 
-    // 5.1 — the third "could not be written" cause, and the one that fires
-    // after the report loaded and the drift check passed: an `--out` whose
-    // parent directory does not exist is exit 2 exactly like the other two
-    // (spec: "A page that could not be written exits 2").
+    // The third "could not be written" cause, and the one that fires after the
+    // report loaded and the drift check passed: an `--out` whose parent
+    // directory does not exist is exit 2 exactly like the other two.
     #[test]
     fn an_out_path_whose_parent_directory_does_not_exist_is_an_error() {
         let fx = Fixture::new("missing-out-parent", &["only"], &["only"]);
@@ -2305,11 +2290,11 @@ mod site_cmd_tests {
         assert!(msg.contains(&out), "the --out path is not named: {msg}");
     }
 
-    // 5.1 — `site` is a view, not a gate: it has no exit 1 (spec: "`site`
-    // exit codes"; design D1). Neither a report where everything failed nor
-    // one where nothing was gradable is a reason to fail the command — the
-    // second is the case `matrix` deliberately treats differently (it exits 2
-    // there), so a page over it exiting 0 is what makes the rule visible.
+    // `site` is a view, not a gate: it has no exit 1. Neither a report where
+    // everything failed nor one where nothing was gradable is a reason to fail
+    // the command — the second is the case `matrix` deliberately treats
+    // differently (it exits 2 there), so a page over it exiting 0 is what
+    // makes the rule visible.
     #[test]
     fn a_failing_or_ungradable_report_still_exits_0() {
         let fx = Fixture::new("no-exit-1", &["only"], &["only"]);
@@ -2325,9 +2310,9 @@ mod site_cmd_tests {
         );
     }
 
-    // 5.2 — writing the page is what the subcommand is for, so `--out` is
-    // required rather than defaulted (spec: "`site` renders one report and
-    // the ledger into one file"; design D2).
+    // Writing the page is what the subcommand is for, so `--out` is required
+    // rather than defaulted: `site` renders one report and the ledger into one
+    // file.
     #[test]
     fn out_is_required() {
         let fx = Fixture::new("out-required", &["only"], &["only"]);
@@ -2344,8 +2329,8 @@ mod site_cmd_tests {
         );
     }
 
-    // 5.2 — one report, and a typo'd flag fails loudly rather than being
-    // swallowed, as everywhere else in this CLI.
+    // One report, and a typo'd flag fails loudly rather than being swallowed,
+    // as everywhere else in this CLI.
     #[test]
     fn usage_errors_are_refused() {
         let fx = Fixture::new("usage", &["only"], &["only"]);
@@ -2385,10 +2370,9 @@ mod site_cmd_tests {
         );
     }
 
-    // 5.4 — `--json` emits the page model to stdout and `--out` is still
-    // required and still written (spec: "`site` supports `--json`, which
-    // emits the page model"; design D2). The model carries the coverage marks,
-    // so a machine reads them without parsing the page.
+    // `--json` emits the page model to stdout and `--out` is still required
+    // and still written. The model carries the coverage marks, so a machine
+    // reads them without parsing the page.
     #[test]
     fn json_emits_the_page_model_and_still_writes_the_page() {
         let fx = Fixture::new("json", &["ran"], &["ran", "never-ran"]);
@@ -2451,16 +2435,15 @@ mod site_cmd_tests {
         }
     }
 
-    // 5.4 — the page is the product, so it is written before the `--json`
-    // model is emitted and never gated on stdout surviving (spec: with
-    // `--json` it "prints the page model as JSON to stdout, and still writes
-    // the HTML to `--out`"; design D2). A reader that stops reading used to
-    // take the page down with it.
+    // The page is the product, so it is written before the `--json` model is
+    // emitted and never gated on stdout surviving: under `--json` the command
+    // prints the page model to stdout and still writes the HTML to `--out`. A
+    // reader that stops reading used to take the page down with it.
     //
     // The failed emission is still reported, so the command exits 2 with the
     // page on disk: `site` owes two things under `--json`, and a machine
     // handed a truncated model must not read exit 0 as a complete one. There
-    // is still no exit 1 (design D1).
+    // is still no exit 1.
     #[test]
     fn a_stdout_that_stops_reading_still_leaves_the_whole_page_at_out() {
         let fx = Fixture::new("stdout-closes", &["only"], &["only"]);
@@ -2485,8 +2468,8 @@ mod site_cmd_tests {
         );
     }
 
-    // 5.4 — the same rule where stdout refuses the first byte rather than the
-    // sixth: nothing about the page depends on how far the emission got.
+    // The same rule where stdout refuses the first byte rather than the sixth:
+    // nothing about the page depends on how far the emission got.
     #[test]
     fn a_stdout_that_refuses_every_byte_still_leaves_the_whole_page_at_out() {
         let fx = Fixture::new("stdout-refuses", &["only"], &["only"]);

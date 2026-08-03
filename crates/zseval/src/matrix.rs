@@ -1,15 +1,15 @@
 //! Scenario x target table: a pure model built from `Report`s, plus three
 //! renderers over the same model (fixed-width terminal, markdown for records,
-//! HTML for the site page). `matrix` (the subcommand, target-matrix section
-//! 7), `run`'s end-of-run table (section 8) and `site`'s results section
-//! (zseval-site section 4) all go through [`build`] and the render functions
-//! here — none of them owns its own table logic.
+//! HTML for the site page). The `matrix` subcommand (`cmd_matrix`), the
+//! end-of-run table `cmd_run` prints for a multi-target run, and `site`'s
+//! results section (`site::render_results`) all go through [`build`] and the
+//! render functions here — none of them owns its own table logic.
 //!
 //! The HTML renderer lives here rather than beside `site` because how a cell,
 //! a hole, a footer figure and a row mark are written is private to this
-//! module (design D4): a renderer outside it would have to restate that
-//! formatting, and three independent answers to "how is a hole written" drift
-//! apart on the first change. `matrix`'s own command-line surface is unchanged
+//! module: a renderer outside it would have to restate that formatting, and
+//! three independent answers to "how is a hole written" drift apart on the
+//! first change. `matrix`'s own command-line surface is unchanged
 //! by it — there is no `--html` flag, and [`render_html`] is reachable only
 //! through `site`.
 //!
@@ -60,7 +60,8 @@ pub struct ColumnFooter {
 
 /// One target's column: the header carries only [`Column::label`] (the stem,
 /// disambiguated when another column shares it); everything else here is
-/// legend-only, per the design's "48 + 12N" width budget.
+/// legend-only — a header cell is `NUM_COL` characters wide, and a table that
+/// grows a column per target has no room to spend on anything but the label.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Column {
     /// Target filename without extension, e.g. `"opus"`. Never disambiguated
@@ -82,12 +83,13 @@ pub struct Column {
     pub prompts_pack: String,
     /// `Report::prompts_hash`, legend-only. Displayed as a short form
     /// alongside `prompts_pack` so two columns of the same pack path with
-    /// different contents are distinguishable by eye (design.md, "Display
-    /// the fingerprint, so 'invisible difference' needs no special rule").
+    /// different contents are distinguishable by eye: displaying the
+    /// fingerprint is what makes an otherwise invisible difference visible, so
+    /// it needs no special-case rule of its own.
     pub prompts_hash: String,
     /// `Report::zs_version`, legend-only. For `--backend mock`, the fixed
-    /// `"mock"` label (controlled-variables spec, "Mock columns are
-    /// identified as mock").
+    /// `"mock"` label — a mock column is identified as mock rather than
+    /// reading as some real build.
     pub zs_version: String,
     /// `Report::zs_bin_sha256`, legend-only. Displayed as a short form
     /// alongside `zs_version` (`compare::zs_identity`), same shape as
@@ -97,21 +99,21 @@ pub struct Column {
     /// `None` when that intersection is empty: there is no shared gradable
     /// basis, so the footer is honestly a hole (rendered `-`) rather than a
     /// real-looking `0.000`. Unchanged in definition by the kind grouping
-    /// below (matrix-render spec, "overall over the whole common set,
-    /// unchanged in definition from before").
+    /// below: overall stays overall, computed over the whole common set.
     pub footer: Option<ColumnFooter>,
     /// The same footer figures, filtered to the common gradable set's
     /// regression scenarios only. `None` when the common set has no
     /// regression scenario — rendered `n/a` (not `-`), the same textual
-    /// convention as a report's own per-kind summary (matrix-render spec, "A
-    /// kind absent from the common set is n/a").
+    /// convention as a report's own per-kind summary: a kind absent from the
+    /// common set is `n/a`, never a hole.
     pub regression_footer: Option<ColumnFooter>,
     /// The same footer figures, filtered to the common gradable set's
     /// capability scenarios only. See `regression_footer`.
     pub capability_footer: Option<ColumnFooter>,
     /// This column's run was cut short by the shared budget
     /// (`Report::budget_truncated`) — the visible trace of a budget-truncated
-    /// run (design.md, "Budget is one shared total; truncation is marked").
+    /// run: the budget is one shared total, and hitting it is marked rather
+    /// than left for a reader to infer.
     /// Keyed off the recorded truncation fact, not a scenario count, so a
     /// column that simply ran a smaller suite in full (a shorter baseline)
     /// is *not* marked — its missing scenarios already show as `-` holes.
@@ -120,14 +122,15 @@ pub struct Column {
     /// column's judge is unknown while some other column carries a known hash
     /// — the measuring stick may have moved. When no column has a known hash
     /// there is no ruler to have moved, so nothing drifts. SPREAD/DRIFT are
-    /// display heuristics, not statistical or authoritative claims (design.md,
-    /// "DRIFT marks, never adjudicates").
+    /// display heuristics, not statistical or authoritative claims: DRIFT
+    /// marks, it never adjudicates.
     pub judge_drift: bool,
     /// Two or more of this column's three subject variables — target, pack
     /// identity, zerostack build — differ from some other column's in this
     /// table, so no cell difference between the two can be attributed to any
-    /// one of them (`controlled-variables` spec; design.md, "One independent
-    /// variable, derived rather than asserted"). Distinct from
+    /// one of them: a clean comparison moves one independent variable, and
+    /// which variables moved is derived from the recorded identities rather
+    /// than asserted by whoever assembled the table. Distinct from
     /// `judge_drift`/row DRIFT, which flag a moved ruler
     /// (`judge_hash`/`content_hash`); this flags *subject* variables moving
     /// together. A display heuristic like SPREAD/DRIFT — it says "look here",
@@ -153,17 +156,17 @@ pub struct DriftGroup {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Row {
     pub id: String,
-    /// This scenario's `kind`, read from the report rows that graded it
-    /// (never re-read from scenario.toml — matrix-render spec, "Rows are
-    /// grouped by kind"). Drives the two-section row grouping the fixed-width
-    /// and markdown renderers apply; the field itself keeps `Matrix::rows`
-    /// flat, since sectioning is a render-time concern, not a data shape one.
+    /// This scenario's `kind`, read from the report rows that graded it and
+    /// never re-read from scenario.toml. Drives the two-section row grouping
+    /// the fixed-width and markdown renderers apply; the field itself keeps
+    /// `Matrix::rows` flat, since sectioning is a render-time concern, not a
+    /// data shape one.
     pub kind: Kind,
     pub cells: Vec<Cell>,
     /// The gradable cells' gap (max - min) exceeds one trial's resolution
     /// (`1 / min(n_graded_trials)`) over those cells — a display heuristic,
-    /// not a statistical claim (design.md, "SPREAD is data-derived and
-    /// hole-safe").
+    /// not a statistical claim: the threshold comes from the data itself, and
+    /// holes never feed it.
     pub spread: bool,
     /// `content_hash` disagreement across columns that graded this scenario,
     /// grouped by hash. Empty when every column that graded it agrees (or
@@ -188,9 +191,9 @@ pub struct Matrix {
 
 /// Build the table from a set of reports, one per column, in the given
 /// order. Pure and infallible: identity/overlap validation (a target-less
-/// report, zero shared scenarios) is the caller's job — `matrix` (section 7)
-/// and the N>1 `run` path (section 8) both have their own report in hand to
-/// name in an error, which this function does not.
+/// report, zero shared scenarios) is the caller's job — `cmd_matrix` and the
+/// multi-target `cmd_run` path both have their own report in hand to name in
+/// an error, which this function does not.
 pub fn build(reports: &[&Report]) -> Matrix {
     let all_ids = union_sorted_scenario_ids(reports);
     let intersection: Vec<String> = all_ids
@@ -207,7 +210,7 @@ pub fn build(reports: &[&Report]) -> Matrix {
     // The common set, filtered to each kind — the footer's per-kind groups
     // are computed over these, never over a kind's full (per-column) set, so
     // a group's numbers stay on the same shared denominator the overall
-    // footer already uses (matrix-render spec).
+    // footer already uses.
     let regression_ids: Vec<String> = intersection
         .iter()
         .filter(|id| row_kind(reports, id) == Kind::Regression)
@@ -285,10 +288,9 @@ fn gradable_scenario<'a>(report: &'a Report, id: &str) -> Option<&'a ScenarioRes
 
 /// A row's `kind`, read off whichever report actually declares this scenario
 /// id (its kind is intrinsic to the scenario, so any report that ran it
-/// agrees) — never re-read from scenario.toml (matrix-render spec, "Rows are
-/// grouped by kind"). Every id passed in comes from the union of these same
-/// reports' own scenario ids, so `find` always succeeds; the fallback is
-/// unreachable in practice, not a real default.
+/// agrees) — never re-read from scenario.toml. Every id passed in comes from
+/// the union of these same reports' own scenario ids, so `find` always
+/// succeeds; the fallback is unreachable in practice, not a real default.
 fn row_kind(reports: &[&Report], id: &str) -> Kind {
     reports
         .iter()
@@ -381,8 +383,8 @@ fn disambiguate_labels(reports: &[&Report]) -> Vec<String> {
 /// SPREAD threshold: `1 / min(n_graded_trials)` over this row's gradable
 /// cells. `-` cells are excluded from max, min, and the threshold — both to
 /// avoid a divide-by-zero on a hole-only row and because a hole is "did not
-/// run", not "ran and disagreed" (design.md, "SPREAD is data-derived and
-/// hole-safe").
+/// run", not "ran and disagreed": the mark is derived from the data alone and
+/// stays hole-safe.
 fn spread_for_row(reports: &[&Report], id: &str) -> bool {
     let gradable: Vec<(f64, usize)> = reports
         .iter()
@@ -410,8 +412,8 @@ fn spread_for_row(reports: &[&Report], id: &str) -> bool {
 /// this scenario, grouped by hash. An empty `content_hash` (a hand-built
 /// report; the run path always records one) is "unknown, skip": observing no
 /// hash is not observing a change — the same reasoning as
-/// `judge_drift_flags`' no-known-ruler rule. No group is named "correct"
-/// (design.md, "DRIFT marks, never adjudicates").
+/// `judge_drift_flags`' no-known-ruler rule. No group is named "correct" —
+/// DRIFT marks, it never adjudicates.
 fn drift_for_row(reports: &[&Report], labels: &[String], id: &str) -> Vec<DriftGroup> {
     let entries: Vec<(String, String, String)> = reports
         .iter()
@@ -453,8 +455,8 @@ fn drift_for_row(reports: &[&Report], labels: &[String], id: &str) -> Vec<DriftG
 /// carries a known hash. When no column in the set has a known hash (e.g.
 /// every column ran `--no-judge`), there is no ruler that could have moved, so
 /// nothing drifts: no known ruler anywhere ⇒ no drift. Symmetric on a real
-/// mismatch (design.md: DRIFT never picks a "correct" column), so two
-/// disagreeing columns are both marked.
+/// mismatch, since DRIFT never picks a "correct" column: two disagreeing
+/// columns are both marked.
 fn judge_drift_flags(reports: &[&Report]) -> Vec<bool> {
     let any_known = reports.iter().any(|r| r.judge_hash.is_some());
     reports
@@ -477,8 +479,8 @@ fn judge_drift_flags(reports: &[&Report]) -> Vec<bool> {
 /// deliberately excludes), so a byte-identical pack supplied from two different
 /// paths does not count as a moved variable; build identity is likewise
 /// `zs_bin_sha256` and never the `zs_version` label, since two binaries can
-/// print the same version string (`controlled-variables` spec, "the hash is the
-/// identity, the version string is the label"). Unlike `judge_drift_flags`,
+/// print the same version string — the hash is the identity, the version
+/// string only the label. Unlike `judge_drift_flags`,
 /// there is no unknown-vs-known special case: every column's target is always
 /// known, every report carries a build identity (capture-or-die at run start,
 /// or the mock backend's fixture fingerprint), and an empty pack (`""` hash,
@@ -501,8 +503,8 @@ fn multi_variable_flags(reports: &[&Report]) -> Vec<bool> {
 /// build) differ between two columns — the count `multi_variable_flags`
 /// thresholds at two. Rulers (`judge_hash`, `content_hash`) are deliberately
 /// absent: a moved ruler invalidates comparability outright and is marked by
-/// its own unconditional rule (`controlled-variables` spec, "Rulers are not
-/// subject variables and are not counted here").
+/// its own unconditional rule: a ruler is not a subject variable, so it is not
+/// counted here.
 fn moved_subject_variables(a: &Report, b: &Report) -> usize {
     usize::from(a.target != b.target)
         + usize::from(a.prompts_hash != b.prompts_hash)
@@ -530,8 +532,7 @@ fn footer_figure(v: Option<f64>) -> String {
 /// The same figure for a per-kind group row (regression/capability): `n/a`,
 /// not the bare `-` the overall group uses, when the common gradable set
 /// contains no scenario of this kind — the same textual convention
-/// `print_run_report_summaries` uses for an empty kind's own line
-/// (matrix-render spec, "A kind absent from the common set is n/a").
+/// `print_run_report_summaries` uses for an empty kind's own line.
 fn kind_footer_figure(v: Option<f64>) -> String {
     match v {
         Some(v) => format!("{v:.3}"),
@@ -621,8 +622,7 @@ const NUM_COL: usize = 12;
 /// The two kinds, in the order every renderer sections and footers them:
 /// regression first, capability second, each under the label used for its row
 /// marker and its footer group. One list, so the three renderers cannot drift
-/// apart on the order or the wording (matrix-render spec, "Rows are grouped by
-/// kind").
+/// apart on the order or the wording.
 const KINDS: [(&str, Kind); 2] = [
     ("regression", Kind::Regression),
     ("capability", Kind::Capability),
@@ -630,20 +630,19 @@ const KINDS: [(&str, Kind); 2] = [
 
 /// This kind's rows, in the same order they already appear in `m.rows`
 /// (scenario-id order) — grouping into sections is a render-time filter
-/// only, never a resort (matrix-render spec, "Within a section, row order
-/// follows the existing ordering").
+/// only, never a resort: within a section, row order stays the ordering
+/// `m.rows` already has.
 fn rows_of_kind(m: &Matrix, kind: Kind) -> Vec<&Row> {
     m.rows.iter().filter(|r| r.kind == kind).collect()
 }
 
-/// Fixed-width terminal table: the default `matrix` output and `run`'s
-/// end-of-run stderr table (target-matrix sections 7-8). Rows render in two
-/// sections — regression first, then capability, each under its own marker
-/// (matrix-render spec, "Rows are grouped by kind"); a kind with no rows
-/// prints no marker and no rows for it. The footer renders three metric
-/// groups in the same order, regression and capability filtered to the
-/// common gradable set and rendered `n/a` when that kind is absent from it,
-/// overall last and unchanged from before.
+/// Fixed-width terminal table: the default `matrix` output and the end-of-run
+/// stderr table `run` prints for a multi-target run. Rows render in two
+/// sections — regression first, then capability, each under its own marker; a
+/// kind with no rows prints no marker and no rows for it. The footer renders
+/// three metric groups in the same order, regression and capability filtered
+/// to the common gradable set and rendered `n/a` when that kind is absent from
+/// it, overall last and unchanged from before.
 pub fn render_fixed_width(m: &Matrix) -> String {
     let mut out = String::new();
     out.push_str(&format!("{:<ID_COL$}", "scenario"));
@@ -732,9 +731,9 @@ fn render_legend_fixed_width(m: &Matrix) -> String {
 
 /// SPREAD, DRIFT, and MULTI-VAR are display heuristics that flag "look here",
 /// not a statistical test or an authoritative verdict about which column is
-/// right (design.md, "SPREAD is data-derived and hole-safe"; "DRIFT marks,
-/// never adjudicates"; "One independent variable, derived rather than
-/// asserted").
+/// right: SPREAD is derived from the data and stays hole-safe, DRIFT marks
+/// without adjudicating, and MULTI-VAR reads which variables moved off the
+/// recorded identities rather than asserting one.
 const LEGEND_CAVEAT: &str =
     "\nSPREAD, DRIFT, and MULTI-VAR are display heuristics, not statistical or authoritative claims.\n";
 
@@ -870,31 +869,32 @@ pub fn render_markdown(m: &Matrix) -> String {
     out
 }
 
-/// HTML, for `site`'s results section (design D4). Same model, same meanings
-/// as its two siblings: cells and holes from [`format_cell`], the two kind
-/// sections from [`KINDS`], the three footer groups from [`footer_figure`] and
+/// HTML, for `site`'s results section (`site::render_results`). Same model and
+/// the same meanings as its two siblings: cells and holes from
+/// [`format_cell`], the two kind sections from [`KINDS`], the three footer
+/// groups from [`footer_figure`] and
 /// [`kind_footer_figure`], the row marks from [`row_marks`], and the same
 /// footer-excluded disclosure. Nothing here recomputes a figure, and there is
 /// no second, differently-defined pass rate.
 ///
-/// The layout, unlike its siblings', is more than one table (owner ruling
-/// 2026-08-03): the footer figures lead as a summary table of their own, and
-/// the per-scenario rows follow folded into a collapsed `<details>`, nested
-/// there one table per subsystem ([`html_scenario_details`]).
+/// The layout, unlike its siblings', is more than one table: the footer
+/// figures lead as a summary table of their own, and the per-scenario rows
+/// follow folded into a collapsed `<details>`, nested there one table per
+/// subsystem ([`html_scenario_details`]).
 /// A terminal or a markdown record is read top to bottom, but a page is
 /// landed on, and what a reader lands on should be the eight figures rather
 /// than a hundred rows they have to scroll past to reach them. The fold is a
-/// native `<details>` and nothing else — the page carries no script
-/// (design D7), so a disclosure widget the browser implements is the only
-/// kind available. What the fold hides is only rows: the footer-excluded
+/// native `<details>` and nothing else — the page carries no script at all, so
+/// a disclosure widget the browser implements is the only kind available.
+/// What the fold hides is only rows: the footer-excluded
 /// disclosure, the column marks and the heuristics caveat stay outside it,
 /// because a denominator caveat or a mark's meaning that a reader has to
 /// expand something to find is one the page has effectively dropped.
 ///
 /// It writes into the caller's [`Page`] rather than returning a `String`
-/// because raw markup enters that buffer only as a `&'static str` literal
-/// (design D9): a renderer handing back assembled markup would need a second
-/// way in, and a second way in is what that rule exists to refuse.
+/// because raw markup enters that buffer only as a `&'static str` literal — a
+/// renderer handing back assembled markup would need a second way in, and a
+/// second way in is what that rule exists to refuse.
 ///
 /// No identity legend, unlike the other two: the only caller renders exactly
 /// one report and states that report's model, target, judge and build in the
@@ -958,9 +958,9 @@ fn html_summary_table(page: &mut Page, m: &Matrix) {
 /// element deeper. The summary names its own row count so a reader knows what
 /// the fold holds without opening it.
 ///
-/// Inside the fold the rows nest one table per subsystem (owner ruling
-/// 2026-08-03), because a hundred rows in one table is a list a reader has to
-/// scan rather than a shape they can take in: nested, each subsystem's rows are
+/// Inside the fold the rows nest one table per subsystem, because a hundred
+/// rows in one table is a list a reader has to scan rather than a shape they
+/// can take in: nested, each subsystem's rows are
 /// a block small enough to read at a glance. The subsystem is
 /// [`subsystem_of`]'s reading of the scenario id and nothing else, and each
 /// table is labelled with that bare prefix — this is the report's own
@@ -970,7 +970,8 @@ fn html_summary_table(page: &mut Page, m: &Matrix) {
 ///
 /// The nesting is presentation and only presentation: no per-subsystem pass
 /// rate or total is computed here or anywhere else, because a second,
-/// differently-scoped figure on the page is exactly what `site-render` refuses.
+/// differently-scoped figure on the page is exactly what routing every figure
+/// through [`build`] exists to refuse.
 /// Each nested table repeats the column header row, so a table scrolled into
 /// view says what its columns are, and keeps the kind marker rows within it —
 /// a reader who never mistakes a capability row for a regression row is the
@@ -1108,11 +1109,11 @@ fn html_footer_row(page: &mut Page, label: &str, figures: &[String]) {
 /// column here as it does there, but this renderer has no legend for the word
 /// the `*` stands for, and on a single-report page `incomplete` is the one
 /// column mark that can fire at all — so without this line a budget-truncated
-/// run renders a glyph the page never keys (matrix-render: the renderers keep
-/// the same meanings over the same model). Each line names its column exactly
-/// as the table's header spells it, `*` and all, so the mark and its meaning
-/// are read together. Same facts, same order, same words as the other two
-/// legends.
+/// run renders a glyph the page never keys, and the three renderers stop
+/// carrying the same meanings over the same model. Each line names its column
+/// exactly as the table's header spells it, `*` and all, so the mark and its
+/// meaning are read together. Same facts, same order, same words as the other
+/// two legends.
 fn render_html_column_marks(page: &mut Page, m: &Matrix) {
     for col in m
         .columns
@@ -1219,9 +1220,9 @@ mod tests {
         )
     }
 
-    // Mirrors `compare.rs`'s `report_with_pack` test helper (section 8) —
-    // same field wiring, so the pack-identity convention stays one shape
-    // across subcommands.
+    // Mirrors `compare.rs`'s `report_with_pack` test helper — same field
+    // wiring, so the pack-identity convention stays one shape across
+    // subcommands.
     fn report_with_pack(target: &str, tag: &str, pack: &str, hash: &str) -> Report {
         Report::build(
             ReportMeta {
@@ -1238,7 +1239,7 @@ mod tests {
         )
     }
 
-    // 9.1 — mirrors `report_with_pack`: a fixture with a settable zerostack
+    // Mirrors `report_with_pack`: a fixture with a settable zerostack
     // identity (version + hash), so legend tests can assert `zs_identity`'s
     // wiring without a live zerostack binary.
     fn report_with_zs(target: &str, tag: &str, version: &str, hash: &str) -> Report {
@@ -1285,7 +1286,7 @@ mod tests {
         )
     }
 
-    // 5.1 — rows keyed by scenario id in id order, independent of the order
+    // Rows keyed by scenario id in id order, independent of the order
     // any one report listed them in.
     #[test]
     fn rows_are_keyed_by_scenario_id_in_id_order() {
@@ -1319,7 +1320,7 @@ mod tests {
         assert_eq!(ids, vec!["apple", "mango", "zebra"]);
     }
 
-    // 5.1 — a graded all-fail cell is a real 0.000, distinct from a `-` hole
+    // A graded all-fail cell is a real 0.000, distinct from a `-` hole
     // for a scenario a column never ran or never graded.
     #[test]
     fn graded_all_fail_is_a_real_zero_absent_or_indeterminate_is_a_hole() {
@@ -1351,7 +1352,7 @@ mod tests {
         assert_eq!(cells[2], Cell::Hole, "never ran the scenario at all");
     }
 
-    // 5.3 — differing scenario sets: footer over the intersection, the rest
+    // Differing scenario sets: footer over the intersection, the rest
     // listed as excluded.
     #[test]
     fn footer_is_computed_over_the_intersection_and_lists_the_rest_as_excluded() {
@@ -1399,7 +1400,7 @@ mod tests {
         assert_eq!(m.columns[1].footer.unwrap().pass_hat_k, 0.0);
     }
 
-    // 5.3 — identical suites: the footer equals each report's own summary,
+    // Identical suites: the footer equals each report's own summary,
     // nothing excluded.
     #[test]
     fn footer_matches_each_reports_own_summary_when_suites_are_identical() {
@@ -1431,7 +1432,7 @@ mod tests {
         assert_eq!(fb.total_cost_usd, b.summary.total_cost_usd);
     }
 
-    // 5.3 — when the shared scenario is gradable in one column but not the
+    // When the shared scenario is gradable in one column but not the
     // other, the gradable intersection is empty, so every column's footer is a
     // hole (`None`) and both renderers print `-`, never a fabricated `0.000`.
     #[test]
@@ -1487,7 +1488,7 @@ mod tests {
         }
     }
 
-    // 5.4 — header carries only the stem; legend carries model/target/judge.
+    // Header carries only the stem; legend carries model/target/judge.
     #[test]
     fn column_identity_puts_the_stem_in_the_header_and_the_rest_in_the_legend() {
         let r = report(
@@ -1507,7 +1508,7 @@ mod tests {
         assert_eq!(col.target, "targets/opus.toml");
     }
 
-    // 5.4 — the three judge_model states must render distinguishably.
+    // The three judge_model states must render distinguishably.
     #[test]
     fn the_three_judge_states_render_distinguishably_in_the_legend() {
         let unknown = report_with_judge("targets/opus.toml", "unknown-run", None, vec![]);
@@ -1532,7 +1533,7 @@ mod tests {
         assert!(legend.contains("judge=claude-opus-4-8"));
     }
 
-    // 5.5 — two reports for the same target from different runs must both
+    // Two reports for the same target from different runs must both
     // render, disambiguated rather than colliding.
     #[test]
     fn same_stem_columns_from_different_runs_are_both_present_and_distinctly_labelled() {
@@ -1563,7 +1564,7 @@ mod tests {
         assert_eq!(m.columns[1].stem, "opus");
     }
 
-    // 6.1 — a row whose gap exceeds one trial's resolution is marked SPREAD.
+    // A row whose gap exceeds one trial's resolution is marked SPREAD.
     #[test]
     fn row_with_gap_beyond_one_trial_resolution_is_marked_spread() {
         // Two trials each => resolution 1/2 = 0.5. Gap here is 1.0 - 0.0 = 1.0.
@@ -1589,7 +1590,7 @@ mod tests {
         assert!(m.rows[0].spread, "gap of 1.0 exceeds resolution of 0.5");
     }
 
-    // 6.1 — a row whose gap sits within one trial's resolution is not marked.
+    // A row whose gap sits within one trial's resolution is not marked.
     #[test]
     fn row_with_gap_within_one_trial_resolution_is_not_marked_spread() {
         // Four trials each => resolution 1/4 = 0.25. Gap here is 0.25 - 0.0 = 0.25,
@@ -1629,7 +1630,7 @@ mod tests {
         );
     }
 
-    // 6.1 — a row with a hole neither divides by zero nor lets the hole feed
+    // A row with a hole neither divides by zero nor lets the hole feed
     // max/min or the threshold.
     #[test]
     fn row_with_a_hole_is_safe_and_excludes_it_from_spread_computation() {
@@ -1649,7 +1650,7 @@ mod tests {
         assert!(!m.rows[0].spread);
     }
 
-    // 6.3 — per-row DRIFT on content_hash mismatch: the row is marked and both
+    // Per-row DRIFT on content_hash mismatch: the row is marked and both
     // differing columns are listed, grouped by hash, with timestamps, naming
     // no column as correct.
     #[test]
@@ -1689,11 +1690,10 @@ mod tests {
         }
     }
 
-    // 6.3 — the same content_hash mismatch, asserted against `render_html`
+    // The same content_hash mismatch, asserted against `render_html`
     // rather than the model: [`row_marks`] is the one function all three
-    // renderers call for a row's mark (matrix-render spec, "Every renderer
-    // reads the same model"), but until now nothing pinned its `DRIFT[...]`
-    // text in the HTML table's own notes cell.
+    // renderers call for a row's mark, but until now nothing pinned its
+    // `DRIFT[...]` text in the HTML table's own notes cell.
     #[test]
     fn html_carries_the_row_drift_mark_for_a_content_hash_mismatch() {
         let a = report(
@@ -1735,7 +1735,7 @@ mod tests {
         );
     }
 
-    // 6.4 — per-column DRIFT when judge_hash differs from the others.
+    // Per-column DRIFT when judge_hash differs from the others.
     #[test]
     fn column_drift_marks_differing_judge_hash() {
         let a = report_with_judge_hash("targets/opus.toml", "run-a", Some("hash-a".into()));
@@ -1745,7 +1745,7 @@ mod tests {
         assert!(m.columns[1].judge_drift);
     }
 
-    // 6.4 — when NO column carries a known judge hash (e.g. every column ran
+    // When NO column carries a known judge hash (e.g. every column ran
     // `--no-judge`), there is no ruler that could have moved, so nothing
     // drifts: no known ruler anywhere ⇒ no drift.
     #[test]
@@ -1757,7 +1757,7 @@ mod tests {
         assert!(!m.columns[1].judge_drift, "no known ruler => no drift");
     }
 
-    // 6.4 — a column whose judge is unknown IS marked when ANOTHER column
+    // A column whose judge is unknown IS marked when ANOTHER column
     // carries a known hash: that is the genuine unknown-vs-ruler drift.
     #[test]
     fn unknown_judge_drifts_against_a_known_ruler() {
@@ -1770,7 +1770,7 @@ mod tests {
         assert!(m.columns[1].judge_drift);
     }
 
-    // 6.5 — a column whose run was cut short by the budget is marked
+    // A column whose run was cut short by the budget is marked
     // incomplete; this is keyed off the recorded `budget_truncated` fact, not
     // a scenario count.
     #[test]
@@ -1813,7 +1813,7 @@ mod tests {
         );
     }
 
-    // 6.5 — a column that ran a *smaller suite in full* (a shorter baseline,
+    // A column that ran a *smaller suite in full* (a shorter baseline,
     // not budget-truncated) must NOT be marked incomplete: the scenarios it
     // lacks show as `-` holes, but the `*`/incomplete mark is reserved for a
     // real budget cut. This is the case the old count-based rule got wrong.
@@ -1858,7 +1858,7 @@ mod tests {
         assert_eq!(two.cells[1], Cell::Hole);
     }
 
-    // 6.6 — SPREAD and DRIFT are labelled in the legend as display
+    // SPREAD and DRIFT are labelled in the legend as display
     // heuristics, not statistical or authoritative claims.
     #[test]
     fn legend_labels_spread_and_drift_as_display_heuristics() {
@@ -1875,7 +1875,7 @@ mod tests {
         );
     }
 
-    // 6.2 — a row's SPREAD/DRIFT mark must survive into the markdown table.
+    // A row's SPREAD/DRIFT mark must survive into the markdown table.
     // Text after a row's final `|` is dropped by GFM parsers, so the mark has
     // to land in a real `notes` cell (added only when some row carries one).
     #[test]
@@ -1930,7 +1930,7 @@ mod tests {
         assert!(!render_markdown(&m).contains("notes"));
     }
 
-    // 5.6 — both renderers over one fixture.
+    // Both renderers over one fixture.
     #[test]
     fn both_renderers_render_the_same_model() {
         let a = report(
@@ -1961,7 +1961,7 @@ mod tests {
         assert_ne!(fixed, md);
     }
 
-    // 9.1 — each column's legend line carries its pack identity as path plus
+    // Each column's legend line carries its pack identity as path plus
     // short hash (mirroring `compare::pack_identity`), and a plain marker
     // when the column used no pack.
     #[test]
@@ -1975,7 +1975,7 @@ mod tests {
         assert!(legend.contains("prompts=none"), "legend: {legend}");
     }
 
-    // 9.1 — each column's legend line also carries its zerostack build
+    // Each column's legend line also carries its zerostack build
     // identity as version plus short hash (`compare::zs_identity`), the same
     // shape as `pack_identity`.
     #[test]
@@ -1994,10 +1994,9 @@ mod tests {
         );
     }
 
-    // 9.1 — a mock-backend column's `zs_version` is the fixed `"mock"`
-    // label; its legend line shows `mock#<short-hash>`, the fixture
-    // fingerprint (controlled-variables spec, "Mock columns are identified
-    // as mock").
+    // A mock-backend column's `zs_version` is the fixed `"mock"` label; its
+    // legend line shows `mock#<short-hash>`, the fixture fingerprint — a mock
+    // column is identified as mock, never left to read as a real build.
     #[test]
     fn legend_shows_mock_identity_for_mock_backend_reports() {
         let a = report_with_zs("targets/opus.toml", "run-a", "mock", "abcd000000000000");
@@ -2006,7 +2005,7 @@ mod tests {
         assert!(legend.contains("zs=mock#abcd"), "legend: {legend}");
     }
 
-    // 9.2 — two columns sharing a target and differing only by pack are a
+    // Two columns sharing a target and differing only by pack are a
     // clean single-variable comparison: not marked, but their legend lines
     // are still distinguishable by pack identity.
     #[test]
@@ -2021,7 +2020,7 @@ mod tests {
         assert!(legend.contains("prompts=packs/b#bbbb"), "legend: {legend}");
     }
 
-    // 9.3 — columns differing in both target and pack identity are marked,
+    // Columns differing in both target and pack identity are marked,
     // and that mark is a separate mechanism from judge-drift/DRIFT: neither
     // side here carries a judge hash at all.
     #[test]
@@ -2043,7 +2042,7 @@ mod tests {
         assert!(!legend.contains("judge-drift"), "legend: {legend}");
     }
 
-    // 9.4 — columns differing by target but recording the same pack identity
+    // Columns differing by target but recording the same pack identity
     // are not marked: only one subject variable moved.
     #[test]
     fn different_target_shared_pack_is_not_marked() {
@@ -2064,7 +2063,7 @@ mod tests {
         assert!(!m.columns[1].multi_variable);
     }
 
-    // 9.4b — identity is the fingerprint hash, never the path: a byte-identical
+    // Identity is the fingerprint hash, never the path: a byte-identical
     // pack supplied from two different paths is one pack, so a target-only
     // difference stays a clean single-variable comparison, not MULTI-VAR.
     #[test]
@@ -2081,10 +2080,10 @@ mod tests {
         assert!(!m.columns[1].multi_variable);
     }
 
-    // controlled-variables spec, "A comparison varies exactly one independent
-    // variable": the build is a subject variable like target and pack, so two
-    // columns on the same pack whose target and binary both moved are marked —
-    // a cell difference belongs to neither variable alone.
+    // A clean comparison varies exactly one independent variable, and the
+    // build is a subject variable like target and pack, so two columns on the
+    // same pack whose target and binary both moved are marked — a cell
+    // difference belongs to neither variable alone.
     #[test]
     fn different_build_and_target_shared_pack_is_marked() {
         let a = report_with_pack_and_zs(
@@ -2147,7 +2146,7 @@ mod tests {
         assert!(!m.columns[1].multi_variable);
     }
 
-    // 9.5 — the new mark is documented in the legend caveat alongside SPREAD
+    // The new mark is documented in the legend caveat alongside SPREAD
     // and DRIFT as a display heuristic, never a verdict.
     #[test]
     fn legend_caveat_labels_multi_variable_as_a_display_heuristic() {
@@ -2161,7 +2160,7 @@ mod tests {
         );
     }
 
-    // 9.5 — the markdown renderer carries the same pack identity and mark as
+    // The markdown renderer carries the same pack identity and mark as
     // the fixed-width one; both go through the same `Column` model.
     #[test]
     fn markdown_legend_carries_pack_identity_and_multi_variable_mark() {
@@ -2178,7 +2177,7 @@ mod tests {
         assert!(md.contains("MULTI-VAR"), "markdown: {md}");
     }
 
-    // 9.1 — the markdown renderer carries the same zs identity as the
+    // The markdown renderer carries the same zs identity as the
     // fixed-width one; both go through the same `Column` model.
     #[test]
     fn markdown_legend_carries_zs_identity() {
@@ -2193,8 +2192,8 @@ mod tests {
         assert!(md.contains("zs=zerostack 1.7.2#b41c"), "markdown: {md}");
     }
 
-    // trustworthy-numbers 6.1: rows render in two sections, regression first
-    // under its own marker, capability rows after under theirs.
+    // Rows render in two sections, regression first under its own marker,
+    // capability rows after under theirs.
     #[test]
     fn rows_render_in_two_sections_regression_first_fixed_width() {
         let cap =
@@ -2231,9 +2230,9 @@ mod tests {
         assert!(cap_marker < cap_row, "{fixed}");
     }
 
-    // trustworthy-numbers 6.2: the same sectioning applies to the markdown
-    // renderer, via its own marker row (plain text after the final `|` is
-    // dropped by GFM parsers, so the marker has to sit in a real cell).
+    // The same sectioning applies to the markdown renderer, via its own
+    // marker row (plain text after the final `|` is dropped by GFM parsers,
+    // so the marker has to sit in a real cell).
     #[test]
     fn rows_render_in_two_sections_regression_first_markdown() {
         let cap =
@@ -2270,9 +2269,9 @@ mod tests {
         assert!(cap_marker < cap_row, "{md}");
     }
 
-    // trustworthy-numbers 6.1/6.3: the footer renders three metric groups —
-    // regression, capability, overall (unchanged) — in that order, each
-    // computed over the common gradable set filtered to that kind.
+    // The footer renders three metric groups — regression, capability,
+    // overall (unchanged) — in that order, each computed over the common
+    // gradable set filtered to that kind.
     #[test]
     fn footer_renders_three_groups_over_the_common_set_filtered_by_kind() {
         let a_cap =
@@ -2341,10 +2340,9 @@ mod tests {
         assert!(overall_line.contains("0.500"), "{overall_line}");
     }
 
-    // trustworthy-numbers 6.1/6.3: a kind with no gradable scenario in the
-    // common set renders `n/a` for every column — never a fabricated `-`
-    // hole or a `0.000` — the same textual convention a report's own summary
-    // uses for an empty kind.
+    // A kind with no gradable scenario in the common set renders `n/a` for
+    // every column — never a fabricated `-` hole or a `0.000` — the same
+    // textual convention a report's own summary uses for an empty kind.
     #[test]
     fn kind_absent_from_common_set_renders_n_a() {
         let a = report(
@@ -2383,9 +2381,9 @@ mod tests {
     }
 
     /// The HTML renderer writes into the page's own buffer rather than
-    /// returning a `String` (design D9 — raw markup enters that buffer only as
-    /// a source literal), so a test renders through a scratch [`Page`] and
-    /// reads the markup back out of it.
+    /// returning a `String` (raw markup enters that buffer only as a source
+    /// literal), so a test renders through a scratch [`Page`] and reads the
+    /// markup back out of it.
     fn html(m: &Matrix) -> String {
         let mut page = Page::new();
         render_html(&mut page, m);
@@ -2441,7 +2439,7 @@ mod tests {
             .collect()
     }
 
-    // 4.1 — a scenario no column could grade is a hole in HTML too, never a
+    // A scenario no column could grade is a hole in HTML too, never a
     // `0.000` that would read as "ran, and failed every trial".
     #[test]
     fn html_renders_an_ungradable_scenario_as_a_hole_not_a_zero() {
@@ -2469,7 +2467,7 @@ mod tests {
         );
     }
 
-    // 4.1 — rows are grouped by kind in HTML too: regression first under its
+    // Rows are grouped by kind in HTML too: regression first under its
     // own marker row, capability after under theirs.
     #[test]
     fn html_rows_are_grouped_by_kind_regression_first() {
@@ -2500,12 +2498,11 @@ mod tests {
         assert!(at(">capability<") < at("<td>cap-a</td>"), "{html}");
     }
 
-    // 4.1 / owner ruling 2026-08-03 — the page's reader lands on the summary
-    // figures, not on the rows: the summary table comes first, the
-    // per-scenario rows are folded into a `<details>` that is closed until
-    // asked, and the marks the fold must not hide (identity and
-    // comparability) stay outside it. The fold is native markup, so the page
-    // stays script-free (design D7).
+    // The page's reader lands on the summary figures, not on the rows: the
+    // summary table comes first, the per-scenario rows are folded into a
+    // `<details>` that is closed until asked, and the marks the fold must not
+    // hide (identity and comparability) stay outside it. The fold is native
+    // markup, so the page stays script-free.
     #[test]
     fn html_leads_with_the_summary_table_and_folds_the_scenario_rows() {
         let mut a = report(
@@ -2574,11 +2571,11 @@ mod tests {
         );
     }
 
-    // site-render / owner ruling 2026-08-03 — inside the fold the rows nest
-    // one table per subsystem (the scenario id's prefix), each labelled with
-    // that bare prefix and each keeping the kind grouping within it. The fold
-    // itself stays one `<details>` holding all of them, and nesting computes
-    // nothing: no per-subsystem figure appears anywhere in it.
+    // Inside the fold the rows nest one table per subsystem (the scenario
+    // id's prefix), each labelled with that bare prefix and each keeping the
+    // kind grouping within it. The fold itself stays one `<details>` holding
+    // all of them, and nesting computes nothing: no per-subsystem figure
+    // appears anywhere in it.
     #[test]
     fn html_nests_the_folded_rows_by_subsystem() {
         let a = report(
@@ -2676,10 +2673,9 @@ mod tests {
         }
     }
 
-    // 4.1 — for one model, the HTML renderer agrees with the markdown one
+    // For one model, the HTML renderer agrees with the markdown one
     // cell for cell and figure for figure: both read the same model and
-    // neither recomputes anything (matrix-render spec, "Every renderer reads
-    // the same model").
+    // neither recomputes anything.
     #[test]
     fn html_and_markdown_agree_on_every_cell_and_footer_figure_for_one_model() {
         let a = report(
@@ -2732,11 +2728,11 @@ mod tests {
         assert_eq!(html_row_cells(&html, "reg-hole"), vec!["-".to_string()]);
     }
 
-    // 4.1 — the scenario names all three renderers, not a pair (matrix-render
-    // spec, "Every renderer reads the same model": "the same report is
-    // rendered as fixed-width, markdown, and HTML"). One model, one fixture,
-    // and every cell and footer figure checked across all three in one test
-    // body, reusing the same extraction helpers the pairwise tests above use.
+    // All three renderers, not a pair: the same report rendered as
+    // fixed-width, markdown and HTML has to agree, because all three read the
+    // same model. One model, one fixture, and every cell and footer figure
+    // checked across all three in one test body, reusing the same extraction
+    // helpers the pairwise tests above use.
     #[test]
     fn fixed_width_markdown_and_html_agree_on_every_cell_and_footer_figure_for_one_model() {
         let a = report(
@@ -2802,7 +2798,7 @@ mod tests {
         );
     }
 
-    // 4.1 — the footer's narrowed denominator is disclosed rather than
+    // The footer's narrowed denominator is disclosed rather than
     // silently applied: the excluded ids are named, and their rows stay in the
     // table with the hole that excluded them.
     #[test]
@@ -2855,7 +2851,7 @@ mod tests {
         );
     }
 
-    // 4.1 — the marks keep the meaning `matrix-render` gives them: a row's
+    // The marks keep the meaning the other two renderers give them: a row's
     // SPREAD lands in a real notes cell (as in markdown), a column's
     // judge-drift is named, and both are labelled as display heuristics in the
     // renderers' one wording rather than a second one.
@@ -2915,14 +2911,14 @@ mod tests {
         );
     }
 
-    // 4.1 — the `*` `column_header` puts on a budget-truncated column is the
+    // The `*` `column_header` puts on a budget-truncated column is the
     // one column mark that can fire on a single-report page, and this is the
     // renderer that dropped the identity legend the other two explain it in.
     // So it states the meaning itself, keyed to the column exactly as the
     // table's header spells it — otherwise the page shows a glyph it never
     // keys, and the three renderers stop carrying the same meanings over the
-    // same model (matrix-render spec, "Every renderer reads the same model").
-    // Gated like the other legends: a column with no mark gets no line.
+    // same model. Gated like the other legends: a column with no mark gets no
+    // line.
     #[test]
     fn html_explains_the_incomplete_mark_only_when_a_column_carries_it() {
         let scenarios = || {
@@ -2971,9 +2967,9 @@ mod tests {
         );
     }
 
-    // 4.2 / design D9 — the results renderer writes runtime values through the
-    // page's escaping writer like every other section, so `matrix.rs` never
-    // grows a second way into the buffer.
+    // The results renderer writes runtime values through the page's escaping
+    // writer like every other section, so `matrix.rs` never grows a second way
+    // into the buffer.
     #[test]
     fn html_escapes_a_scenario_id_carrying_markup() {
         let a = report(
@@ -2997,9 +2993,9 @@ mod tests {
         );
     }
 
-    // trustworthy-numbers 6.1/6.2: `--json`'s row array stays one flat array
-    // and each row carries its own `kind` — sectioning is a render-time
-    // concern only, never a JSON nesting.
+    // `--json`'s row array stays one flat array and each row carries its own
+    // `kind` — sectioning is a render-time concern only, never a JSON
+    // nesting.
     #[test]
     fn json_rows_stay_flat_with_kind_per_row() {
         let cap =

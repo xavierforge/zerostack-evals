@@ -71,7 +71,7 @@ pub struct Comparison {
     /// zerostack build identity too (`zs_bin_sha256`, see `zs_mismatch`), so a
     /// same-build pack difference is in principle a clean single-variable
     /// experiment — but this field stays conservative regardless, marking
-    /// every pack difference until Day-2 baseline data justifies relaxing it
+    /// every pack difference until enough baseline data justifies relaxing it
     /// (see `docs/adr/0001-compare-always-warns-matrix-owns-multivar.md`).
     /// Never affects `exit_code`, same as `target_mismatch`.
     pub pack_mismatch: bool,
@@ -83,9 +83,8 @@ pub struct Comparison {
     /// values. Same version string, different hash still counts — that is
     /// exactly the 07-26 stale-binary incident (`zerostack 1.7.1` printed by
     /// two different binaries) this warning exists to catch mechanically.
-    /// Retires `controlled-variables`' former "build is always moved, for
-    /// now" assumption: the build is now an observed variable like target
-    /// and pack (see
+    /// Retires the former "the build is always moved, for now" assumption: the
+    /// build is an observed variable like target and pack (see
     /// `docs/adr/0001-compare-always-warns-matrix-owns-multivar.md`). Never
     /// affects `exit_code`, same as every other warning here.
     pub zs_mismatch: bool,
@@ -246,11 +245,10 @@ impl Comparison {
     }
 }
 
-/// `path#hash` display for one side's pack identity (`prompts-pack-identity`
-/// spec: "Pack identity is displayed wherever it can differ", example
-/// `prompts=my-pack#a3f1`), or the plain `none` marker when that side used no
-/// pack — shown rather than omitted, so a packless side reads as a fact, not
-/// a blank.
+/// `path#hash` display for one side's pack identity, e.g.
+/// `prompts=my-pack#a3f1` — pack identity is shown wherever it can differ — or
+/// the plain `none` marker when that side used no pack, shown rather than
+/// omitted so a packless side reads as a fact, not a blank.
 pub(crate) fn pack_identity(pack: &str, hash: &str) -> String {
     if pack.is_empty() {
         "none".to_string()
@@ -259,20 +257,19 @@ pub(crate) fn pack_identity(pack: &str, hash: &str) -> String {
     }
 }
 
-/// `version#hash` display for a run's zerostack build identity
-/// (`controlled-variables` spec: "Build identity is displayed wherever it
-/// can differ", example `zs=zerostack 1.7.2#b41c` — the `zs=` label is added
-/// by the call site, same as `pack_identity`'s `prompts=`). Unlike
-/// `pack_identity`, no "none" branch: every report carries a real
-/// `zs_version` (capture-or-die at run start, or the mock backend's fixed
-/// `"mock"` label), never absent.
+/// `version#hash` display for a run's zerostack build identity, e.g.
+/// `zs=zerostack 1.7.2#b41c` — build identity is shown wherever it can differ,
+/// and the `zs=` label is added by the call site, same as `pack_identity`'s
+/// `prompts=`. Unlike `pack_identity`, no "none" branch: every report carries
+/// a real `zs_version` (capture-or-die at run start, or the mock backend's
+/// fixed `"mock"` label), never absent.
 pub(crate) fn zs_identity(version: &str, hash: &str) -> String {
     format!("{version}#{}", short_hash(hash))
 }
 
-/// First 4 hex chars of a `util::fnv1a_hex` fingerprint (16 chars) — enough
-/// to distinguish by eye without printing the full hash on every comparison
-/// line, matching the length used in the spec's own example.
+/// First 4 hex chars of a `util::fnv1a_hex` fingerprint (16 chars) — enough to
+/// distinguish by eye without printing the full hash on every comparison line,
+/// and the one length every `#hash` display in this module uses.
 fn short_hash(hash: &str) -> &str {
     &hash[..hash.len().min(4)]
 }
@@ -490,9 +487,9 @@ mod pack_identity_tests {
         )
     }
 
-    // 8.1 — compare's header line carries each side's pack identity as path
-    // plus short hash, mirroring how `target_mismatch` carries `base_model`
-    // / `cand_model` as raw fields for `print_human` to format.
+    // Compare's header line carries each side's pack identity as path plus
+    // short hash, mirroring how `target_mismatch` carries `base_model` /
+    // `cand_model` as raw fields for `print_human` to format.
     #[test]
     fn compare_carries_each_sides_pack_identity_fields() {
         let base = report_with_pack("packs/a", "aaaaaaaaaaaaaaaa");
@@ -514,8 +511,8 @@ mod pack_identity_tests {
         assert_eq!(pack_identity("", ""), "none");
     }
 
-    // 9.1 — `zs_identity` mirrors `pack_identity`'s shape (`version#hash`),
-    // but has no "none" branch: every report carries a real `zs_version`
+    // `zs_identity` mirrors `pack_identity`'s shape (`version#hash`), but has
+    // no "none" branch: every report carries a real `zs_version`
     // (capture-or-die at run start, or the `"mock"` label), never absent.
     #[test]
     fn zs_identity_shows_version_and_short_hash() {
@@ -525,15 +522,15 @@ mod pack_identity_tests {
         );
     }
 
-    // 9.1 — a mock report's `zs_version` is the fixed `"mock"` label; its
-    // identity line still shows `mock#<short-hash>`, the fixture fingerprint.
+    // A mock report's `zs_version` is the fixed `"mock"` label; its identity
+    // line still shows `mock#<short-hash>`, the fixture fingerprint.
     #[test]
     fn zs_identity_shows_mock_label_and_short_hash() {
         assert_eq!(zs_identity("mock", "abcd000000000000"), "mock#abcd");
     }
 
-    // 8.2 — the note fires exactly when the two sides' pack identities
-    // differ, following the `target_mismatch` precedent of a boolean field
+    // The note fires exactly when the two sides' pack identities differ,
+    // following the `target_mismatch` precedent of a boolean field
     // `print_human` reads rather than asserting on printed text.
     #[test]
     fn pack_mismatch_true_when_pack_identities_differ() {
@@ -563,8 +560,8 @@ mod pack_identity_tests {
         assert!(!compare(&base, &cand, 0.05).pack_mismatch);
     }
 
-    // 8.3 — the note must never move the exit code: a pack difference with
-    // no regression still exits 0.
+    // The note must never move the exit code: a pack difference with no
+    // regression still exits 0.
     #[test]
     fn pack_mismatch_does_not_change_exit_code() {
         let base = report_with_pack("packs/a", "aaaaaaaaaaaaaaaa");
