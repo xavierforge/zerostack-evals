@@ -53,6 +53,12 @@ pub struct Scenario {
     /// (missing when needed, present when not) — see `Scenario::load`.
     #[serde(default, rename = "loop")]
     pub loop_cfg: Option<LoopCfg>,
+    /// Which of zerostack's permission modes this scenario's invocation
+    /// launches with. Defaults to `yolo`, so a scenario that predates this
+    /// field keeps its exact current argument list — see `backend::print_turn_args`
+    /// and `backend::loop_args` for the mapping.
+    #[serde(default)]
+    pub security_mode: SecurityMode,
     pub task: Task,
     /// Deterministic floor: one assert per line, mini-DSL (see asserts.rs).
     #[serde(default)]
@@ -121,6 +127,47 @@ pub enum Mode {
     #[default]
     Print,
     Loop,
+}
+
+/// zerostack's permission-mode surface, named to mirror its CLI flags
+/// verbatim (`Standard` is the exception: zerostack has no `--standard`
+/// flag, its Standard mode is what running with none of the other five
+/// looks like). Defaults to `Yolo`, the mode every scenario launched with
+/// before this field existed, so a scenario that doesn't declare it keeps
+/// today's exact invocation. Mirroring upstream names rather than inventing
+/// harness vocabulary keeps the mapping auditable and a new upstream mode a
+/// one-line addition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SecurityMode {
+    #[default]
+    Yolo,
+    Standard,
+    Restrictive,
+    ReadOnly,
+    Guarded,
+    AcceptAll,
+    DangerouslySkipPermissions,
+}
+
+impl SecurityMode {
+    /// The permission flag this mode's invocation carries, or `None` for
+    /// `Standard`, which is what zerostack's default looks like with no
+    /// permission flag at all. Every other variant maps mechanically to
+    /// `--<kebab-case-name>`, so this stays a one-line addition when
+    /// upstream adds a mode rather than a lookup table that can drift from
+    /// the variant list.
+    pub fn flag(self) -> Option<&'static str> {
+        match self {
+            SecurityMode::Yolo => Some("--yolo"),
+            SecurityMode::Standard => None,
+            SecurityMode::Restrictive => Some("--restrictive"),
+            SecurityMode::ReadOnly => Some("--read-only"),
+            SecurityMode::Guarded => Some("--guarded"),
+            SecurityMode::AcceptAll => Some("--accept-all"),
+            SecurityMode::DangerouslySkipPermissions => Some("--dangerously-skip-permissions"),
+        }
+    }
 }
 
 /// `mode = "loop"` sugar: drives `zerostack --loop --loop-max

@@ -557,14 +557,14 @@ pub fn print_turn_args(
     turn_index: usize,
     zslog: &Path,
 ) -> Vec<OsString> {
-    let mut args: Vec<OsString> = vec![
-        "-p".into(),
-        "--yolo".into(),
-        "--no-color".into(),
-        "--pure-stdout".into(),
-        "--log-file".into(),
-        zslog.into(),
-    ];
+    let mut args: Vec<OsString> = vec!["-p".into()];
+    if let Some(flag) = sc.security_mode.flag() {
+        args.push(flag.into());
+    }
+    args.push("--no-color".into());
+    args.push("--pure-stdout".into());
+    args.push("--log-file".into());
+    args.push(zslog.into());
     if let Some(name) = &sc.prompt {
         args.push("--load-prompt".into());
         args.push(name.into());
@@ -582,15 +582,15 @@ pub fn print_turn_args(
 /// order. No `--pure-stdout`: a loop run has no per-turn stdout worth teeing
 /// tool markers into, its evidence is the iteration records.
 pub fn loop_args(sc: &Scenario, loop_cfg: &LoopCfg, turn: &Turn, zslog: &Path) -> Vec<OsString> {
-    let mut args: Vec<OsString> = vec![
-        "--loop".into(),
-        "--yolo".into(),
-        "--no-color".into(),
-        "--log-file".into(),
-        zslog.into(),
-        "--loop-max".into(),
-        loop_cfg.max_iterations.to_string().into(),
-    ];
+    let mut args: Vec<OsString> = vec!["--loop".into()];
+    if let Some(flag) = sc.security_mode.flag() {
+        args.push(flag.into());
+    }
+    args.push("--no-color".into());
+    args.push("--log-file".into());
+    args.push(zslog.into());
+    args.push("--loop-max".into());
+    args.push(loop_cfg.max_iterations.to_string().into());
     if let Some(run_cmd) = &loop_cfg.run {
         args.push("--loop-run".into());
         args.push(run_cmd.into());

@@ -8,9 +8,9 @@
 
 ## 2. security_mode field with mode mapping [dispatch: too-te, parallel: no, reason: spec is complete (seven values, mechanical flag mapping, default, load-error case, loop parity all stated); est. ~25 tool calls]
 
-- [ ] 2.1 RED: tests for (a) no `security_mode` declared produces an argument vector byte-identical to today's including `--yolo`, (b) `read-only` maps to `--read-only` and no other permission flag, (c) `standard` emits none of the six permission flags, (d) a `--loop` scenario carries the same flag as `-p` would, (e) `security_mode = "readonly"` fails deserialization naming the field.
-- [ ] 2.2 Add the `SecurityMode` serde enum (kebab-case, default `yolo`) to the strict `Scenario` schema and map it in both assembly functions (`standard` emits no flag, every other value emits `--<value>`); tests go GREEN.
-- [ ] 2.3 Verify and cite evidence: `cargo test --workspace` output, plus `zseval list` over the in-tree suite showing all scenarios still load.
+- [x] 2.1 RED: tests for (a) no `security_mode` declared produces an argument vector byte-identical to today's including `--yolo`, (b) `read-only` maps to `--read-only` and no other permission flag, (c) `standard` emits none of the six permission flags, (d) a `--loop` scenario carries the same flag as `-p` would, (e) `security_mode = "readonly"` fails deserialization naming the field.
+- [x] 2.2 Add the `SecurityMode` serde enum (kebab-case, default `yolo`) to the strict `Scenario` schema and map it in both assembly functions (`standard` emits no flag, every other value emits `--<value>`); tests go GREEN.
+- [x] 2.3 Verify and cite evidence: `cargo test --workspace` output, plus `zseval list` over the in-tree suite showing all scenarios still load.
 
 ## 3. cli_args field with harness-flag denylist [dispatch: too-te, parallel: no, reason: spec is complete (splice point, token shape, exact denylist, error content, hash behavior all stated); est. ~30 tool calls]
 

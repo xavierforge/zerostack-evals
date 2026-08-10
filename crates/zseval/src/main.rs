@@ -455,6 +455,7 @@ fn cmd_run(rest: Vec<String>) -> anyhow::Result<ExitCode> {
     if !backend_kind.is_mock() {
         zseval::preflight::check_binary(&mut pre, zs_bin.as_deref());
         zseval::preflight::check_target_keys(&mut pre, &targets, |n| std::env::var(n).ok());
+        zseval::preflight::check_target_permission_keys(&mut pre, &targets);
     }
     if has_rubric && matches!(choice, JudgeChoice::Unspecified) {
         pre.problem(zseval::preflight::judge_decision_needed(
