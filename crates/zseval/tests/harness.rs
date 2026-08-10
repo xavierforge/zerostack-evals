@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 
 use zseval::asserts::Assert;
-use zseval::backend::{AgentBackend, Mock, RunRoots, ZsCli};
+use zseval::backend::{loop_args, print_turn_args, AgentBackend, Mock, RunRoots, ZsCli};
 use zseval::coverage::Ledger;
 use zseval::judge::{JudgeConfig, JudgeProvider, LlmJudge};
 use zseval::prompts::PromptPack;
@@ -3656,6 +3656,130 @@ fn zscli_without_a_pack_creates_no_prompts_dir() {
 
     assert!(!run_dir.join("work/.zerostack/prompts").exists());
 
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+// ---------------------------------------------------------------------------
+// Launch argument assembly
+// ---------------------------------------------------------------------------
+
+/// The assembled vector as plain strings, so a test can spell the expected
+/// invocation out as a literal list instead of building `OsString`s.
+fn arg_strs(args: &[std::ffi::OsString]) -> Vec<String> {
+    args.iter()
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect()
+}
+
+/// The zslog path both assembly tests hand in — a fixed literal so the
+/// expected vector can name it, since nothing is spawned here.
+fn args_zslog() -> PathBuf {
+    PathBuf::from("/tmp/zseval-args/turn-0.zslog")
+}
+
+/// The `-p` invocation of a first turn, locked argument by argument: the
+/// harness-owned flags, the scenario's prompt, then the turn message as the
+/// single positional.
+#[test]
+fn print_assembly_spells_out_the_first_turns_invocation() {
+    let sc_dir = write_scenario(
+        "print-args-first-turn",
+        "id = \"x\"\nkind = \"regression\"\nprompt = \"ask\"\ntask = \"say hi\"\nexpect = [\"final_contains x\"]\n",
+    );
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let args = print_turn_args(&sc, &sc.task.turns()[0], 0, &args_zslog());
+
+    assert_eq!(
+        arg_strs(&args),
+        [
+            "-p",
+            "--yolo",
+            "--no-color",
+            "--pure-stdout",
+            "--log-file",
+            "/tmp/zseval-args/turn-0.zslog",
+            "--load-prompt",
+            "ask",
+            "say hi",
+        ]
+    );
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// A later turn resumes the running session: `--continue` lands after the
+/// prompt flag and before the message. The first turn of the same scenario
+/// never carries it, which is what makes this a turn-index decision rather
+/// than a scenario-level one.
+#[test]
+fn print_assembly_continues_the_session_on_a_later_turn() {
+    let sc_dir = write_scenario(
+        "print-args-later-turn",
+        "id = \"x\"\nkind = \"regression\"\nprompt = \"ask\"\ntask = [\"first\", \"second\"]\nexpect = [\"final_contains x\"]\n",
+    );
+    let sc = Scenario::load(&sc_dir).unwrap();
+    let turns = sc.task.turns();
+
+    let args = print_turn_args(&sc, &turns[1], 1, &args_zslog());
+
+    assert_eq!(
+        arg_strs(&args),
+        [
+            "-p",
+            "--yolo",
+            "--no-color",
+            "--pure-stdout",
+            "--log-file",
+            "/tmp/zseval-args/turn-0.zslog",
+            "--load-prompt",
+            "ask",
+            "--continue",
+            "second",
+        ]
+    );
+    assert!(
+        !arg_strs(&print_turn_args(&sc, &turns[0], 0, &args_zslog()))
+            .contains(&"--continue".to_string()),
+        "the first turn opens the session, it cannot continue one"
+    );
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// The `--loop` invocation: one call carrying the iteration ceiling and the
+/// per-iteration command, with no `--pure-stdout` (a loop run has no
+/// per-turn stdout to tee tool markers into).
+#[test]
+fn loop_assembly_spells_out_the_single_invocation() {
+    let sc_dir = write_scenario(
+        "loop-args",
+        "id = \"x\"\nkind = \"regression\"\nprompt = \"ask\"\nmode = \"loop\"\ntask = \"make the tests pass\"\nexpect = [\"final_contains x\"]\n\n[loop]\nmax_iterations = 3\nrun = \"cargo test\"\n",
+    );
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let args = loop_args(
+        &sc,
+        sc.loop_cfg.as_ref().unwrap(),
+        &sc.task.turns()[0],
+        &args_zslog(),
+    );
+
+    assert_eq!(
+        arg_strs(&args),
+        [
+            "--loop",
+            "--yolo",
+            "--no-color",
+            "--log-file",
+            "/tmp/zseval-args/turn-0.zslog",
+            "--loop-max",
+            "3",
+            "--loop-run",
+            "cargo test",
+            "--load-prompt",
+            "ask",
+            "make the tests pass",
+        ]
+    );
     std::fs::remove_dir_all(&sc_dir).ok();
 }
 
