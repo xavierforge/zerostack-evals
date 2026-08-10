@@ -134,6 +134,105 @@ silently ship a footgun:
   `mode = "loop"` scenario at load time: grade on `file_contains` /
   `transcript_contains` / `final_contains` instead.
 
+### `security_mode` and `cli_args`
+
+    security_mode = "read-only"            # optional, default "yolo"
+    cli_args      = ["--quick-model", "fast"]  # optional, default []
+
+`security_mode` selects the permission mode a scenario's zerostack invocation
+launches with, mirroring zerostack's own flag names: `yolo` (default, `--yolo`)
+| `standard` (no flag, it's what zerostack does when no permission flag is
+passed) | `restrictive` (`--restrictive`) | `read-only` (`--read-only`) |
+`guarded` (`--guarded`) | `accept-all` (`--accept-all`) |
+`dangerously-skip-permissions` (`--dangerously-skip-permissions`). Omitting
+the field keeps a scenario's exact current invocation, since `yolo` was the
+harness's hardcoded behaviour before this field existed. An unrecognised value
+is a load-time error, same as any other typo'd scenario field. In current
+zerostack, `--accept-all` resolves to the same permission mode as `standard`
+(upstream `startup.rs` maps `accept_all` to `Standard`; there is no
+`AcceptAll` permission variant), so a scenario contrasting `accept-all`
+against `standard` measures no enforcement difference today; the value exists
+to mirror upstream flags verbatim.
+
+`security_mode` is the *only* place a run's permission mode is declared, and
+that is enforced rather than assumed. zerostack resolves the mode it actually
+runs in from its config file and the command line together, and the config
+outranks some of the flags — a config holding `yolo = true` beats a
+`--read-only` on the command line — so a permission key sitting in a config the
+run reads would decide the mode while the report still named the declared one.
+Both routes into such a config are refused:
+
+- A **`--target`** file carrying `yolo`, `accept_all`, `restrictive`, or
+  `default_permission_mode` (the four keys upstream resolves a mode from) fails
+  the preflight gate, naming the file and the key. Nothing runs and nothing is
+  spent.
+- A **`[[files]]` seed with a `config:` dest** whose fixture carries one of those
+  keys fails scenario load, naming the seed and the key.
+
+Presence is what is refused, not the value: `yolo = false` steers nothing today,
+but it is still a launch's permission mode written in the wrong file, and the
+fix is the same either way. Put the mode in `security_mode` and delete the key.
+
+`cli_args` appends verbatim tokens after every harness-owned flag and
+immediately before the turn message, in both the `-p` and `--loop` assembly
+paths. A flag that takes a separate value is two entries, not one:
+
+    cli_args = ["--quick-model", "fast"]
+
+Every dash-prefixed token (with any `=value` suffix stripped) is checked at
+load time against the flags the harness already owns (`-p`, `--loop`,
+`--log-file`, `--continue`, `--load-prompt`, `--no-color`, `--pure-stdout`,
+`--loop-max`, `--loop-run`, and the six permission-mode flags: `--yolo`,
+`--restrictive`/`-R`, `--read-only`, `--guarded`, `--accept-all`,
+`--dangerously-skip-permissions`), and a hit fails the load, naming the
+scenario path and the offending token, before any trial spends money. Every
+accepted spelling of a harness-owned flag is rejected, not just its canonical
+form: `--print` (an alias of `-p`) and `-c` (an alias of `--continue`) are
+denied the same as the flags they alias. A single-dash token is also scanned
+character-wise, so a short cluster that smuggles an owned short flag inside it
+(e.g. `-nR`, which smuggles `-R`) is denied even though `-nR` itself never
+appears in the list. Permission-mode flags are denied here even though they'd
+otherwise be harmless duplicates: `security_mode` is their one source of
+truth, so `cli_args` can't smuggle a second, possibly conflicting, declaration
+of the same thing.
+
+`--api-key` (in either the `["--api-key", "sk-…"]` or the `--api-key=sk-…`
+spelling) fails the load too, for a different reason: an argument vector is
+readable by every process on the host — zerostack's own help for the flag says
+so — and the by-hand repro command a timed-out trial prints copies `cli_args`
+verbatim into a persisted report, so a key passed here leaks twice. Export the
+provider's key variable instead; the harness passes the environment through.
+The error names the flag and never the value, so nothing echoes the key back.
+
+Positional (non-dash) entries are allowed, since a separate-value flag needs
+one right after it (as in `["--quick-model", "fast"]` above), but a stray
+positional collides with the turn message silently rather than loudly:
+zerostack's positional argument is `message: Vec<String>`, and every
+positional token is joined with spaces into one prompt. Any `cli_args` entry
+that isn't dash-prefixed and isn't the value half of a preceding flag lands in
+the argument vector as its own positional, ahead of the turn message that's
+also a positional, and the two are joined into a single mutated message with
+no error anywhere. The scenario then grades against a prompt nobody wrote
+down, and nothing surfaces the mismatch. Getting the token order right, so a
+non-dash entry sits strictly as the value immediately after its flag, is on
+the scenario author.
+
+The mirror image is a trailing value-taking flag with the value forgotten,
+e.g. `cli_args = ["--quick-model"]` with nothing after it: zerostack's CLI
+binds the turn message itself as that flag's value, so the scenario runs with
+an empty message and no error at any layer.
+
+`--no-session` works in `mode = "loop"` but breaks print mode: `run_print`
+reads the session file back after the turn, so a print-mode scenario passing
+`--no-session` fails with a missing session file.
+
+A scenario can use `cli_args` to override what the target supplies (`--model`,
+`--quick-model`, `--provider`); this is deliberately not denied. The
+convention, same as `[[files]]` whole-file config seeds that override a
+target's `config.toml`: a scenario that overrides target identity notes in a
+TOML comment that it ignores `--target`. Overriding the *permission mode* that
+way is the one exception, refused in both routes as described above.
+
 ## Evaluating another subsystem
 
 A subsystem like `memory` lays out files zerostack itself decides the shape of

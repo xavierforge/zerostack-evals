@@ -84,18 +84,18 @@ note = "The enforcement layer beneath the two voluntary-compliance claims in the
 [[areas.claims]]
 claim = "The permission modes other than the one the harness forces decide as specified, including allowing a write inside the working directory and asking before one outside it"
 status = "uncovered"
-blocked_by = "Every invocation hardcodes the same argument list, including the flag that skips permission prompts, and scenario.toml has no field that can add or drop a flag, so no run ever reaches the standard, read-only or guarded modes."
-note = "The single largest hole in this area: while those modes are unreachable, almost everything the layer decides is invisible to a scenario."
+note = "A scenario can now select standard, restrictive, read-only, guarded or accept-all with security_mode, so the argument list is no longer what stands in the way; the single largest hole in this area is that no scenario yet exercises what those modes decide once selected."
 
 [[areas.claims]]
 claim = "The flag that disables permission checks widens the boundary by exactly what its name promises and no further"
 status = "uncovered"
-blocked_by = "It is a command-line flag, and the fixed argument list every invocation is built from has no per-scenario extension point."
+note = "Reachable now with security_mode = \"dangerously-skip-permissions\"; still unbuilt."
 
 [[areas.claims]]
 claim = "A path outside the working directory that the config scopes explicitly is treated as scoped"
 status = "uncovered"
-blocked_by = "Two limitations stack: no run reaches the mode where a scoped external path is decided, and a seeded config cannot name one of the run's throwaway directories because file placements are copied verbatim with no substitution."
+blocked_by = "A seeded config cannot name one of the run's throwaway directories, because file placements are copied verbatim with no substitution."
+note = "The mode itself is reachable now with security_mode = \"standard\"; what still blocks this claim is the seeding side, not the argument list."
 
 [[areas.claims]]
 claim = "Repeated denials of the same command are recognized and the agent is steered off the retry loop"
@@ -351,7 +351,7 @@ note = "The canary has to be a fact that cannot be answered without reading the 
 [[areas.claims]]
 claim = "Turning project instruction files off actually suppresses them"
 status = "uncovered"
-blocked_by = "Suppression is a command-line flag, and every invocation is built from a fixed argument list that scenario.toml has no field to extend."
+note = "Reachable now via cli_args = [\"--no-context-files\"]; still unbuilt."
 
 # ---------------------------------------------------------------------------
 # tool-use: which tool the model reaches for, and whether the edit it makes is
@@ -402,8 +402,7 @@ note = "This is what keeps the secret-leak and stream-capture proposals at arm's
 [[areas.claims]]
 claim = "The flags that shrink or swap the tool surface take effect: an allowlist registers only the tools it names, and a system-prompt edit applies without a restart"
 status = "uncovered"
-blocked_by = "Both are command-line flags, and the fixed argument list every invocation is built from has no per-scenario extension point."
-note = "The allowlist half is recorded as unmeasured rather than as a permanent exclusion: the older judgment was that the flag was dead code, and it has since been wired into how the agent is built, so what is left is a limitation on the harness side."
+note = "Both flags are reachable now via cli_args. The allowlist half is recorded as unmeasured rather than as a permanent exclusion: the older judgment was that the flag was dead code, and it has since been wired into how the agent is built. Neither half has a scenario yet."
 
 [[areas.claims]]
 claim = "Turning the todo tool off stops it from being registered"
@@ -602,7 +601,7 @@ note = "Both covered claims above run against a server that works. Nothing measu
 [[areas.claims]]
 claim = "Tools an MCP server contributes are gated by the same permission rules as built-in ones"
 status = "uncovered"
-blocked_by = "The permission modes where that gating is decided are unreachable while every invocation forces the flag that skips permission prompts."
+note = "The permission modes where that gating is decided are reachable now via security_mode; nothing here exercises them yet."
 
 # ---------------------------------------------------------------------------
 # loop: the autonomous mode that re-runs a validation command until it passes.
@@ -654,7 +653,7 @@ note = "The fixture has to pin whatever the scenario counts, and the assertion h
 [[areas.claims]]
 claim = "The flags that shrink a headless run leave exactly what they promise: no tools registered, and no session written while the work still happens"
 status = "uncovered"
-blocked_by = "The backend builds the same argument list for every invocation and scenario.toml has no field that can add or drop a flag, so a run cannot be made with any of them."
+note = "The no-tools half is reachable now via cli_args in print mode. The no-session half is reachable via cli_args only in loop mode: in print mode, --no-session leaves zerostack writing no session file at all, and zseval's run_print then fails the trial as a harness error (\"no session file produced\") instead of yielding a passing observation. Neither half has a scenario yet."
 
 [[areas.claims]]
 claim = "A provider failure exits non-zero with an error a user can act on"

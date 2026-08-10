@@ -1,7 +1,8 @@
 //! Input integrity: proof that a run's own inputs did not change while it ran.
 //!
-//! Every trial drives a real zerostack under `--yolo`, inside a work dir that
-//! is only as isolating as the sandbox underneath it. A sandbox that fails
+//! Every trial drives a real zerostack under the scenario's declared
+//! permission mode, `--yolo` by default, inside a work dir that is only as
+//! isolating as the sandbox underneath it. A sandbox that fails
 //! open leaves nothing between the agent and the files that define the run —
 //! the scenario tree it is graded against, the shared `_fixtures/` its seeds
 //! are copied from, the target config naming what is evaluated, the judge file
