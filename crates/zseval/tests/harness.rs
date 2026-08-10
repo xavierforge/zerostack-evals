@@ -5,12 +5,14 @@
 use std::path::{Path, PathBuf};
 
 use zseval::asserts::Assert;
-use zseval::backend::{loop_args, print_turn_args, AgentBackend, Mock, RunRoots, ZsCli};
+use zseval::backend::{
+    loop_args, print_turn_args, AgentBackend, Mock, RunRoots, ZsCli, HARNESS_OWNED_FLAGS,
+};
 use zseval::coverage::Ledger;
 use zseval::judge::{JudgeConfig, JudgeProvider, LlmJudge};
 use zseval::prompts::PromptPack;
 use zseval::runner::{regrade, run_suite, RunOptions};
-use zseval::scenario::{discover, Kind, Scenario};
+use zseval::scenario::{discover, Kind, Scenario, SecurityMode};
 use zseval::seed;
 use zseval::transcript;
 use zseval::verdict::Final;
@@ -3783,16 +3785,14 @@ fn loop_assembly_spells_out_the_single_invocation() {
     std::fs::remove_dir_all(&sc_dir).ok();
 }
 
-/// zerostack's six mutually exclusive permission-mode flags, so a test can
-/// assert a scenario's assembled arguments carry at most one of them.
-const PERMISSION_FLAGS: &[&str] = &[
-    "--yolo",
-    "--restrictive",
-    "--read-only",
-    "--guarded",
-    "--accept-all",
-    "--dangerously-skip-permissions",
-];
+/// zerostack's mutually exclusive permission-mode flags, so a test can assert
+/// a scenario's assembled arguments carry at most one of them. Read off the
+/// real enum rather than copied: a mode added upstream shows up here on its
+/// own, instead of leaving these tests checking a list that has quietly gone
+/// stale.
+fn permission_flags() -> Vec<&'static str> {
+    SecurityMode::ALL.iter().filter_map(|m| m.flag()).collect()
+}
 
 /// A scenario that declares no `security_mode` at all must launch with
 /// exactly today's argument list, `--yolo` included: the field's default has
@@ -3824,8 +3824,11 @@ fn security_mode_default_preserves_the_current_invocation() {
     std::fs::remove_dir_all(&sc_dir).ok();
 }
 
-/// `read-only` maps to `--read-only` and to no other permission flag — the
-/// mapping is mechanical (`--<value>`), not a lookup table that could drift.
+/// `read-only` maps to `--read-only` and to no other permission flag. The
+/// mapping is a hand-written match, kept honest by being exhaustive (a new
+/// upstream mode does not compile until it is given a flag) plus the drift
+/// test below, which requires every one of those flags to be denied in
+/// `cli_args`.
 #[test]
 fn security_mode_read_only_maps_to_its_flag_alone() {
     let sc_dir = write_scenario(
@@ -3838,8 +3841,8 @@ fn security_mode_read_only_maps_to_its_flag_alone() {
     let args = arg_strs(&print_turn_args(&sc, &sc.task.turns()[0], 0, &args_zslog()));
 
     assert!(args.contains(&"--read-only".to_string()), "{args:?}");
-    for flag in PERMISSION_FLAGS {
-        if *flag != "--read-only" {
+    for flag in permission_flags() {
+        if flag != "--read-only" {
             assert!(
                 !args.contains(&flag.to_string()),
                 "{args:?} must not carry {flag}"
@@ -3863,7 +3866,7 @@ fn security_mode_standard_emits_no_permission_flag() {
 
     let args = arg_strs(&print_turn_args(&sc, &sc.task.turns()[0], 0, &args_zslog()));
 
-    for flag in PERMISSION_FLAGS {
+    for flag in permission_flags() {
         assert!(
             !args.contains(&flag.to_string()),
             "{args:?} must not carry {flag}"
@@ -3926,6 +3929,543 @@ fn security_mode_unknown_value_fails_to_load_naming_the_field() {
     );
     let err = Scenario::load(&sc_dir).unwrap_err();
     assert!(format!("{err:#}").contains("security_mode"), "{err:#}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// A flag that takes a separate value rides as two verbatim tokens, spliced
+/// after every harness-owned flag and before the turn message.
+#[test]
+fn cli_args_land_after_harness_flags_and_before_the_message_in_print_path() {
+    let sc_dir = write_scenario(
+        "cli-args-print",
+        "id = \"x\"\nkind = \"regression\"\nprompt = \"ask\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\ncli_args = [\"--quick-model\", \"fast\"]\n",
+    );
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let args = arg_strs(&print_turn_args(&sc, &sc.task.turns()[0], 0, &args_zslog()));
+
+    assert_eq!(
+        args,
+        [
+            "-p",
+            "--yolo",
+            "--no-color",
+            "--pure-stdout",
+            "--log-file",
+            "/tmp/zseval-args/turn-0.zslog",
+            "--load-prompt",
+            "ask",
+            "--quick-model",
+            "fast",
+            "say hi",
+        ]
+    );
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// Same splice point in the `--loop` path: after the harness-owned flags
+/// (including `--loop-max`/`--loop-run`/`--load-prompt`), before the message.
+#[test]
+fn cli_args_land_after_harness_flags_and_before_the_message_in_loop_path() {
+    let sc_dir = write_scenario(
+        "cli-args-loop",
+        "id = \"x\"\nkind = \"regression\"\nprompt = \"ask\"\nmode = \"loop\"\n\
+         task = \"make the tests pass\"\nexpect = [\"final_contains x\"]\n\
+         cli_args = [\"--quick-model\", \"fast\"]\n\n[loop]\nmax_iterations = 3\nrun = \"cargo test\"\n",
+    );
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let args = arg_strs(&loop_args(
+        &sc,
+        sc.loop_cfg.as_ref().unwrap(),
+        &sc.task.turns()[0],
+        &args_zslog(),
+    ));
+
+    assert_eq!(
+        args,
+        [
+            "--loop",
+            "--yolo",
+            "--no-color",
+            "--log-file",
+            "/tmp/zseval-args/turn-0.zslog",
+            "--loop-max",
+            "3",
+            "--loop-run",
+            "cargo test",
+            "--load-prompt",
+            "ask",
+            "--quick-model",
+            "fast",
+            "make the tests pass",
+        ]
+    );
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// On a turn that adds `--continue`, the extra tokens still follow it and
+/// still precede the message — the splice point is relative to the
+/// harness-owned flags actually emitted for that turn, not a fixed offset.
+#[test]
+fn cli_args_still_follow_continue_on_a_later_turn() {
+    let sc_dir = write_scenario(
+        "cli-args-continue",
+        "id = \"x\"\nkind = \"regression\"\nprompt = \"ask\"\ntask = [\"first\", \"second\"]\n\
+         expect = [\"final_contains x\"]\ncli_args = [\"--quick-model\", \"fast\"]\n",
+    );
+    let sc = Scenario::load(&sc_dir).unwrap();
+    let turns = sc.task.turns();
+
+    let args = arg_strs(&print_turn_args(&sc, &turns[1], 1, &args_zslog()));
+
+    assert_eq!(
+        args,
+        [
+            "-p",
+            "--yolo",
+            "--no-color",
+            "--pure-stdout",
+            "--log-file",
+            "/tmp/zseval-args/turn-0.zslog",
+            "--load-prompt",
+            "ask",
+            "--continue",
+            "--quick-model",
+            "fast",
+            "second",
+        ]
+    );
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// A smuggled permission flag fails scenario load naming the scenario path
+/// and the offending token, before any trial runs — permission modes are
+/// expressible only through `security_mode`.
+#[test]
+fn cli_args_smuggled_permission_flag_fails_load() {
+    let sc_dir = write_scenario(
+        "cli-args-smuggled-yolo",
+        "id = \"x\"\nkind = \"regression\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\ncli_args = [\"--yolo\"]\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains(&sc_dir.display().to_string()),
+        "expected the scenario path in the error: {msg}"
+    );
+    assert!(msg.contains("--yolo"), "{msg}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// The `=value` form does not evade the denylist: the flag name is checked
+/// with the suffix stripped.
+#[test]
+fn cli_args_equals_form_does_not_evade_the_denylist() {
+    let sc_dir = write_scenario(
+        "cli-args-equals-log-file",
+        "id = \"x\"\nkind = \"regression\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\ncli_args = [\"--log-file=/tmp/x\"]\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    assert!(format!("{err:#}").contains("--log-file"), "{err:#}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// A non-colliding flag loads cleanly and reaches the assembled arguments.
+#[test]
+fn cli_args_non_colliding_flag_loads_and_reaches_the_vector() {
+    let sc_dir = write_scenario(
+        "cli-args-no-context-files",
+        "id = \"x\"\nkind = \"regression\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\ncli_args = [\"--no-context-files\"]\n",
+    );
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let args = arg_strs(&print_turn_args(&sc, &sc.task.turns()[0], 0, &args_zslog()));
+
+    assert!(args.contains(&"--no-context-files".to_string()), "{args:?}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// `cli_args` is raw TOML source like every other field, so a token added
+/// between two loads changes `content_hash` the same way any other edit does.
+#[test]
+fn cli_args_token_change_moves_the_content_hash() {
+    let sc_dir =
+        std::env::temp_dir().join(format!("zseval-test-cli-args-hash-{}", std::process::id()));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    let toml = |cli_args: &str| {
+        format!(
+            "id = \"x\"\nkind = \"regression\"\ntask = \"say hi\"\n\
+             expect = [\"final_contains x\"]\ncli_args = [{cli_args}]\n"
+        )
+    };
+    std::fs::write(sc_dir.join("scenario.toml"), toml("")).unwrap();
+    let a = Scenario::load(&sc_dir).unwrap();
+
+    std::fs::write(sc_dir.join("scenario.toml"), toml("\"--no-context-files\"")).unwrap();
+    let b = Scenario::load(&sc_dir).unwrap();
+
+    assert_ne!(a.content_hash, b.content_hash);
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// The `security_mode` half of the same rule: the mode a scenario launches
+/// with is part of its identity, so switching it makes the ruler drift like
+/// any other edit rather than silently comparing two different setups.
+#[test]
+fn security_mode_change_moves_the_content_hash() {
+    let sc_dir = std::env::temp_dir().join(format!(
+        "zseval-test-security-mode-hash-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&sc_dir).unwrap();
+    let toml = |mode: &str| {
+        format!(
+            "id = \"x\"\nkind = \"regression\"\ntask = \"say hi\"\n\
+             expect = [\"final_contains x\"]\nsecurity_mode = \"{mode}\"\n"
+        )
+    };
+    std::fs::write(sc_dir.join("scenario.toml"), toml("yolo")).unwrap();
+    let a = Scenario::load(&sc_dir).unwrap();
+
+    std::fs::write(sc_dir.join("scenario.toml"), toml("read-only")).unwrap();
+    let b = Scenario::load(&sc_dir).unwrap();
+
+    assert_ne!(a.content_hash, b.content_hash);
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// The denylist and the two assemblers have to stay adjacent: a flag the
+/// harness starts emitting without an entry in `HARNESS_OWNED_FLAGS` would
+/// let a scenario's `cli_args` collide with it unnoticed. So both assemblers
+/// are run over a maximally-featured scenario (every conditional flag lit),
+/// and every dash-prefixed token they emit must be on the list, together with
+/// every permission mode's flag.
+///
+/// Only that direction is asserted. The list deliberately holds spellings the
+/// assemblers never emit (`--print`, `-c`, `-R`), because a scenario can
+/// still write those.
+#[test]
+fn harness_owned_flags_cover_every_flag_the_assemblers_emit() {
+    let print_dir = write_scenario(
+        "owned-flags-print",
+        "id = \"x\"\nkind = \"regression\"\nprompt = \"ask\"\ntask = [\"first\", \"second\"]\n\
+         expect = [\"final_contains x\"]\n",
+    );
+    let print_sc = Scenario::load(&print_dir).unwrap();
+    // Turn 1, not turn 0: `--continue` is only emitted on a resuming turn.
+    let mut emitted = arg_strs(&print_turn_args(
+        &print_sc,
+        &print_sc.task.turns()[1],
+        1,
+        &args_zslog(),
+    ));
+
+    let loop_dir = write_scenario(
+        "owned-flags-loop",
+        "id = \"x\"\nkind = \"regression\"\nprompt = \"ask\"\nmode = \"loop\"\n\
+         task = \"make the tests pass\"\nexpect = [\"final_contains x\"]\n\n\
+         [loop]\nmax_iterations = 3\nrun = \"cargo test\"\n",
+    );
+    let loop_sc = Scenario::load(&loop_dir).unwrap();
+    emitted.extend(arg_strs(&loop_args(
+        &loop_sc,
+        loop_sc.loop_cfg.as_ref().unwrap(),
+        &loop_sc.task.turns()[0],
+        &args_zslog(),
+    )));
+
+    let dash_prefixed: Vec<&String> = emitted.iter().filter(|a| a.starts_with('-')).collect();
+    // The scenarios above are only worth anything to this test while they
+    // still light up the conditional flags.
+    for conditional in ["--continue", "--load-prompt", "--loop-max", "--loop-run"] {
+        assert!(
+            dash_prefixed.iter().any(|a| a.as_str() == conditional),
+            "{conditional} is no longer emitted for a maximally-featured \
+             scenario, so this test stopped covering it: {dash_prefixed:?}"
+        );
+    }
+    for flag in &dash_prefixed {
+        assert!(
+            HARNESS_OWNED_FLAGS.contains(&flag.as_str()),
+            "the assemblers emit {flag}, but cli_args may still declare it: {HARNESS_OWNED_FLAGS:?}"
+        );
+    }
+    for mode in SecurityMode::ALL {
+        if let Some(flag) = mode.flag() {
+            assert!(
+                HARNESS_OWNED_FLAGS.contains(&flag),
+                "{mode:?} launches with {flag}, but cli_args may still declare it: \
+                 {HARNESS_OWNED_FLAGS:?}"
+            );
+        }
+    }
+
+    std::fs::remove_dir_all(&print_dir).ok();
+    std::fs::remove_dir_all(&loop_dir).ok();
+}
+
+/// zerostack accepts `--print` for `-p` and `-c` for `--continue`, so an
+/// alias is the same hijack as the spelling the harness itself emits:
+/// `--print` on a loop scenario would quietly turn it into a single print
+/// turn. Both spellings fail load, naming the path and the token.
+#[test]
+fn cli_args_alias_spelling_of_an_owned_flag_fails_load() {
+    for (name, token) in [("alias-print", "--print"), ("alias-continue", "-c")] {
+        let sc_dir = write_scenario(
+            name,
+            &format!(
+                "id = \"x\"\nkind = \"regression\"\ntask = \"say hi\"\n\
+                 expect = [\"final_contains x\"]\ncli_args = [\"{token}\"]\n"
+            ),
+        );
+        let err = Scenario::load(&sc_dir).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains(&sc_dir.display().to_string()),
+            "expected the scenario path in the error: {msg}"
+        );
+        assert!(msg.contains(token), "{msg}");
+        std::fs::remove_dir_all(&sc_dir).ok();
+    }
+}
+
+/// A short cluster reaches zerostack split apart (`-nR` is `-n -R`), so an
+/// exact-string check alone would let it set a permission mode from
+/// `cli_args`, exactly what `security_mode` exists to be the only source of.
+/// The error names the cluster and the owned flag hiding in it.
+#[test]
+fn cli_args_short_cluster_cannot_smuggle_an_owned_flag() {
+    let sc_dir = write_scenario(
+        "cli-args-cluster",
+        "id = \"x\"\nkind = \"regression\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\ncli_args = [\"-nR\"]\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains(&sc_dir.display().to_string()),
+        "expected the scenario path in the error: {msg}"
+    );
+    assert!(msg.contains("-nR"), "{msg}");
+    assert!(msg.contains("-R"), "{msg}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// Trailing whitespace on an owned-flag token can't dodge the exact-string
+/// check: the token is trimmed before it's compared, so `"--yolo "` is caught
+/// as the same collision `"--yolo"` is.
+#[test]
+fn cli_args_trailing_whitespace_collision_is_caught() {
+    let sc_dir = write_scenario(
+        "cli-args-trailing-space-yolo",
+        "id = \"x\"\nkind = \"regression\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\ncli_args = [\"--yolo \"]\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains(&sc_dir.display().to_string()),
+        "expected the scenario path in the error: {msg}"
+    );
+    assert!(msg.contains("--yolo"), "{msg}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// A dash-prefixed token with an internal space can never be one valid shell
+/// word, so it can never be one valid flag either; catching it at load time
+/// keeps it from silently defeating the collision/secret checks the way
+/// `"--load-prompt x"` would if it slipped through as a single opaque token.
+#[test]
+fn cli_args_internal_whitespace_token_fails_load() {
+    let sc_dir = write_scenario(
+        "cli-args-internal-space",
+        "id = \"x\"\nkind = \"regression\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\ncli_args = [\"--load-prompt x\"]\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains(&sc_dir.display().to_string()),
+        "expected the scenario path in the error: {msg}"
+    );
+    assert!(msg.contains("--load-prompt x"), "{msg}");
+    assert!(msg.contains("whitespace"), "{msg}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// A key on the command line is readable by every process on the host, and the
+/// timeout hint this harness persists copies `cli_args` verbatim into a report,
+/// so `--api-key` is refused at load with the same prefix as any other bad
+/// token: the scenario id and its `scenario.toml` path.
+#[test]
+fn cli_args_api_key_fails_load_naming_the_flag() {
+    let sc_dir = write_scenario(
+        "cli-args-api-key",
+        "id = \"x\"\nkind = \"regression\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\ncli_args = [\"--api-key\", \"sk-secret\"]\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains(&sc_dir.display().to_string()),
+        "expected the scenario path in the error: {msg}"
+    );
+    assert!(msg.contains("--api-key"), "{msg}");
+    assert!(msg.contains("environment"), "{msg}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// The `=value` form is the same refusal, and the error prints the flag alone:
+/// a message that echoed the token back would publish the very secret the
+/// refusal exists to keep out of print.
+#[test]
+fn cli_args_api_key_equals_form_fails_load_without_echoing_the_secret() {
+    let sc_dir = write_scenario(
+        "cli-args-api-key-equals",
+        "id = \"x\"\nkind = \"regression\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\ncli_args = [\"--api-key=sk-secret\"]\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(msg.contains("--api-key"), "{msg}");
+    assert!(
+        !msg.contains("sk-secret"),
+        "the error leaked the key it refused: {msg}"
+    );
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// Write a scenario dir plus one fixture under its own `_fixtures`, for the
+/// seeded-config checks below.
+fn write_scenario_with_fixture(
+    name: &str,
+    toml: &str,
+    fixture_name: &str,
+    fixture: &str,
+) -> PathBuf {
+    let sc_dir = write_scenario(name, toml);
+    let fixtures = sc_dir.join("_fixtures");
+    std::fs::create_dir_all(&fixtures).unwrap();
+    std::fs::write(fixtures.join(fixture_name), fixture).unwrap();
+    sc_dir
+}
+
+/// A `config:` seed lands where zerostack reads its own config, and zerostack
+/// resolves the launch's permission mode from there ahead of some of the flags
+/// the harness passes — so a permission key in the seed would decide the mode
+/// instead of `security_mode`, silently. Refused at load, naming the seed, the
+/// key, and where the mode belongs.
+#[test]
+fn a_config_seed_carrying_a_permission_key_fails_load() {
+    let sc_dir = write_scenario_with_fixture(
+        "seed-perm-key",
+        "id = \"x\"\nkind = \"regression\"\nsecurity_mode = \"read-only\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\n\n[[files]]\nsrc = \"_fixtures/zs-config.toml\"\n\
+         dest = \"config:config.toml\"\n",
+        "zs-config.toml",
+        "provider = \"anthropic\"\nyolo = true\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains(&sc_dir.display().to_string()),
+        "expected the scenario path in the error: {msg}"
+    );
+    assert!(msg.contains("config:config.toml"), "{msg}");
+    assert!(msg.contains("yolo"), "{msg}");
+    assert!(msg.contains("security_mode"), "{msg}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// Seeding the run's config stays allowed — the rule is about the permission
+/// mode, not about config seeds — and a payload the *agent* is meant to work on
+/// is its own business: a `work:` file is never read as zerostack's config, so
+/// a scenario can hand the agent a config to edit without tripping this.
+#[test]
+fn a_config_seed_without_permission_keys_and_a_work_payload_both_load() {
+    let clean = write_scenario_with_fixture(
+        "seed-perm-clean",
+        "id = \"x\"\nkind = \"regression\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\n\n[[files]]\nsrc = \"_fixtures/zs-config.toml\"\n\
+         dest = \"config:config.toml\"\n",
+        "zs-config.toml",
+        "provider = \"anthropic\"\nmodel = \"m\"\n",
+    );
+    Scenario::load(&clean).unwrap();
+    std::fs::remove_dir_all(&clean).ok();
+
+    let payload = write_scenario_with_fixture(
+        "seed-perm-payload",
+        "id = \"x\"\nkind = \"regression\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\n\n[[files]]\nsrc = \"_fixtures/zs-config.toml\"\n\
+         dest = \"work:broken-config.toml\"\n",
+        "zs-config.toml",
+        "provider = \"anthropic\"\nyolo = true\n",
+    );
+    Scenario::load(&payload).unwrap();
+    std::fs::remove_dir_all(&payload).ok();
+}
+
+/// The targets this repo ships are the ones every real run passes to
+/// `--target`, so a permission key landing in one would refuse every run. The
+/// preflight gate says so at run time; this says so at test time.
+#[test]
+fn shipped_targets_declare_no_permission_keys() {
+    let dir = repo_root().join("targets");
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let p = entry.unwrap().path();
+        if p.extension().is_none_or(|x| x != "toml") {
+            continue;
+        }
+        assert!(
+            zseval::target::permission_mode_keys(&p).is_empty(),
+            "{}: a shipped target declares a permission mode; it belongs in a scenario's \
+             security_mode",
+            p.display()
+        );
+    }
+}
+
+/// A run that hangs prints a by-hand repro command, and the point of it is
+/// that pasting it reproduces the run, so it has to carry the mode and the
+/// extra arguments the scenario actually declared, not the `--yolo` every
+/// scenario used to launch with.
+#[test]
+fn the_timeout_hint_reproduces_the_declared_mode_and_cli_args() {
+    let stub = scratch_dir("timeout-hint-stub").join("fake-zs");
+    install_stub(&stub, "#!/bin/sh\nsleep 30\n");
+
+    let sc_dir = write_scenario(
+        "timeout-hint",
+        "id = \"x\"\nkind = \"regression\"\nsecurity_mode = \"read-only\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\ntimeout_secs = 1\n\
+         cli_args = [\"--quick-model\", \"a fast one\"]\n",
+    );
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let outcome = ZsCli {
+        bin: stub,
+        target: None,
+        prompts: None,
+    }
+    .run(&sc, &scratch_dir("timeout-hint-run"));
+
+    let err = outcome
+        .err()
+        .expect("a stub that never exits must time out");
+    let msg = format!("{err:#}");
+    assert!(msg.contains("timeout after 1s"), "{msg}");
+    assert!(
+        msg.contains("-p --read-only --no-color --quick-model 'a fast one' --log-level debug"),
+        "the hint must launch in the run's own mode, with its own extra \
+         arguments, and keep a value with spaces one argument: {msg}"
+    );
+    assert!(!msg.contains("--yolo"), "{msg}");
     std::fs::remove_dir_all(&sc_dir).ok();
 }
 

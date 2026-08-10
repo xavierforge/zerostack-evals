@@ -92,17 +92,19 @@ fn tee(
 }
 
 /// Everything one `zerostack` invocation needs beyond its `Command`: the
-/// binary being driven (named in the spawn and timeout errors), the flag that
-/// reproduces this invocation shape by hand, the trial-wide `timeout` measured
+/// binary being driven (named in the spawn and timeout errors), the flags that
+/// reproduce this invocation by hand, the trial-wide `timeout` measured
 /// from `started`, and the turn's index plus the three logs its output is
 /// tee'd to. Bundled because `run_print` and `run_loop` each hold the whole
 /// group already — the only two callers, and the two shapes whose
 /// timeout/heartbeat/diagnostic behavior must not drift apart.
 struct TurnRun<'a> {
     bin: &'a Path,
-    /// Cosmetic only: substituted into the timeout error's "reproduce
-    /// manually" hint (`-p` vs `--loop`).
-    repro_flag: &'a str,
+    /// Cosmetic only: the flags substituted into the timeout error's
+    /// "reproduce manually" hint, so the printed command launches in the same
+    /// shape and the same permission mode, with the same extra arguments, as
+    /// the invocation that hung (see `repro_flags`).
+    repro_flags: &'a str,
     /// When the whole trial started — the timeout is measured from here, not
     /// from this invocation's spawn.
     started: Instant,
@@ -119,7 +121,7 @@ struct TurnRun<'a> {
 fn spawn_and_wait(mut cmd: Command, run: &TurnRun) -> Result<()> {
     let TurnRun {
         bin,
-        repro_flag,
+        repro_flags,
         started,
         timeout,
         turn_label,
@@ -162,7 +164,7 @@ fn spawn_and_wait(mut cmd: Command, run: &TurnRun) -> Result<()> {
                          --- tail of {} ---\n{}\n\
                          --- tail of {} ---\n{}\n\
                          hint: rerun with --verbose, or reproduce manually:\n  \
-                         ZS_DATA_DIR=$(mktemp -d) {} {repro_flag} --yolo --no-color \
+                         ZS_DATA_DIR=$(mktemp -d) {} {repro_flags} \
                          --log-level debug 'ping'",
                         timeout.as_secs(),
                         zs_log.display(),
@@ -546,6 +548,101 @@ fn git_ceiling(run_dir: &Path) -> PathBuf {
 // filesystem. `Vec<OsString>` rather than `Vec<String>` because `--log-file`
 // carries a filesystem path, which the child is handed verbatim.
 
+/// Every flag either assembly function below hardcodes, plus every other
+/// spelling zerostack accepts for one, kept next to them because the harness
+/// test suite asserts the adjacency: a flag added to `print_turn_args` or
+/// `loop_args` without a matching entry here fails the drift test rather than
+/// silently letting a scenario's `cli_args` collide with it.
+/// `Scenario::load` checks every dash-prefixed `cli_args` token against this
+/// set (`=value` suffix stripped) before any trial spends money.
+///
+/// Both spellings of a flag are listed because zerostack accepts both:
+/// `-p`/`--print`, `-c`/`--continue`, `-R`/`--restrictive`. Only the
+/// spellings the assemblers emit appear in an assembled vector, but any of
+/// them in `cli_args` would reach the child. `standard` has no flag of its
+/// own (it is what zerostack runs as when no permission flag is passed), so
+/// it isn't listed.
+pub const HARNESS_OWNED_FLAGS: &[&str] = &[
+    "-p",
+    "--print",
+    "--loop",
+    "--log-file",
+    "-c",
+    "--continue",
+    "--load-prompt",
+    "--no-color",
+    "--pure-stdout",
+    "--loop-max",
+    "--loop-run",
+    "--yolo",
+    "--restrictive",
+    "-R",
+    "--read-only",
+    "--guarded",
+    "--accept-all",
+    "--dangerously-skip-permissions",
+];
+
+/// The owned flags zerostack also accepts as a *boolean* short, mapped to the
+/// entry above they smuggle. clap splits a short cluster (`-nR` reaches
+/// zerostack as `-n -R`), so a cluster has to be read character by character
+/// or `-nR` would set a permission mode straight past the exact-string check.
+/// Shorts that take a value are deliberately absent: everything after such a
+/// character is that flag's value, not another flag.
+const HARNESS_OWNED_SHORTS: &[(char, &str)] = &[('p', "-p"), ('c', "-c"), ('R', "-R")];
+
+/// The harness-owned flag `token` would hand zerostack, or `None` if the
+/// token is the scenario's own business. Recognizes the `=value` form
+/// (`--log-file=/tmp/x`), every accepted spelling of an owned flag, and short
+/// clusters, which reach the child split apart.
+///
+/// A cluster is judged conservatively: `-tR` is rejected even though clap
+/// would read `R` as `--tools`' value, because the harness cannot tell the
+/// two apart without reimplementing zerostack's parser, and a scenario that
+/// really wants that argument can write it as its own `cli_args` token.
+pub(crate) fn harness_owned_collision(token: &str) -> Option<&'static str> {
+    if !token.starts_with('-') {
+        return None;
+    }
+    let flag = token.split_once('=').map_or(token, |(name, _)| name);
+    if let Some(owned) = HARNESS_OWNED_FLAGS.iter().find(|f| **f == flag) {
+        return Some(owned);
+    }
+    let cluster = flag
+        .strip_prefix('-')
+        .filter(|rest| !rest.starts_with('-'))?;
+    if cluster.chars().count() < 2 {
+        return None;
+    }
+    cluster.chars().find_map(|ch| {
+        HARNESS_OWNED_SHORTS
+            .iter()
+            .find(|(short, _)| *short == ch)
+            .map(|(_, owned)| *owned)
+    })
+}
+
+/// zerostack flags whose value is a secret. Not harness-owned — the harness
+/// passes none of them — but refused from `cli_args` all the same, because an
+/// argument vector is readable by every process on the host (`--api-key`'s own
+/// help says so) and because `repro_flags` copies `cli_args` verbatim into the
+/// timeout hint this harness persists into a report. A key that reaches here
+/// leaks twice: once live, once into a file that outlives the run.
+///
+/// Long spellings only, which is all zerostack accepts for these: a short
+/// alias would have to be listed the way `HARNESS_OWNED_SHORTS` lists its own.
+const SECRET_BEARING_FLAGS: &[&str] = &["--api-key"];
+
+/// The secret-bearing flag `token` would hand zerostack, or `None` if the token
+/// carries no secret. Recognizes the `=value` form, and deliberately returns
+/// the flag rather than the token: the caller puts this in an error message,
+/// and echoing `--api-key=sk-…` back would publish the secret the refusal
+/// exists to keep out of print.
+pub(crate) fn secret_bearing_flag(token: &str) -> Option<&'static str> {
+    let flag = token.split_once('=').map_or(token, |(name, _)| name);
+    SECRET_BEARING_FLAGS.iter().copied().find(|f| *f == flag)
+}
+
 /// Every argument of one `-p` turn's invocation, in spawn order: the
 /// harness-owned flags, the scenario's prompt, then the turn message as the
 /// single positional. Whether this turn resumes the running session is a
@@ -574,6 +671,9 @@ pub fn print_turn_args(
     if turn_index > 0 && !turn.new_session() {
         args.push("--continue".into());
     }
+    for extra in &sc.cli_args {
+        args.push(extra.into());
+    }
     args.push(turn.msg().into());
     args
 }
@@ -599,8 +699,42 @@ pub fn loop_args(sc: &Scenario, loop_cfg: &LoopCfg, turn: &Turn, zslog: &Path) -
         args.push("--load-prompt".into());
         args.push(name.into());
     }
+    for extra in &sc.cli_args {
+        args.push(extra.into());
+    }
     args.push(turn.msg().into());
     args
+}
+
+/// The flags the timeout error's "reproduce manually" hint carries for this
+/// scenario: the invocation shape (`-p` or `--loop`), the permission mode the
+/// scenario declared, and its extra `cli_args`, so a run that hung under
+/// `security_mode = "read-only"` reproduces read-only. The isolation env
+/// vars, the per-turn log paths and the turn message are deliberately left
+/// out: the hint is a minimal by-hand `ping`, not a replay.
+fn repro_flags(sc: &Scenario, shape_flag: &str) -> String {
+    let mut parts = vec![shape_flag.to_string()];
+    if let Some(flag) = sc.security_mode.flag() {
+        parts.push(flag.to_string());
+    }
+    parts.push("--no-color".to_string());
+    parts.extend(sc.cli_args.iter().map(|a| shell_token(a)));
+    parts.join(" ")
+}
+
+/// One token of that copy-pasteable command: quoted unless it is a plain
+/// word, so a `cli_args` value carrying spaces stays a single argument when
+/// the line is pasted into a shell.
+fn shell_token(token: &str) -> String {
+    let plain = !token.is_empty()
+        && token
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "-_=/.:,+@".contains(c));
+    if plain {
+        token.to_string()
+    } else {
+        format!("'{}'", token.replace('\'', r"'\''"))
+    }
 }
 
 impl ZsCli {
@@ -610,6 +744,7 @@ impl ZsCli {
     fn run_print(&self, sc: &Scenario, d: &RunDirs) -> Result<RunArtifacts> {
         let started = Instant::now();
         let timeout = Duration::from_secs(sc.timeout_secs);
+        let repro = repro_flags(sc, "-p");
         let turns = sc.task.turns();
         let mut turn_logs: Vec<TurnArtifacts> = Vec::with_capacity(turns.len());
         for (i, turn) in turns.iter().enumerate() {
@@ -647,7 +782,7 @@ impl ZsCli {
                 cmd,
                 &TurnRun {
                     bin: &self.bin,
-                    repro_flag: "-p",
+                    repro_flags: &repro,
                     started,
                     timeout,
                     turn_label: i,
@@ -707,7 +842,7 @@ impl ZsCli {
             cmd,
             &TurnRun {
                 bin: &self.bin,
-                repro_flag: "--loop",
+                repro_flags: &repro_flags(sc, "--loop"),
                 started,
                 timeout,
                 turn_label: 0,
