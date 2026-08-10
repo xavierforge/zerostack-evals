@@ -2,9 +2,9 @@
 
 ## 1. Extract launch argument assembly into pure functions [dispatch: sai-hu, parallel: no, reason: the seam's shape (function signatures, what context they take, where they live) is a structural decision the spec leaves open]
 
-- [ ] 1.1 Write assembly-locking tests against the new function names before extracting: the `-p` vector for a scenario with a prompt, the `-p` vector for a later turn carrying `--continue`, and the `--loop` vector with `--loop-max`/`--loop-run`; assert the exact current argument lists (RED because the functions do not exist yet).
-- [ ] 1.2 Extract pure assembly functions from `run_print` (backend.rs:574-590) and `run_loop` (backend.rs:653-667) that return the full argument vector; both spawn sites consume them; no behavior change (tests from 1.1 go GREEN).
-- [ ] 1.3 Verify and cite evidence: `cargo test --workspace` output pasted into the task log, plus a grep showing no remaining call site builds zerostack args outside the two functions.
+- [x] 1.1 Write assembly-locking tests against the new function names before extracting: the `-p` vector for a scenario with a prompt, the `-p` vector for a later turn carrying `--continue`, and the `--loop` vector with `--loop-max`/`--loop-run`; assert the exact current argument lists (RED because the functions do not exist yet).
+- [x] 1.2 Extract pure assembly functions from `run_print` (backend.rs:574-590) and `run_loop` (backend.rs:653-667) that return the full argument vector; both spawn sites consume them; no behavior change (tests from 1.1 go GREEN).
+- [x] 1.3 Verify and cite evidence: `cargo test --workspace` output pasted into the task log, plus a grep showing no remaining call site builds zerostack args outside the two functions.
 
 ## 2. security_mode field with mode mapping [dispatch: too-te, parallel: no, reason: spec is complete (seven values, mechanical flag mapping, default, load-error case, loop parity all stated); est. ~25 tool calls]
 

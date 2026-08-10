@@ -26,6 +26,7 @@
 //! `Mock` replays a canned session file, so the harness itself is testable
 //! in CI without a zerostack build or an API key.
 
+use std::ffi::OsString;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -36,7 +37,7 @@ use std::time::{Duration, Instant};
 use anyhow::{bail, Context, Result};
 
 use crate::prompts::PromptPack;
-use crate::scenario::Scenario;
+use crate::scenario::{LoopCfg, Scenario, Turn};
 use crate::seed;
 use crate::util::tail_of;
 
@@ -535,6 +536,73 @@ fn git_ceiling(run_dir: &Path) -> PathBuf {
     std::fs::canonicalize(run_dir).unwrap_or_else(|_| run_dir.to_path_buf())
 }
 
+// ---------------------------------------------------------------------------
+// Launch argument assembly
+// ---------------------------------------------------------------------------
+//
+// The two invocation shapes assemble their argument vectors here rather than
+// inline at their spawn sites, so what a scenario launches with is a value a
+// test can read: nothing below spawns, opens a file, or touches the
+// filesystem. `Vec<OsString>` rather than `Vec<String>` because `--log-file`
+// carries a filesystem path, which the child is handed verbatim.
+
+/// Every argument of one `-p` turn's invocation, in spawn order: the
+/// harness-owned flags, the scenario's prompt, then the turn message as the
+/// single positional. Whether this turn resumes the running session is a
+/// function of where it sits in the scenario, so `turn_index` comes in and
+/// the decision stays here with the rest of the vector.
+pub fn print_turn_args(
+    sc: &Scenario,
+    turn: &Turn,
+    turn_index: usize,
+    zslog: &Path,
+) -> Vec<OsString> {
+    let mut args: Vec<OsString> = vec![
+        "-p".into(),
+        "--yolo".into(),
+        "--no-color".into(),
+        "--pure-stdout".into(),
+        "--log-file".into(),
+        zslog.into(),
+    ];
+    if let Some(name) = &sc.prompt {
+        args.push("--load-prompt".into());
+        args.push(name.into());
+    }
+    // Continue the running session unless this is the first turn or the
+    // scenario explicitly cuts to a new session.
+    if turn_index > 0 && !turn.new_session() {
+        args.push("--continue".into());
+    }
+    args.push(turn.msg().into());
+    args
+}
+
+/// Every argument of a loop scenario's single `--loop` invocation, in spawn
+/// order. No `--pure-stdout`: a loop run has no per-turn stdout worth teeing
+/// tool markers into, its evidence is the iteration records.
+pub fn loop_args(sc: &Scenario, loop_cfg: &LoopCfg, turn: &Turn, zslog: &Path) -> Vec<OsString> {
+    let mut args: Vec<OsString> = vec![
+        "--loop".into(),
+        "--yolo".into(),
+        "--no-color".into(),
+        "--log-file".into(),
+        zslog.into(),
+        "--loop-max".into(),
+        loop_cfg.max_iterations.to_string().into(),
+    ];
+    if let Some(run_cmd) = &loop_cfg.run {
+        args.push("--loop-run".into());
+        args.push(run_cmd.into());
+    }
+    if let Some(name) = &sc.prompt {
+        args.push("--load-prompt".into());
+        args.push(name.into());
+    }
+    args.push(turn.msg().into());
+    args
+}
+
 impl ZsCli {
     /// `mode = "print"` (default): the per-turn `-p`/`--continue` loop —
     /// unchanged behavior from before `mode`/`loop` existed, just relocated
@@ -572,21 +640,7 @@ impl ZsCli {
             };
 
             let mut cmd = Command::new(&self.bin);
-            cmd.arg("-p")
-                .arg("--yolo")
-                .arg("--no-color")
-                .arg("--pure-stdout")
-                .arg("--log-file")
-                .arg(&logs.zslog);
-            if let Some(name) = &sc.prompt {
-                cmd.arg("--load-prompt").arg(name);
-            }
-            // Continue the running session unless this is the first turn or
-            // the scenario explicitly cuts to a new session.
-            if i > 0 && !turn.new_session() {
-                cmd.arg("--continue");
-            }
-            cmd.arg(turn.msg());
+            cmd.args(print_turn_args(sc, turn, i, &logs.zslog));
             d.confine(&mut cmd);
 
             spawn_and_wait(
@@ -634,12 +688,7 @@ impl ZsCli {
     /// `$ZS_DATA_DIR/loops/<uuid>/iter-NNNN.json`, which `transcript.rs`
     /// folds in directly from `data_dir`, so `session_files` is legitimately
     /// empty here (unlike `run_print`, this is not an error condition).
-    fn run_loop(
-        &self,
-        sc: &Scenario,
-        loop_cfg: &crate::scenario::LoopCfg,
-        d: &RunDirs,
-    ) -> Result<RunArtifacts> {
+    fn run_loop(&self, sc: &Scenario, loop_cfg: &LoopCfg, d: &RunDirs) -> Result<RunArtifacts> {
         let started = Instant::now();
         let timeout = Duration::from_secs(sc.timeout_secs);
         let turn = &sc.task.turns()[0];
@@ -651,20 +700,7 @@ impl ZsCli {
         };
 
         let mut cmd = Command::new(&self.bin);
-        cmd.arg("--loop")
-            .arg("--yolo")
-            .arg("--no-color")
-            .arg("--log-file")
-            .arg(&logs.zslog)
-            .arg("--loop-max")
-            .arg(loop_cfg.max_iterations.to_string());
-        if let Some(run_cmd) = &loop_cfg.run {
-            cmd.arg("--loop-run").arg(run_cmd);
-        }
-        if let Some(name) = &sc.prompt {
-            cmd.arg("--load-prompt").arg(name);
-        }
-        cmd.arg(turn.msg());
+        cmd.args(loop_args(sc, loop_cfg, turn, &logs.zslog));
         d.confine(&mut cmd);
 
         spawn_and_wait(
