@@ -14,9 +14,9 @@
 
 ## 3. cli_args field with harness-flag denylist [dispatch: too-te, parallel: no, reason: spec is complete (splice point, token shape, exact denylist, error content, hash behavior all stated); est. ~30 tool calls]
 
-- [ ] 3.1 RED: tests for (a) `["--quick-model", "fast"]` appears verbatim after harness-owned flags and before the turn message in both paths, (b) on a `--continue` turn the tokens still follow `--continue` and precede the message, (c) `["--yolo"]` fails load naming the scenario path and token, (d) `["--log-file=/tmp/x"]` fails load naming `--log-file`, (e) `["--no-context-files"]` loads and reaches the vector, (f) adding a `cli_args` token changes `content_hash`.
-- [ ] 3.2 Add `cli_args: Vec<String>` to the schema; validate at load: every dash-prefixed token, `=value` suffix stripped, checked against `-p`, `--loop`, `--log-file`, `--continue`, `--load-prompt`, `--no-color`, `--pure-stdout`, `--loop-max`, `--loop-run`, the six permission flags, and `-R`; splice surviving tokens in both assembly functions; keep the denylist adjacent to the assembly code so they drift together (design D4/D5); tests go GREEN.
-- [ ] 3.3 Verify and cite evidence: `cargo test --workspace` output, plus `zseval list` over the in-tree suite showing zero load regressions.
+- [x] 3.1 RED: tests for (a) `["--quick-model", "fast"]` appears verbatim after harness-owned flags and before the turn message in both paths, (b) on a `--continue` turn the tokens still follow `--continue` and precede the message, (c) `["--yolo"]` fails load naming the scenario path and token, (d) `["--log-file=/tmp/x"]` fails load naming `--log-file`, (e) `["--no-context-files"]` loads and reaches the vector, (f) adding a `cli_args` token changes `content_hash`.
+- [x] 3.2 Add `cli_args: Vec<String>` to the schema; validate at load: every dash-prefixed token, `=value` suffix stripped, checked against `-p`, `--loop`, `--log-file`, `--continue`, `--load-prompt`, `--no-color`, `--pure-stdout`, `--loop-max`, `--loop-run`, the six permission flags, and `-R`; splice surviving tokens in both assembly functions; keep the denylist adjacent to the assembly code so they drift together (design D4/D5); tests go GREEN.
+- [x] 3.3 Verify and cite evidence: `cargo test --workspace` output, plus `zseval list` over the in-tree suite showing zero load regressions.
 
 ## 4. Documentation and coverage-claim refresh [dispatch: too-te, parallel: no, reason: established doc conventions; targets are enumerable by grep (coverage.toml hardcoded-list claims, README field table); est. ~20 tool calls]
 

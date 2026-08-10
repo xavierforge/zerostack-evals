@@ -57,8 +57,28 @@ pub struct Scenario {
     /// launches with. Defaults to `yolo`, so a scenario that predates this
     /// field keeps its exact current argument list — see `backend::print_turn_args`
     /// and `backend::loop_args` for the mapping.
+    ///
+    /// The only place a run's permission mode is declared, and enforced as
+    /// that rather than assumed: `cli_args` cannot carry a permission flag
+    /// (see below), and no config file the run can reach may carry a
+    /// permission key, because zerostack resolves the mode from its config
+    /// ahead of some of the flags — see `target::permission_mode_keys`, the
+    /// `config:` seed check in `load`, and `preflight::check_target_permission_keys`.
     #[serde(default)]
     pub security_mode: SecurityMode,
+    /// Extra tokens appended to the assembled invocation verbatim and in
+    /// order, after every harness-owned flag and immediately before the turn
+    /// message, in both assembly paths — see `backend::print_turn_args` and
+    /// `backend::loop_args`. A flag that takes a separate value is two
+    /// entries (`["--quick-model", "fast"]`). Checked at load against the
+    /// harness-owned flags in every spelling zerostack accepts, short
+    /// clusters included (`backend::harness_owned_collision`);
+    /// permission-mode flags are expressible only through `security_mode`,
+    /// never here. Flags whose value is a secret are refused outright
+    /// (`backend::secret_bearing_flag`): a token here reaches an argument
+    /// vector the whole host can read, and a persisted timeout hint besides.
+    #[serde(default)]
+    pub cli_args: Vec<String>,
     pub task: Task,
     /// Deterministic floor: one assert per line, mini-DSL (see asserts.rs).
     #[serde(default)]
@@ -131,7 +151,7 @@ pub enum Mode {
 
 /// zerostack's permission-mode surface, named to mirror its CLI flags
 /// verbatim (`Standard` is the exception: zerostack has no `--standard`
-/// flag, its Standard mode is what running with none of the other five
+/// flag, its Standard mode is what running with no permission flag at all
 /// looks like). Defaults to `Yolo`, the mode every scenario launched with
 /// before this field existed, so a scenario that doesn't declare it keeps
 /// today's exact invocation. Mirroring upstream names rather than inventing
@@ -151,12 +171,30 @@ pub enum SecurityMode {
 }
 
 impl SecurityMode {
+    /// Every variant, so a caller can walk every permission-flag spelling
+    /// without restating it; not every entry is a distinct effective mode,
+    /// since `accept-all` and `standard` resolve to the same one in current
+    /// zerostack (see the README). `all_lists_every_variant` below keeps this
+    /// list honest: a variant added to the enum and not to this list fails
+    /// there, which is what lets the harness's drift test prove every mode's
+    /// flag is denied in `cli_args`.
+    pub const ALL: &'static [SecurityMode] = &[
+        SecurityMode::Yolo,
+        SecurityMode::Standard,
+        SecurityMode::Restrictive,
+        SecurityMode::ReadOnly,
+        SecurityMode::Guarded,
+        SecurityMode::AcceptAll,
+        SecurityMode::DangerouslySkipPermissions,
+    ];
+
     /// The permission flag this mode's invocation carries, or `None` for
     /// `Standard`, which is what zerostack's default looks like with no
-    /// permission flag at all. Every other variant maps mechanically to
-    /// `--<kebab-case-name>`, so this stays a one-line addition when
-    /// upstream adds a mode rather than a lookup table that can drift from
-    /// the variant list.
+    /// permission flag at all. Every other variant spells out
+    /// `--<kebab-case-name>` by hand: the match is exhaustive, so a new
+    /// upstream mode is a one-line addition the compiler asks for, and the
+    /// harness's drift test then requires that new flag to appear in
+    /// `backend::HARNESS_OWNED_FLAGS` as well.
     pub fn flag(self) -> Option<&'static str> {
         match self {
             SecurityMode::Yolo => Some("--yolo"),
@@ -167,6 +205,43 @@ impl SecurityMode {
             SecurityMode::AcceptAll => Some("--accept-all"),
             SecurityMode::DangerouslySkipPermissions => Some("--dangerously-skip-permissions"),
         }
+    }
+}
+
+#[cfg(test)]
+mod security_mode_tests {
+    use super::SecurityMode;
+    use serde::de::IntoDeserializer;
+    use serde::Deserialize;
+
+    /// `SecurityMode::ALL` is written out by hand, and everything that walks
+    /// the permission surface (the harness's drift test over the launch
+    /// flags, first of all) trusts it to be the whole surface. Rust has no
+    /// way to enumerate an enum's variants, so the check goes through the one
+    /// list that does grow on its own: the derived `Deserialize` names every
+    /// variant it knows about when it rejects a value, so counting those
+    /// names catches a variant added to the enum and not to `ALL`. Distinct
+    /// entries are the other half: a list of the right length that repeats
+    /// one variant and drops another would otherwise pass.
+    #[test]
+    fn all_lists_every_variant() {
+        let err: serde::de::value::Error =
+            SecurityMode::deserialize("nonesuch".into_deserializer()).unwrap_err();
+        let err = err.to_string();
+        let (_, listed) = err
+            .split_once("expected one of")
+            .unwrap_or_else(|| panic!("serde no longer names the variants it knows: {err}"));
+        let named = listed.matches('`').count() / 2;
+        assert_eq!(
+            named,
+            SecurityMode::ALL.len(),
+            "SecurityMode::ALL is not the whole permission surface: {err}"
+        );
+
+        let mut distinct: Vec<usize> = SecurityMode::ALL.iter().map(|m| *m as usize).collect();
+        distinct.sort_unstable();
+        distinct.dedup();
+        assert_eq!(distinct.len(), SecurityMode::ALL.len());
     }
 }
 
@@ -319,6 +394,55 @@ impl Scenario {
             toml::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
         sc.dir = dir.to_path_buf();
         sc.content_hash = crate::util::fnv1a_hex(text.as_bytes());
+        // Every dash-prefixed token is checked against the harness-owned
+        // flags before any trial spends money, in every spelling zerostack
+        // accepts for one, including inside a short cluster (which reaches
+        // the child split apart). Permission-mode flags are rejected here too:
+        // `security_mode` is their one source of truth, so `cli_args` can't
+        // smuggle a second, possibly conflicting, declaration of the same
+        // thing.
+        for token in &sc.cli_args {
+            // A dash-prefixed token is trimmed before it's checked, so a
+            // trailing-whitespace typo like `--yolo ` is caught as the
+            // collision it is rather than sliding past an exact-string match.
+            // A value token (e.g. "two words") is never dash-prefixed, so it's
+            // left untouched here: internal whitespace in a value is legal.
+            let trimmed = token.trim();
+            let checked = if trimmed.starts_with('-') {
+                if trimmed.chars().any(char::is_whitespace) {
+                    bail!(
+                        "{} ({}): cli_args token '{trimmed}' contains whitespace; a flag token \
+                         must be a single shell word, so split the value into its own token",
+                        sc.id,
+                        path.display()
+                    );
+                }
+                trimmed
+            } else {
+                token.as_str()
+            };
+            // Checked before the collision rule so the error can name the flag
+            // without the value attached to it: this bail prints the flag, and
+            // the token it came from may be `--api-key=<the secret>`.
+            if let Some(flag) = crate::backend::secret_bearing_flag(checked) {
+                bail!(
+                    "{} ({}): cli_args token '{flag}' would put a secret on the command line, \
+                     where every process on the host can read it and where this harness's own \
+                     timeout hint would persist it into a report; the key belongs in the \
+                     environment, never in cli_args",
+                    sc.id,
+                    path.display()
+                );
+            }
+            if let Some(owned) = crate::backend::harness_owned_collision(checked) {
+                bail!(
+                    "{} ({}): cli_args token '{checked}' collides with the harness-owned flag \
+                     '{owned}'; permission modes are set via security_mode, not cli_args",
+                    sc.id,
+                    path.display()
+                );
+            }
+        }
         if sc.task.turns().is_empty() {
             bail!("{}: task must not be empty", sc.id);
         }
@@ -377,8 +501,36 @@ impl Scenario {
                 },
             )
             .with_context(|| format!("{}: bad seed dest '{}'", sc.id, f.dest))?;
-            sc.resolve_fixture(&f.src)
+            let src = sc
+                .resolve_fixture(&f.src)
                 .with_context(|| format!("{}: bad [[files]] src", sc.id))?;
+            // A `config:` seed lands where zerostack reads its own config, and
+            // zerostack resolves the launch's permission mode from there ahead
+            // of some of the flags the harness passes — so a permission key in
+            // a seeded config outranks this scenario's `security_mode` and the
+            // trial measures a mode it never declared, with nothing to show for
+            // it. Refused at load, so it costs a failed `list` and not a run.
+            if f.dest.starts_with("config:") {
+                let keys = crate::target::permission_mode_keys(&src);
+                let subject = match keys.as_slice() {
+                    [] => None,
+                    [one] => Some(format!("the permission key `{one}`")),
+                    many => Some(format!("the permission keys {}", many.join(", "))),
+                };
+                if let Some(subject) = subject {
+                    bail!(
+                        "{} ({}): the [[files]] seed '{}' places {subject} in the run's config \
+                         root ({}) — zerostack resolves a launch's permission mode from its \
+                         config file ahead of some command-line flags, so the seed would \
+                         override the security_mode this scenario declares. Delete the key from \
+                         the fixture; a launch's permission mode belongs in security_mode",
+                        sc.id,
+                        path.display(),
+                        f.dest,
+                        src.display(),
+                    );
+                }
+            }
         }
         crate::domains::validate(&sc)?;
         Ok(sc)
