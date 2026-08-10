@@ -20,7 +20,7 @@
 
 ## 4. Documentation and coverage-claim refresh [dispatch: too-te, parallel: no, reason: established doc conventions; targets are enumerable by grep (coverage.toml hardcoded-list claims, README field table); est. ~20 tool calls]
 
-- [ ] 4.1 Document `security_mode` and `cli_args` in scenarios/README.md: value table, denylist and its load-time error, the separate-value two-token shape, the stray-positional caveat, and the D6 convention that a scenario overriding target identity notes it ignores `--target`.
-- [ ] 4.2 Rewrite the coverage.toml claims that state the argument list is hardcoded and permission modes are unreachable (grep for them; the Explore pass saw lines 87, 93, 354, 405-406, 657); keep untested-claim wording honest: modes are now reachable but still untested until the permission suite lands.
-- [ ] 4.3 Update the local scenarios/PLAN.md Gap A entry to resolved, naming the two fields (untracked file, edit in place, never commit).
-- [ ] 4.4 Verify and cite evidence: the coverage drift check test run output (green), plus `cargo test --workspace` output.
+- [x] 4.1 Document `security_mode` and `cli_args` in scenarios/README.md: value table, denylist and its load-time error, the separate-value two-token shape, the stray-positional caveat, and the D6 convention that a scenario overriding target identity notes it ignores `--target`.
+- [x] 4.2 Rewrite the coverage.toml claims that state the argument list is hardcoded and permission modes are unreachable (grep for them; the Explore pass saw lines 87, 93, 354, 405-406, 657); keep untested-claim wording honest: modes are now reachable but still untested until the permission suite lands.
+- [x] 4.3 Update the local scenarios/PLAN.md Gap A entry to resolved, naming the two fields (untracked file, edit in place, never commit).
+- [x] 4.4 Verify and cite evidence: the coverage drift check test run output (green), plus `cargo test --workspace` output.
