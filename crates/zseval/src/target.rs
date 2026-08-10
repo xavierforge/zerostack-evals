@@ -203,6 +203,52 @@ pub fn embedded_api_keys(path: &Path) -> Vec<String> {
     names
 }
 
+/// The config keys zerostack resolves a launch's permission mode from: three
+/// booleans that each pin a mode outright, and the string the resolution falls
+/// through to when no flag and no boolean decided it. Listed in the order an
+/// error reports them.
+///
+/// Only these four. The `permission-allow`/`ask`/`deny` tables and
+/// `permission-modes` shape what a mode *permits*, which is a rule the harness
+/// has no opinion about; these four decide *which mode runs*, which is the one
+/// thing a scenario's `security_mode` is the source of truth for.
+pub const PERMISSION_MODE_KEYS: &[&str] = &[
+    "yolo",
+    "accept_all",
+    "restrictive",
+    "default_permission_mode",
+];
+
+/// Which of `PERMISSION_MODE_KEYS` the zerostack config at `path` sets, in
+/// that order. The question this answers is whether a file about to be read as
+/// the run's config would decide the permission mode, because zerostack
+/// resolves that mode from the config *ahead of* some of the command-line
+/// flags — a config holding `yolo = true` beats a `--read-only` on the command
+/// line — so a permission key in reach of a run silently outranks the flag the
+/// harness passes for the declared `security_mode`.
+///
+/// Presence is what counts, never the value. `yolo = false` steers nothing
+/// today, but reading a boolean's polarity to decide whether to complain would
+/// make the rule depend on upstream's fallback logic staying exactly as it is,
+/// and the fix is identical either way: the key does not belong in the file.
+///
+/// Top-level keys only — a `yolo` nested in some other table is that table's
+/// business, not zerostack's config schema. Silent on an unreadable or
+/// unparseable file, same as `embedded_api_keys`.
+pub fn permission_mode_keys(path: &Path) -> Vec<&'static str> {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    let Ok(table) = text.parse::<toml::Table>() else {
+        return Vec::new();
+    };
+    PERMISSION_MODE_KEYS
+        .iter()
+        .copied()
+        .filter(|key| table.contains_key(*key))
+        .collect()
+}
+
 /// Read `provider`/`model` out of a target config.toml. A missing file or
 /// unparseable TOML yields `(None, None)` — an unreadable target is graded
 /// downstream (the run itself will fail or go indeterminate); this helper
@@ -510,6 +556,63 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
 
         assert!(embedded_api_keys(Path::new("/no/such/target.toml")).is_empty());
+    }
+
+    /// Read a permission-key verdict out of a throwaway config file.
+    fn perm_keys(name: &str, contents: &str) -> Vec<&'static str> {
+        let dir =
+            std::env::temp_dir().join(format!("zseval-target-perm-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = write_target(&dir, contents);
+        let got = permission_mode_keys(&p);
+        std::fs::remove_dir_all(&dir).ok();
+        got
+    }
+
+    /// Every key zerostack resolves a mode from is seen, reported in the
+    /// declared order rather than the file's, and a config declaring none of
+    /// them is clean.
+    #[test]
+    fn permission_mode_keys_reports_every_mode_deciding_key() {
+        assert!(perm_keys("clean", "provider = \"anthropic\"\nmodel = \"m\"\n").is_empty());
+        assert_eq!(perm_keys("yolo", "yolo = true\n"), vec!["yolo"]);
+        assert_eq!(
+            perm_keys(
+                "all",
+                "default_permission_mode = \"guarded\"\nrestrictive = true\n\
+                 accept_all = false\nyolo = true\n",
+            ),
+            vec![
+                "yolo",
+                "accept_all",
+                "restrictive",
+                "default_permission_mode"
+            ],
+        );
+    }
+
+    /// Presence is the rule, not polarity: `yolo = false` is still a launch's
+    /// permission mode declared in the wrong file, and reading the boolean to
+    /// decide whether to complain would tie this check to upstream's fallback
+    /// logic staying exactly as it is.
+    #[test]
+    fn permission_mode_keys_counts_a_false_key_too() {
+        assert_eq!(perm_keys("false-yolo", "yolo = false\n"), vec!["yolo"]);
+    }
+
+    /// Only zerostack's own top-level config schema counts — a `yolo` inside
+    /// some other table decides no permission mode.
+    #[test]
+    fn permission_mode_keys_ignores_a_nested_key() {
+        assert!(perm_keys("nested", "[quick_models.fast]\nyolo = true\n").is_empty());
+    }
+
+    /// Same silence as `embedded_api_keys` on a file that cannot be read or
+    /// parsed: the loud report on those belongs to `key_requirement`.
+    #[test]
+    fn permission_mode_keys_is_silent_on_an_unreadable_file() {
+        assert!(permission_mode_keys(Path::new("/no/such/target.toml")).is_empty());
+        assert!(perm_keys("broken", "yolo = \n").is_empty());
     }
 
     #[test]

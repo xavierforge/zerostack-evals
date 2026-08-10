@@ -3783,6 +3783,152 @@ fn loop_assembly_spells_out_the_single_invocation() {
     std::fs::remove_dir_all(&sc_dir).ok();
 }
 
+/// zerostack's six mutually exclusive permission-mode flags, so a test can
+/// assert a scenario's assembled arguments carry at most one of them.
+const PERMISSION_FLAGS: &[&str] = &[
+    "--yolo",
+    "--restrictive",
+    "--read-only",
+    "--guarded",
+    "--accept-all",
+    "--dangerously-skip-permissions",
+];
+
+/// A scenario that declares no `security_mode` at all must launch with
+/// exactly today's argument list, `--yolo` included: the field's default has
+/// to preserve every scenario that predates it, byte for byte.
+#[test]
+fn security_mode_default_preserves_the_current_invocation() {
+    let sc_dir = write_scenario(
+        "security-mode-default",
+        "id = \"x\"\nkind = \"regression\"\nprompt = \"ask\"\ntask = \"say hi\"\nexpect = [\"final_contains x\"]\n",
+    );
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let args = print_turn_args(&sc, &sc.task.turns()[0], 0, &args_zslog());
+
+    assert_eq!(
+        arg_strs(&args),
+        [
+            "-p",
+            "--yolo",
+            "--no-color",
+            "--pure-stdout",
+            "--log-file",
+            "/tmp/zseval-args/turn-0.zslog",
+            "--load-prompt",
+            "ask",
+            "say hi",
+        ]
+    );
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// `read-only` maps to `--read-only` and to no other permission flag — the
+/// mapping is mechanical (`--<value>`), not a lookup table that could drift.
+#[test]
+fn security_mode_read_only_maps_to_its_flag_alone() {
+    let sc_dir = write_scenario(
+        "security-mode-read-only",
+        "id = \"x\"\nkind = \"regression\"\nsecurity_mode = \"read-only\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\n",
+    );
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let args = arg_strs(&print_turn_args(&sc, &sc.task.turns()[0], 0, &args_zslog()));
+
+    assert!(args.contains(&"--read-only".to_string()), "{args:?}");
+    for flag in PERMISSION_FLAGS {
+        if *flag != "--read-only" {
+            assert!(
+                !args.contains(&flag.to_string()),
+                "{args:?} must not carry {flag}"
+            );
+        }
+    }
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// `standard` is the one value that maps to no flag at all: zerostack's
+/// Standard permission mode is what running with none of the six flags
+/// already means, so there is nothing to append.
+#[test]
+fn security_mode_standard_emits_no_permission_flag() {
+    let sc_dir = write_scenario(
+        "security-mode-standard",
+        "id = \"x\"\nkind = \"regression\"\nsecurity_mode = \"standard\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\n",
+    );
+    let sc = Scenario::load(&sc_dir).unwrap();
+
+    let args = arg_strs(&print_turn_args(&sc, &sc.task.turns()[0], 0, &args_zslog()));
+
+    for flag in PERMISSION_FLAGS {
+        assert!(
+            !args.contains(&flag.to_string()),
+            "{args:?} must not carry {flag}"
+        );
+    }
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
+/// A `--loop` scenario maps `security_mode` through the same mechanical rule
+/// as `-p`: the two assembly paths must never disagree about which
+/// permission flag a given value produces.
+#[test]
+fn security_mode_loop_assembly_carries_the_same_flag_as_print() {
+    let print_dir = write_scenario(
+        "security-mode-loop-print-side",
+        "id = \"x\"\nkind = \"regression\"\nsecurity_mode = \"read-only\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\n",
+    );
+    let print_sc = Scenario::load(&print_dir).unwrap();
+    let print_args = arg_strs(&print_turn_args(
+        &print_sc,
+        &print_sc.task.turns()[0],
+        0,
+        &args_zslog(),
+    ));
+
+    let loop_dir = write_scenario(
+        "security-mode-loop-loop-side",
+        "id = \"x\"\nkind = \"regression\"\nsecurity_mode = \"read-only\"\nmode = \"loop\"\n\
+         task = \"say hi\"\nexpect = [\"final_contains x\"]\n\n[loop]\nmax_iterations = 3\n",
+    );
+    let loop_sc = Scenario::load(&loop_dir).unwrap();
+    let loop_args_vec = arg_strs(&loop_args(
+        &loop_sc,
+        loop_sc.loop_cfg.as_ref().unwrap(),
+        &loop_sc.task.turns()[0],
+        &args_zslog(),
+    ));
+
+    assert!(
+        print_args.contains(&"--read-only".to_string()),
+        "{print_args:?}"
+    );
+    assert!(
+        loop_args_vec.contains(&"--read-only".to_string()),
+        "{loop_args_vec:?}"
+    );
+    std::fs::remove_dir_all(&print_dir).ok();
+    std::fs::remove_dir_all(&loop_dir).ok();
+}
+
+/// A value outside the seven recognized ones is a load-time error naming the
+/// field, not a silent default and not a runtime surprise mid-trial.
+#[test]
+fn security_mode_unknown_value_fails_to_load_naming_the_field() {
+    let sc_dir = write_scenario(
+        "security-mode-unknown-value",
+        "id = \"x\"\nkind = \"regression\"\nsecurity_mode = \"readonly\"\ntask = \"say hi\"\n\
+         expect = [\"final_contains x\"]\n",
+    );
+    let err = Scenario::load(&sc_dir).unwrap_err();
+    assert!(format!("{err:#}").contains("security_mode"), "{err:#}");
+    std::fs::remove_dir_all(&sc_dir).ok();
+}
+
 // ---------------------------------------------------------------------------
 // The pack's identity on the report
 // ---------------------------------------------------------------------------

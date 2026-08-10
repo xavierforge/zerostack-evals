@@ -244,6 +244,38 @@ pub fn check_target_keys(
     }
 }
 
+/// The second question the same target files have to answer: does one of them
+/// declare a permission mode of its own. Every trial launches with the flag its
+/// scenario's `security_mode` asks for, but zerostack resolves the mode it
+/// actually runs in from the config file and the command line together, and the
+/// file outranks some of those flags — a target holding `yolo = true` runs yolo
+/// however loudly a scenario declared `read-only`. Nothing about that surfaces
+/// at runtime: the trials pass, the report names the declared mode, and the
+/// number measures a different agent.
+///
+/// So it is refused here, before anything is spent, for every target rather
+/// than only for scenarios that departed from the default: `security_mode`
+/// always resolves to a mode, so a config key always contradicts something.
+/// Skipped for `--backend mock`, which launches no zerostack at all.
+pub fn check_target_permission_keys(pre: &mut Preflight, targets: &[PathBuf]) {
+    for target in targets {
+        let keys = crate::target::permission_mode_keys(target);
+        let subject = match keys.as_slice() {
+            [] => continue,
+            [one] => format!("the permission key `{one}`"),
+            many => format!("the permission keys {}", many.join(", ")),
+        };
+        pre.problem(format!(
+            "{}: sets {subject} — zerostack resolves a launch's permission mode from its config \
+             file ahead of some command-line flags, so this target overrides the security_mode \
+             every scenario declares and the run measures a mode nobody asked for, silently. \
+             Delete the key from the target; a launch's permission mode belongs in a scenario's \
+             security_mode",
+            target.display(),
+        ));
+    }
+}
+
 /// The judge-decision leg's message: a suite with judge-graded scenarios is
 /// refused until the caller says who grades them. Names the scenarios that
 /// forced the choice (so "which ones?" needs no second command) and lists the
@@ -625,6 +657,84 @@ mod target_key_tests {
         std::fs::remove_dir_all(&dir).ok();
         assert!(pre.problems().is_empty(), "{:?}", pre.problems());
         assert!(pre.warnings().join("\n").contains("provider"));
+    }
+
+    /// A target that decides the permission mode is refused, and the refusal
+    /// names the file, the key, and where the mode is supposed to be declared.
+    /// This is the trap the check exists for: with the key on file the run
+    /// works, passes, and reports the mode the scenarios asked for while
+    /// having measured a different one.
+    #[test]
+    fn a_permission_key_in_the_target_is_a_problem_naming_file_key_and_fix() {
+        let dir = scratch("perm-key");
+        let t = target(
+            &dir,
+            "anthropic.toml",
+            "provider = \"anthropic\"\nyolo = true\n",
+        );
+        let mut pre = Preflight::new();
+        check_target_permission_keys(&mut pre, std::slice::from_ref(&t));
+        std::fs::remove_dir_all(&dir).ok();
+
+        assert_eq!(pre.problems().len(), 1, "{:?}", pre.problems());
+        let p = &pre.problems()[0];
+        assert!(p.contains(&t.display().to_string()), "{p}");
+        assert!(p.contains("yolo"), "{p}");
+        assert!(p.contains("security_mode"), "{p}");
+    }
+
+    /// Every mode-deciding key upstream honours is refused, one target at a
+    /// time, and a target declaring several is one problem naming all of them
+    /// so the reader deletes them in one pass.
+    #[test]
+    fn every_permission_key_is_refused_and_several_report_as_one_problem() {
+        for key in crate::target::PERMISSION_MODE_KEYS {
+            let dir = scratch(&format!("perm-{key}"));
+            let value = if *key == "default_permission_mode" {
+                "\"guarded\""
+            } else {
+                "true"
+            };
+            let t = target(
+                &dir,
+                "t.toml",
+                &format!("provider = \"ollama\"\n{key} = {value}\n"),
+            );
+            let mut pre = Preflight::new();
+            check_target_permission_keys(&mut pre, &[t]);
+            std::fs::remove_dir_all(&dir).ok();
+            assert_eq!(pre.problems().len(), 1, "{key}: {:?}", pre.problems());
+            assert!(pre.problems()[0].contains(*key), "{:?}", pre.problems());
+        }
+
+        let dir = scratch("perm-many");
+        let t = target(&dir, "t.toml", "yolo = true\nrestrictive = true\n");
+        let mut pre = Preflight::new();
+        check_target_permission_keys(&mut pre, &[t]);
+        std::fs::remove_dir_all(&dir).ok();
+        assert_eq!(pre.problems().len(), 1, "{:?}", pre.problems());
+        assert!(pre.problems()[0].contains("yolo"), "{:?}", pre.problems());
+        assert!(
+            pre.problems()[0].contains("restrictive"),
+            "{:?}",
+            pre.problems()
+        );
+    }
+
+    /// A target that declares nothing about permissions passes in silence.
+    #[test]
+    fn a_target_without_permission_keys_passes_silently() {
+        let dir = scratch("perm-clean");
+        let t = target(
+            &dir,
+            "anthropic.toml",
+            "provider = \"anthropic\"\nmodel = \"claude-sonnet-5\"\n",
+        );
+        let mut pre = Preflight::new();
+        check_target_permission_keys(&mut pre, &[t]);
+        std::fs::remove_dir_all(&dir).ok();
+        assert!(pre.problems().is_empty(), "{:?}", pre.problems());
+        assert!(pre.warnings().is_empty(), "{:?}", pre.warnings());
     }
 }
 
