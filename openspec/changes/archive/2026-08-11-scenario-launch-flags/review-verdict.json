@@ -1,0 +1,66 @@
+{
+  "layer": "cross-check",
+  "fixed_point": "main",
+  "findings": [
+    {
+      "axis": "standards",
+      "title": "stale 'none of the other five' comment (six non-Standard variants) in backend.rs:557, scenario.rs:143, scenarios/README.md:144",
+      "severity": "judgement",
+      "actioned": true
+    },
+    {
+      "axis": "standards",
+      "title": "possible comments-as-deodorant: flag()/HARNESS_OWNED_FLAGS docs claim drift protection no test enforces",
+      "severity": "judgement",
+      "actioned": true
+    },
+    {
+      "axis": "standards",
+      "title": "possible shotgun surgery: adding an upstream mode is three coordinated edits plus README, docs call it one-line",
+      "severity": "judgement",
+      "actioned": false
+    },
+    {
+      "axis": "standards",
+      "title": "possible duplicated code: print_turn_args and loop_args repeat the same assembly spine",
+      "severity": "judgement",
+      "actioned": false
+    },
+    {
+      "axis": "standards",
+      "title": "inconsistent error prefix: cli_args bail uses path.display() where neighboring bails use sc.id (scenario.rs:340)",
+      "severity": "judgement",
+      "actioned": true
+    },
+    {
+      "axis": "standards",
+      "title": "possible lazy element: security_mode_default_preserves_the_current_invocation duplicates print_assembly_spells_out_the_first_turns_invocation",
+      "severity": "judgement",
+      "actioned": false
+    },
+    {
+      "axis": "standards",
+      "title": "unreachable fallback: split('=').next() is always Some, unwrap_or dead (scenario.rs:340)",
+      "severity": "judgement",
+      "actioned": true
+    },
+    {
+      "axis": "spec",
+      "title": "half-built drift guard: design.md:52 says the assembly test enumerates harness-owned flags in one place, but no test references HARNESS_OWNED_FLAGS; harness.rs:3788 keeps its own PERMISSION_FLAGS copy",
+      "severity": "hard",
+      "actioned": true
+    },
+    {
+      "axis": "spec",
+      "title": "stale --yolo claim survived outside coverage.toml: integrity.rs:3 still says every trial drives zerostack under --yolo",
+      "severity": "judgement",
+      "actioned": true
+    },
+    {
+      "axis": "spec",
+      "title": "fragile field-naming assertion: unknown security_mode error names the field only via toml's source-line echo, nothing harness-owned guarantees it",
+      "severity": "judgement",
+      "actioned": false
+    }
+  ]
+}
