@@ -1336,6 +1336,31 @@ mod identity_tests {
         }
     }
 
+    /// `identity()` on a just-written stub, retrying while the exec reports
+    /// ETXTBSY: a concurrent test's fork can briefly inherit the stub's
+    /// write descriptor, and executing a file that is still open for
+    /// writing fails with "text file busy".
+    fn stub_identity(bin: &Path) -> Result<crate::verdict::ZsIdentity> {
+        let is_busy = |err: &anyhow::Error| {
+            err.chain().any(|cause| {
+                cause
+                    .downcast_ref::<std::io::Error>()
+                    .is_some_and(|io| io.kind() == std::io::ErrorKind::ExecutableFileBusy)
+            })
+        };
+        let mut last = None;
+        for _ in 0..50 {
+            match zs(bin.to_path_buf()).identity() {
+                Err(err) if is_busy(&err) => {
+                    last = Some(err);
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                other => return other,
+            }
+        }
+        Err(last.unwrap())
+    }
+
     /// The first line of `--version` stdout is recorded verbatim — no format
     /// validation (a non-standard string is kept as-is), extra lines tolerated
     /// and ignored. The binary is also hashed (64 hex chars); `git_sha` is
@@ -1347,7 +1372,7 @@ mod identity_tests {
             "verbatim",
             "#!/bin/sh\necho 'zerostack 9.9.9-rc1 (custom build!)'\necho 'ignored second line'\n",
         );
-        let id = zs(bin.clone()).identity().unwrap();
+        let id = stub_identity(&bin).unwrap();
         assert_eq!(id.zs_version, "zerostack 9.9.9-rc1 (custom build!)");
         assert_eq!(id.zs_bin_sha256.len(), 64, "{}", id.zs_bin_sha256);
         assert!(id.git_sha.is_none());
@@ -1364,7 +1389,7 @@ mod identity_tests {
             "features-line",
             "#!/bin/sh\necho 'zerostack 1.7.2'\necho 'features: memory, mcp, subagents, loop'\n",
         );
-        let id = zs(bin.clone()).identity().unwrap();
+        let id = stub_identity(&bin).unwrap();
         assert_eq!(id.zs_version, "zerostack 1.7.2");
         assert_eq!(
             id.features.as_deref(),
@@ -1380,7 +1405,7 @@ mod identity_tests {
             "features-suffix",
             "#!/bin/sh\necho 'zerostack 1.7.2 (Features: MCP loop)'\n",
         );
-        let id = zs(bin.clone()).identity().unwrap();
+        let id = stub_identity(&bin).unwrap();
         assert_eq!(id.zs_version, "zerostack 1.7.2 (Features: MCP loop)");
         assert_eq!(
             id.features.as_deref(),
@@ -1398,7 +1423,7 @@ mod identity_tests {
             "features-empty",
             "#!/bin/sh\necho 'zerostack 1.7.2'\necho 'features:'\n",
         );
-        let id = zs(bin.clone()).identity().unwrap();
+        let id = stub_identity(&bin).unwrap();
         assert!(id.features.is_none(), "{:?}", id.features);
         std::fs::remove_dir_all(bin.parent().unwrap()).ok();
     }
@@ -1408,7 +1433,7 @@ mod identity_tests {
     #[test]
     fn a_nonzero_exit_aborts_naming_the_binary() {
         let bin = stub("nonzero", "#!/bin/sh\necho 'zerostack 1.0.0'\nexit 3\n");
-        let err = zs(bin.clone()).identity().unwrap_err();
+        let err = stub_identity(&bin).unwrap_err();
         assert!(
             format!("{err:#}").contains(&bin.display().to_string()),
             "{err:#}"
@@ -1421,7 +1446,7 @@ mod identity_tests {
     #[test]
     fn empty_output_aborts_naming_the_binary() {
         let bin = stub("empty", "#!/bin/sh\nexit 0\n");
-        let err = zs(bin.clone()).identity().unwrap_err();
+        let err = stub_identity(&bin).unwrap_err();
         assert!(
             format!("{err:#}").contains(&bin.display().to_string()),
             "{err:#}"
@@ -1436,7 +1461,7 @@ mod identity_tests {
             "zseval-zsident-missing-{}/does-not-exist",
             std::process::id()
         ));
-        let err = zs(bin.clone()).identity().unwrap_err();
+        let err = stub_identity(&bin).unwrap_err();
         assert!(
             format!("{err:#}").contains(&bin.display().to_string()),
             "{err:#}"
